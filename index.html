@@ -299,7 +299,7 @@ const players = () => Object.entries(S.players).map(([pid, d]) => ({ pid, ...d }
 const me = () => S.players[S.myId] ? { pid: S.myId, ...S.players[S.myId] } : null;
 const isHost = () => S.room && S.room.hostId === S.myId;
 const newPlayer = (stack) => ({ name: S.name.trim().slice(0,20) || 'שחקן', joinedAt: now(), stack, handId:0, streetId:0, streetBet:0, committed:0, folded:false, allIn:false, sittingOut:false, bjRound:null, hands:[], insurance:0, surrendered:false, lastAction:null, ts: now() });
-const nameOf = id => (S.players[id] && S.players[id].name) || 'שחקן';
+const nameOf = id => (S.players[id] && S.players[id].name) || (S.room && S.room.hostId === id && S.room.hostName) || 'שחקן';
 
 /* ---------- chip denominations ---------- */
 const DEN = [1,5,10,25,50,100,250,500,1000,5000,10000];
@@ -464,7 +464,7 @@ async function createRoom(){
   let code = randCode();
   for (let i = 0; i < 4; i++){ try { const s = await S.db.doc('rooms/' + code).get(); if (!s.exists) break; } catch(e){ break; } code = randCode(); }
   const room = { code, game: c.game, startStack: n(c.stack), sb: Math.max(1, n(c.sb)), bb: Math.max(1, n(c.bb)), minBet: Math.max(1, n(c.minBet)), maxBet: n(c.maxBet),
-    hostId: S.myId, createdAt: now(), handId:0, streetId:0, stage:'idle', potLevel:0, buttonPid:null, roundId:1, phase:'betting', house:0, dealerBJ:false, ...setEvent('השולחן נפתח') };
+    hostId: S.myId, hostName: S.name.trim().slice(0,20), createdAt: now(), handId:0, streetId:0, stage:'idle', potLevel:0, buttonPid:null, roundId:1, phase:'betting', house:0, dealerBJ:false, ...setEvent('השולחן נפתח') };
   if (!await w('rooms/' + code, 'set', room)) return;
   S.code = code;
   if (c.play) await w('rooms/' + code + '/players/' + S.myId, 'set', newPlayer(room.startStack));
@@ -576,6 +576,11 @@ function joinCard(){
   </div>`;
 }
 
+function dealerRow(){
+  const r = S.room; if (!r || S.players[r.hostId]) return '';
+  const mine = r.hostId === S.myId;
+  return `<div class="seat ${mine ? 'me' : ''}">${avatar({ pid: r.hostId, name: r.hostName || 'ד' })}<div class="who"><div class="nm"><b>${esc(r.hostName || 'הדילר')}</b>${mine ? '<span class="tag">את/ה</span>' : ''}<span class="tag host">דילר</span></div><div class="sub"><span>${r.game === 'blackjack' ? 'הבית' : 'מנהל את השולחן'}</span></div></div><div></div></div>`;
+}
 function seatRow(p, extraTags, right, sub){
   const host = S.room.hostId === p.pid;
   const swap = S.mode === 'local' && p.pid !== S.myId ? `<button class="btn small ghost" data-a="claim" data-v="${esc(p.pid)}">שחק בתור</button>` : '';
@@ -611,7 +616,7 @@ function holdemView(){
     <div class="pot"><span class="lbl">קופה</span><span class="big num">${fmt(h.pot)}</span></div>
     <div class="tocall">${r.stage === 'idle' ? (r.handId ? 'היד הסתיימה. הדילר יתחיל יד חדשה.' : 'מחכים שהדילר יתחיל את היד הראשונה') : h.maxSt ? `ההימור ברחוב: ${fmt(h.maxSt)}` : 'אין הימור ברחוב הזה'}</div>
   </section>
-  <div class="seats">${rows || '<div class="muted" style="text-align:center;padding:16px">עוד אין שחקנים. שתפו את הקוד.</div>'}</div>`;
+  <div class="seats">${dealerRow()}${rows || '<div class="muted" style="text-align:center;padding:16px">עוד אין שחקנים. שתפו את הקוד.</div>'}</div>`;
 }
 
 function holdemDock(){
@@ -683,7 +688,7 @@ function bjView(){
     <div class="tocall">${r.phase === 'betting' ? `${bettors.length} מתוך ${list.length} הימרו` : 'שחקו את הידיים. הדילר יסמן מי ניצח.'}</div>
     <div class="meta num">מאזן הבית: <span dir="ltr">${(r.house||0) >= 0 ? '+' : '−'}${fmt(Math.abs(r.house||0))}</span></div>
   </section>
-  <div class="seats">${rows || '<div class="muted" style="text-align:center;padding:16px">עוד אין מהמרים. שתפו את הקוד.</div>'}</div>`;
+  <div class="seats">${dealerRow()}${rows || '<div class="muted" style="text-align:center;padding:16px">עוד אין מהמרים. שתפו את הקוד.</div>'}</div>`;
 }
 
 function bjDock(){
@@ -819,7 +824,7 @@ const A = {
   cancelround: () => bjCancelRound(),
   adj: async v => { const [id, sign] = v.split('|'); const amt = Math.floor(Number(S.adj[id] ?? S.room.startStack) || 0); const p = S.players[id]; if (!p || !amt) return; const ns = Math.max(0, (p.stack || 0) + amt * Number(sign)); if (await w(pPath(id), 'update', { stack: ns, lastAction: { k:'refund', amt: ns - (p.stack||0) }, ts: now() })) { await w(roomPath(), 'update', setEvent(`${p.name}: ${Number(sign) > 0 ? '+' : '−'}${fmt(amt)} צ'יפים`)); toast('עודכן'); } },
   sitout: v => { const p = S.players[v]; if (p) w(pPath(v), 'update', { sittingOut: !p.sittingOut }); },
-  mkhost: async v => { if (await w(roomPath(), 'update', { hostId: v, ...setEvent(`${nameOf(v)} הוא הדילר עכשיו`) })) { S.sheet = null; render(); } },
+  mkhost: async v => { if (await w(roomPath(), 'update', { hostId: v, hostName: v === S.myId ? (S.name.trim() || nameOf(v)) : nameOf(v), ...setEvent(`${nameOf(v)} הוא הדילר עכשיו`) })) { S.sheet = null; render(); } },
   remove: async v => { if (S.confirm !== v){ S.confirm = v; render(); return; } S.confirm = null; await w(pPath(v), 'delete'); if (v === S.myId) render(); },
   setgame: async v => { await w(roomPath(), 'update', { game: v, stage:'idle', phase:'betting', roundId: (S.room.roundId || 1) + 1, ...setEvent(v === 'holdem' ? 'עוברים לטקסס הולדם' : 'עוברים לבלאק ג\'ק') }); S.pending = 0; },
   saveset: async () => { const e = S.edit, n = v => Math.max(0, Math.floor(Number(v) || 0)); if (await w(roomPath(), 'update', { sb: Math.max(1, n(e.sb)), bb: Math.max(1, n(e.bb)), minBet: Math.max(1, n(e.minBet)), maxBet: n(e.maxBet), startStack: n(e.startStack), updatedAt: now() })) { toast('נשמר'); S.sheet = null; render(); } }
