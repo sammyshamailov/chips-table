@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>שולחן צ'יפים</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0c1a15">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="צ'יפים">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Karantina:wght@400;700&display=swap">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font-size:14px}
+img{max-width:100%}
+[hidden]{display:none!important}
+/* Layout: one narrow felt column, a fixed action dock at the thumb, sheets slide up from the bottom. Single committed dark "card room" look. */
+:root{
+  --bg:#0b1813; --felt:#12302a; --felt-2:#18403a; --felt-3:#21524a;
+  --line:rgba(214,236,224,.13); --ink:#eef4ee; --dim:#9db8ab; --faint:#6d8a7e;
+  --brass:#e0b766; --brass-ink:#2a1d06; --danger:#ec7462; --ok:#74cf9f; --chalk:#f7f2e6;
+  --c1:#f2efe6; --c5:#c8372d; --c10:#2f5fb8; --c25:#2e8a4f; --c50:#e07a26; --c100:#1c1c1f; --c250:#d0558f; --c500:#6b3fa0; --c1000:#e2c13c; --c5000:#7a4a2a; --c10000:#3fa9b5;
+  --f-display:"Karantina","IBM Plex Sans Hebrew",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans Hebrew",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  color-scheme:dark;
+}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));-webkit-tap-highlight-color:transparent}
+#app{max-width:520px;margin:0 auto;padding-block:14px 40px}
+#app.has-dock{padding-bottom:300px}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:disabled{opacity:.4;cursor:default}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0}
+input:focus{border-color:var(--brass);outline:none}
+.num{font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0;text-wrap:balance}
+
+/* brand */
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:8px 2px 18px}
+.brand h1{font-family:var(--f-display);font-weight:700;font-size:56px;line-height:.9;letter-spacing:.5px}
+.brand h1 span{color:var(--brass)}
+.brand p{margin:0;color:var(--dim);font-size:13px;max-width:22ch}
+
+.card{background:var(--felt);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:12px}
+.stack{display:grid;gap:14px}
+.label{font-size:12px;color:var(--dim);letter-spacing:.06em;font-weight:600}
+.row{display:flex;gap:10px;align-items:center}
+.row>*{min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:grid;gap:6px}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--bg);border-radius:12px;padding:4px;gap:4px}
+.seg button{padding:10px 6px;border-radius:9px;font-weight:600;color:var(--dim)}
+.seg button[aria-pressed="true"]{background:var(--felt-3);color:var(--ink)}
+.check{display:flex;gap:10px;align-items:center;color:var(--dim);font-size:14px}
+.check input{width:20px;height:20px;accent-color:var(--brass)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:13px 16px;border-radius:12px;font-weight:600;background:var(--felt-3);color:var(--ink);min-height:48px;text-align:center}
+.btn.primary{background:var(--brass);color:var(--brass-ink)}
+.btn.danger{background:transparent;color:var(--danger);border:1px solid color-mix(in srgb,var(--danger) 45%,transparent)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.btn.small{min-height:38px;padding:8px 12px;font-size:14px;border-radius:10px}
+.btn.wide{width:100%}
+.banner{border-radius:14px;padding:12px 14px;font-size:14px;background:color-mix(in srgb,var(--brass) 14%,var(--felt));border:1px solid color-mix(in srgb,var(--brass) 40%,transparent);display:grid;gap:8px}
+.muted{color:var(--dim);font-size:13px}
+.rooms{display:grid;gap:8px}
+.roomrow{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:12px;background:var(--bg);border:1px solid var(--line);width:100%;text-align:start}
+.code{font-family:var(--f-display);font-size:28px;font-weight:700;letter-spacing:3px;line-height:1;direction:ltr}
+
+/* room header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:12px}
+.top .code-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:4px 2px}
+.top .code-btn small{font-size:11px;color:var(--dim);letter-spacing:.08em}
+.top .actions{display:flex;gap:8px}
+.event{font-size:13px;color:var(--dim);padding:0 2px 12px;min-height:1.4em}
+
+/* table */
+.table{position:relative;background:radial-gradient(120% 90% at 50% 0%,var(--felt-3),var(--felt) 60%,var(--felt) 100%);border:1px solid var(--line);border-radius:26px;padding:18px 16px 20px;display:grid;gap:12px;justify-items:center;text-align:center;overflow:hidden}
+.table::before{content:"";position:absolute;inset:8px;border:1px dashed color-mix(in srgb,var(--brass) 35%,transparent);border-radius:20px;pointer-events:none}
+.stage-row{display:flex;justify-content:space-between;width:100%;align-items:center;gap:8px;position:relative}
+.pill{font-size:12px;font-weight:700;letter-spacing:.08em;padding:5px 10px;border-radius:999px;background:var(--bg);color:var(--brass)}
+.pill.ok{color:var(--ok)}
+.meta{font-size:12px;color:var(--dim)}
+.board{display:flex;gap:6px;direction:ltr;position:relative}
+.slot{width:34px;height:48px;border-radius:6px;border:1px dashed color-mix(in srgb,var(--chalk) 30%,transparent)}
+.slot.on{border:1px solid color-mix(in srgb,var(--chalk) 70%,transparent);background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--chalk) 92%,transparent) 0 4px,color-mix(in srgb,var(--c5) 80%,transparent) 4px 8px);box-shadow:0 2px 0 rgba(0,0,0,.35)}
+.pot{display:grid;gap:0;position:relative}
+.pot .lbl{font-size:12px;color:var(--dim);letter-spacing:.1em;font-weight:600}
+.pot .big{font-family:var(--f-display);font-weight:700;font-size:76px;line-height:.85;color:var(--brass)}
+.tocall{font-size:14px;color:var(--chalk);position:relative}
+
+/* seats */
+.seats{display:grid;gap:8px;margin-top:14px}
+.seat{display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--felt);border:1px solid var(--line)}
+.seat.me{border-color:color-mix(in srgb,var(--brass) 60%,transparent);background:color-mix(in srgb,var(--brass) 7%,var(--felt))}
+.seat.out{opacity:.5}
+.av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#10130f;font-size:17px}
+.who{min-width:0;display:grid;gap:2px}
+.who .nm{font-weight:600;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.who .nm b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:14ch}
+.who .sub{font-size:13px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap}
+.tag{font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:6px;background:var(--bg);color:var(--dim);letter-spacing:.04em}
+.tag.host{color:var(--brass)}
+.tag.btn-d{background:var(--chalk);color:#1b1b1b}
+.tag.allin{background:var(--danger);color:#fff}
+.tag.fold{color:var(--faint)}
+.amt{display:flex;align-items:center;gap:6px;font-weight:700;direction:ltr}
+.mini{width:16px;height:16px;border-radius:50%;background:conic-gradient(var(--c5) 0 12%,var(--chalk) 12% 25%,var(--c5) 25% 37%,var(--chalk) 37% 50%,var(--c5) 50% 62%,var(--chalk) 62% 75%,var(--c5) 75% 87%,var(--chalk) 87%);box-shadow:inset 0 0 0 3px var(--c5)}
+.hands{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.hchip{font-size:12px;padding:3px 7px;border-radius:7px;background:var(--bg);font-weight:600;direction:ltr}
+.res-win,.res-bj{color:var(--ok)} .res-lose{color:var(--danger)} .res-push{color:var(--dim)} .res-surrender{color:var(--faint)}
+
+/* host panel */
+.host{margin-top:14px;border-radius:18px;padding:14px;background:color-mix(in srgb,var(--brass) 10%,var(--felt));border:1px solid color-mix(in srgb,var(--brass) 35%,transparent);display:grid;gap:10px}
+.host h3{font-size:13px;color:var(--brass);letter-spacing:.08em}
+.btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+
+/* dock */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:20;background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.dock-in{max-width:520px;margin:0 auto;display:grid;gap:10px}
+.dock-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.mystack{display:flex;align-items:baseline;gap:8px}
+.mystack .big{font-family:var(--f-display);font-size:40px;font-weight:700;line-height:.9}
+.pending{display:flex;align-items:center;gap:8px;background:var(--felt);padding:6px 6px 6px 12px;border-radius:12px;direction:ltr}
+.pending .v{font-family:var(--f-display);font-size:30px;font-weight:700;color:var(--brass);line-height:1;min-width:2ch;text-align:center}
+.pending button{width:30px;height:30px;border-radius:8px;background:var(--felt-3);font-weight:700}
+.tray{display:flex;justify-content:space-between;gap:6px;direction:ltr}
+.chip{--c:var(--c5);--e:var(--chalk);--t:#fff;position:relative;width:min(56px,17vw);aspect-ratio:1;max-width:100%;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;color:var(--t);
+  background:conic-gradient(var(--e) 0 6%,var(--c) 6% 19%,var(--e) 19% 25%,var(--c) 25% 44%,var(--e) 44% 50%,var(--c) 50% 69%,var(--e) 69% 75%,var(--c) 75% 94%,var(--e) 94%);
+  box-shadow:0 3px 0 rgba(0,0,0,.45),inset 0 0 0 2px rgba(0,0,0,.2);transition:transform .08s}
+.chip::before{content:"";position:absolute;inset:18%;border-radius:50%;background:var(--c);border:2px dashed color-mix(in srgb,var(--e) 70%,transparent)}
+.chip span{position:relative}
+.chip:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.45)}
+.presets{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.presets button{flex:0 0 auto;padding:7px 11px;border-radius:999px;background:var(--felt);font-size:13px;font-weight:600;color:var(--dim)}
+.acts{display:grid;grid-template-columns:1fr 1.6fr;gap:8px}
+.acts3{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px}
+.status{text-align:center;color:var(--dim);font-size:14px;padding:6px}
+
+/* sheet */
+#sheet{position:fixed;inset:0;z-index:40;display:flex;align-items:flex-end;justify-content:center;background:rgba(3,8,6,.6)}
+.sheet{width:100%;max-width:560px;max-height:88%;overflow:auto;background:var(--felt);border-radius:22px 22px 0 0;border:1px solid var(--line);padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:14px}
+.sheet h2{font-family:var(--f-display);font-size:34px;font-weight:700;line-height:1}
+.sheet-head{display:flex;justify-content:space-between;align-items:center}
+.opt{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:12px;border-radius:12px;background:var(--bg);border:1px solid var(--line);text-align:start;width:100%}
+.opt[aria-pressed="true"]{border-color:var(--brass);background:color-mix(in srgb,var(--brass) 10%,var(--bg))}
+.box{width:22px;height:22px;border-radius:6px;border:2px solid var(--faint);display:grid;place-items:center}
+.opt[aria-pressed="true"] .box{border-color:var(--brass);background:var(--brass)}
+.opt[aria-pressed="true"] .box::after{content:"";width:9px;height:5px;border:2.5px solid var(--brass-ink);border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.payline{display:flex;justify-content:space-between;font-size:14px;padding:2px 2px}
+.handrow{display:grid;gap:8px;padding:12px;border-radius:12px;background:var(--bg)}
+.res4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.res4 button{padding:9px 4px;border-radius:9px;background:var(--felt);font-size:13px;font-weight:600;color:var(--dim)}
+.res4 button[aria-pressed="true"].w{background:var(--ok);color:#0c2016}
+.res4 button[aria-pressed="true"].b{background:var(--brass);color:var(--brass-ink)}
+.res4 button[aria-pressed="true"].p{background:var(--chalk);color:#222}
+.res4 button[aria-pressed="true"].l{background:var(--danger);color:#fff}
+.mgr{display:grid;gap:8px;padding:12px;border-radius:12px;background:var(--bg)}
+.mgr .row input{width:96px;flex:0 0 96px;direction:ltr;text-align:center}
+
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:60;background:var(--chalk);color:#1a1a1a;padding:10px 16px;border-radius:12px;font-weight:600;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 8px 30px rgba(0,0,0,.4);text-align:center}
+.spin{display:grid;place-items:center;min-height:50vh;color:var(--dim)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script src="config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div id="app" dir="rtl"></div>
+<div id="sheet" dir="rtl" hidden></div>
+<div id="toast" dir="rtl" hidden></div>
+
+<script>
+(() => {
+const app = document.getElementById('app'), sheetEl = document.getElementById('sheet'), toastEl = document.getElementById('toast');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Math.round(n || 0).toLocaleString('en-US');
+const ls = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }, del(k){ try { localStorage.removeItem(k); } catch(e){} } };
+const rid = (n=8) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
+const now = () => Date.now();
+const buzz = () => { try { navigator.vibrate && navigator.vibrate(12); } catch(e){} };
+
+const S = {
+  mode: 'pending', db: null, readOnly: false,
+  myId: ls.get('chips.pid') || ('p_' + rid(10)),
+  name: ls.get('chips.name') || '',
+  code: null, room: null, roomLoaded: false, players: {}, unsubs: [],
+  pending: 0, sheet: null, sel: [], settle: {}, dealerBJ: false, confirm: null, adj: {},
+  rooms: [], joinCode: '', newName: '',
+  create: { game: 'holdem', stack: '1000', sb: '5', bb: '10', minBet: '10', maxBet: '500', play: true },
+  edit: null
+};
+ls.set('chips.pid', S.myId);
+let installEvt = null;
+
+/* ---------- local single-device store (same surface as db) ---------- */
+function LocalDB(){
+  const KEY = 'chips.localdb'; let docs = {};
+  try { docs = JSON.parse(ls.get(KEY) || '{}') || {}; } catch(e){}
+  const listeners = new Set(); const meta = { fromCache:false, hasPendingWrites:false };
+  const clone = o => JSON.parse(JSON.stringify(o));
+  const snap = p => ({ id: p.split('/').pop(), exists: p in docs, data: () => docs[p] ? clone(docs[p]) : undefined, metadata: meta });
+  const notify = () => { ls.set(KEY, JSON.stringify(docs)); setTimeout(() => listeners.forEach(l => l()), 0); };
+  const merge = (a,b) => { for (const k in b){ const v=b[k]; if (v && typeof v==='object' && !Array.isArray(v) && a[k] && typeof a[k]==='object' && !Array.isArray(a[k])) merge(a[k], v); else a[k]=v; } return a; };
+  function docRef(p){ return { id:p.split('/').pop(), path:p,
+    get: async () => snap(p),
+    set: async d => { docs[p] = clone(d); notify(); },
+    update: async d => { if (!(p in docs)) throw { code:'invalid_argument', message:'missing' }; merge(docs[p], clone(d)); notify(); },
+    delete: async () => { delete docs[p]; notify(); },
+    onSnapshot(next){ const l = () => next(snap(p)); listeners.add(l); setTimeout(l,0); return () => listeners.delete(l); },
+    collection: s => colRef(p + '/' + s) }; }
+  function colRef(p, o={}){ const depth = p.split('/').length + 1;
+    const run = () => { let ds = Object.keys(docs).filter(k => k.startsWith(p + '/') && k.split('/').length === depth).map(snap);
+      if (o.order){ const [f,dir]=o.order; ds.sort((a,b) => ((a.data()[f]||0)-(b.data()[f]||0)) * (dir==='desc'?-1:1)); }
+      if (o.limit) ds = ds.slice(0, o.limit);
+      return { docs:ds, size:ds.length, empty:!ds.length, metadata:meta, docChanges:()=>[] }; };
+    return { path:p, doc: id => docRef(p + '/' + (id || rid(12))),
+      orderBy: (f,dir) => colRef(p, {...o, order:[f,dir]}), limit: n => colRef(p, {...o, limit:n}), where: () => colRef(p,o),
+      get: async () => run(), onSnapshot(next){ const l = () => next(run()); listeners.add(l); setTimeout(l,0); return () => listeners.delete(l); } }; }
+  return { doc: docRef, collection: colRef };
+}
+
+/* ---------- connect ---------- */
+let roomsUnsub = null;
+const dbReady = (async () => {
+  let db = null;
+  const cfg = window.FIREBASE_CONFIG;
+  try { if (cfg && cfg.projectId && !String(cfg.apiKey).startsWith('PASTE') && window.firebase){ firebase.initializeApp(cfg); db = firebase.firestore(); try { db.settings({ ignoreUndefinedProperties: true }); } catch(e){} } } catch(e){ console.error(e); }
+  if (db){ S.db = db; S.mode = 'cloud'; }
+  else { S.db = LocalDB(); S.mode = 'local'; }
+  subRooms();
+  const hash = (location.hash || '').replace('#', '').toUpperCase();
+  const last = /^[A-Z]{4}$/.test(hash) ? hash : ls.get('chips.room');
+  if (last && !S.code) enterRoom(last); else render();
+})();
+
+function subRooms(){
+  if (roomsUnsub) roomsUnsub();
+  roomsUnsub = S.db.collection('rooms').orderBy('updatedAt','desc').limit(6).onSnapshot(s => {
+    S.rooms = s.docs.filter(d => d.exists).map(d => d.data()).filter(r => now() - (r.updatedAt||0) < 1000*60*60*48);
+    if (!S.code) renderRooms();
+  }, () => {});
+}
+function useLocal(){
+  leaveSubs(); S.db = LocalDB(); S.mode = 'local'; S.readOnly = false; S.code = null; ls.del('chips.room'); subRooms(); render();
+}
+
+/* ---------- writes, one at a time per document ---------- */
+const queues = {};
+function w(path, op, data){
+  const ref = S.db.doc(path); const prev = queues[path] || Promise.resolve();
+  const p = prev.catch(() => {}).then(() => op === 'delete' ? ref.delete() : ref[op](data));
+  queues[path] = p;
+  return p.then(() => true, e => { handleErr(e); return false; });
+}
+function handleErr(e){
+  const code = e && e.code;
+  if (code === 'permission-denied') toast('השרת חסם את העדכון. בדקו שהדבקתם את חוקי האבטחה של Firestore.');
+  else if (code === 'resource-exhausted') toast('נגמרה המכסה היומית החינמית של Firebase. נסו שוב מחר.');
+  else if (code === 'not-found') toast('השולחן או השחקן כבר לא קיימים.');
+  else toast('העדכון לא נשמר. בדקו חיבור ונסו שוב.');
+}
+const roomPath = () => 'rooms/' + S.code;
+const pPath = (id = S.myId) => 'rooms/' + S.code + '/players/' + id;
+const setEvent = t => ({ lastEvent: { t, ts: now() }, updatedAt: now() });
+
+/* ---------- room session ---------- */
+function leaveSubs(){ S.unsubs.forEach(u => { try { u(); } catch(e){} }); S.unsubs = []; }
+function enterRoom(code){
+  leaveSubs();
+  Object.assign(S, { code, room:null, roomLoaded:false, players:{}, pending:0, sheet:null, confirm:null });
+  ls.set('chips.room', code);
+  const mine = code;
+  const onErr = e => { if (S.code !== mine) return; if (e && (e.code === 'unavailable' || e.code === 'internal')) setTimeout(() => { if (S.code === mine) enterRoom(mine); }, 2500); };
+  S.unsubs.push(S.db.doc('rooms/' + code).onSnapshot(s => {
+    if (S.code !== mine) return;
+    if (!s.exists){ if (!s.metadata.fromCache){ S.room = null; S.roomLoaded = true; render(); } return; }
+    S.room = s.data(); S.roomLoaded = true; render();
+  }, onErr));
+  S.unsubs.push(S.db.collection('rooms/' + code + '/players').onSnapshot(s => {
+    if (S.code !== mine) return;
+    const m = {}; s.docs.forEach(d => { if (d.exists) m[d.id] = d.data(); }); S.players = m; render();
+  }, onErr));
+  wake(); render();
+}
+function goHome(){ leaveSubs(); try { history.replaceState(null, '', location.pathname); } catch(e){} S.code = null; S.room = null; S.sheet = null; ls.del('chips.room'); render(); }
+
+let lock = null;
+async function wake(){ try { if ('wakeLock' in navigator && !lock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => lock = null); } } catch(e){} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.code) wake(); });
+
+const players = () => Object.entries(S.players).map(([pid, d]) => ({ pid, ...d })).sort((a,b) => (a.joinedAt||0) - (b.joinedAt||0));
+const me = () => S.players[S.myId] ? { pid: S.myId, ...S.players[S.myId] } : null;
+const isHost = () => S.room && S.room.hostId === S.myId;
+const newPlayer = (stack) => ({ name: S.name.trim().slice(0,20) || 'שחקן', joinedAt: now(), stack, handId:0, streetId:0, streetBet:0, committed:0, folded:false, allIn:false, sittingOut:false, bjRound:null, hands:[], insurance:0, surrendered:false, lastAction:null, ts: now() });
+const nameOf = id => (S.players[id] && S.players[id].name) || 'שחקן';
+
+/* ---------- chip denominations ---------- */
+const DEN = [1,5,10,25,50,100,250,500,1000,5000,10000];
+function denoms(){ const r = S.room; const unit = r.game === 'holdem' ? (r.sb || 1) : (r.minBet || 1); let i = DEN.findIndex(d => d >= unit); if (i < 0) i = DEN.length - 5; i = Math.min(i, DEN.length - 5); return DEN.slice(i, i + 5); }
+const chipStyle = d => { const dark = [5,10,25,100,250,500,5000,10000].includes(d); return `--c:var(--c${d});--e:${d===1||d===1000?'var(--c5)':'var(--chalk)'};--t:${dark?'#fff':'#1a1a1a'}`; };
+const chipLabel = d => d >= 1000 ? (d/1000) + 'K' : d;
+
+/* ---------- Hold'em model ---------- */
+const STAGES = ['preflop','flop','turn','river','showdown'];
+const STAGE_HE = { idle:'בין ידיים', preflop:'פרה-פלופ', flop:'פלופ', turn:'טרן', river:'ריבר', showdown:'שואודאון' };
+function H(){
+  const r = S.room, list = players(), lvl = r.potLevel || 0;
+  const inHand = p => r.stage !== 'idle' && p.handId === r.handId;
+  const st = p => inHand(p) && p.streetId === r.streetId ? (p.streetBet || 0) : 0;
+  const com = p => inHand(p) ? (p.committed || 0) : 0;
+  const pot = list.reduce((a,p) => a + Math.max(0, com(p) - lvl), 0);
+  const maxSt = Math.max(0, ...list.map(st));
+  const distinct = [...new Set(list.map(st))].sort((a,b) => b - a);
+  const lastRaise = Math.max(r.bb || 1, distinct.length > 1 ? distinct[0] - distinct[1] : distinct[0] || 0);
+  const minTo = maxSt === 0 ? (r.bb || 1) : maxSt + lastRaise;
+  const live = list.filter(p => inHand(p) && !p.folded);
+  return { r, list, lvl, inHand, st, com, pot, maxSt, minTo, live };
+}
+const canAct = (h, p) => p && h.inHand(p) && !p.folded && !p.allIn && STAGES.slice(0,4).includes(h.r.stage);
+
+async function hAct(add, kind){
+  const h = H(), m = me(); if (!canAct(h, m)) return;
+  add = Math.max(0, Math.min(add, m.stack || 0));
+  const mySt = h.st(m), newSt = mySt + add, stack = (m.stack || 0) - add;
+  if (add === 0 && newSt < h.maxSt) return;
+  let k = kind;
+  if (!k){ if (stack === 0 && add > 0) k = 'allin'; else if (add === 0) k = 'check'; else if (newSt === h.maxSt) k = 'call'; else k = h.maxSt === 0 ? 'bet' : 'raise'; }
+  buzz();
+  const ok = await w(pPath(), 'update', { stack, streetBet: newSt, streetId: S.room.streetId, committed: h.com(m) + add, allIn: stack === 0, lastAction: { k, amt: k === 'raise' || k === 'allin' ? newSt : add }, ts: now() });
+  if (ok) S.pending = 0;
+  render();
+}
+async function hFold(){ const h = H(), m = me(); if (!canAct(h, m)) return; buzz(); await w(pPath(), 'update', { folded: true, lastAction: { k:'fold' }, ts: now() }); }
+
+async function newHand(){
+  const r = S.room; const h = H();
+  if (h.pot > 0 && r.stage !== 'idle'){ toast('יש עדיין צ\'יפים בקופה. חלקו את הקופה או בטלו את היד.'); return; }
+  const act = players().filter(p => !p.sittingOut && (p.stack || 0) > 0);
+  if (act.length < 2){ toast('צריך לפחות שני שחקנים עם צ\'יפים'); return; }
+  const bi = act.findIndex(p => p.pid === r.buttonPid);
+  const btn = act[(bi + 1) % act.length];
+  const n = act.length, b = act.indexOf(btn);
+  const sbP = n === 2 ? act[b] : act[(b + 1) % n];
+  const bbP = n === 2 ? act[(b + 1) % n] : act[(b + 2) % n];
+  const handId = (r.handId || 0) + 1, streetId = handId * 10 + 1;
+  const ok = await w(roomPath(), 'update', { handId, streetId, stage:'preflop', potLevel:0, buttonPid: btn.pid, sbPid: sbP.pid, bbPid: bbP.pid, ...setEvent(`יד ${handId} התחילה · בליינדים ${fmt(r.sb)}/${fmt(r.bb)}`) });
+  if (!ok) return;
+  buzz();
+  await Promise.all(act.map(p => {
+    let x = p.pid === sbP.pid ? r.sb : p.pid === bbP.pid ? r.bb : 0; x = Math.min(x, p.stack || 0);
+    return w(pPath(p.pid), 'update', { handId, streetId, streetBet: x, committed: x, stack: (p.stack || 0) - x, folded:false, allIn: (p.stack||0) - x === 0, lastAction: x ? { k:'blind', amt:x } : null, ts: now() });
+  }));
+}
+async function nextStreet(){
+  const r = S.room; const i = STAGES.indexOf(r.stage); if (i < 0 || i >= 4) return;
+  buzz();
+  await w(roomPath(), 'update', { stage: STAGES[i+1], streetId: (r.streetId || 0) + 1, ...setEvent(STAGE_HE[STAGES[i+1]]) });
+}
+function computeAward(win){
+  const h = H(); const c = {}; h.list.forEach(p => { const v = h.com(p); if (v > h.lvl) c[p.pid] = v; });
+  const order = h.list.map(p => p.pid); win = order.filter(id => win.includes(id));
+  const levels = [...new Set(Object.values(c))].sort((a,b) => a - b);
+  let prev = h.lvl, newL = h.lvl; const pay = {};
+  for (const L of levels){
+    const contrib = Object.keys(c).filter(id => c[id] > prev);
+    const amt = contrib.reduce((a,id) => a + Math.min(c[id], L) - prev, 0);
+    if (contrib.length === 1){ pay[contrib[0]] = (pay[contrib[0]] || 0) + amt; prev = newL = L; continue; }
+    const el = win.filter(id => (c[id] || 0) >= L); if (!el.length) break;
+    const sh = Math.floor(amt / el.length);
+    el.forEach((id, i) => pay[id] = (pay[id] || 0) + sh + (i === 0 ? amt - sh * el.length : 0));
+    prev = newL = L;
+  }
+  const left = Object.values(c).reduce((a,v) => a + Math.max(0, v - newL), 0);
+  return { pay, newL, left };
+}
+async function award(win){
+  const { pay, newL, left } = computeAward(win);
+  const total = Object.values(pay).reduce((a,b) => a + b, 0); if (!total){ toast('בחרו זוכה'); return; }
+  const names = Object.entries(pay).filter(([,a]) => a > 0).map(([id,a]) => `${nameOf(id)} +${fmt(a)}`).join(' · ');
+  const ok = await w(roomPath(), 'update', { potLevel: newL, stage: left === 0 ? 'idle' : S.room.stage, ...setEvent(names) });
+  if (!ok) return;
+  buzz();
+  await Promise.all(Object.entries(pay).filter(([,a]) => a > 0).map(([id,a]) => w(pPath(id), 'update', { stack: (S.players[id].stack || 0) + a, lastAction: { k:'won', amt:a }, ts: now() })));
+  S.sel = [];
+  if (left === 0) S.sheet = null; else toast(`נשארה קופה צדדית של ${fmt(left)} – בחרו את הזוכה בה`);
+  render();
+}
+async function cancelHand(){
+  const h = H(); const max = Math.max(h.lvl, ...h.list.map(h.com));
+  await w(roomPath(), 'update', { potLevel: max, stage:'idle', ...setEvent('היד בוטלה והצ\'יפים הוחזרו') });
+  await Promise.all(h.list.map(p => { const back = Math.max(0, h.com(p) - h.lvl); return back ? w(pPath(p.pid), 'update', { stack: (p.stack||0) + back, lastAction:{ k:'refund', amt: back }, ts: now() }) : null; }));
+  S.sheet = null; S.confirm = null; render();
+}
+
+/* ---------- Blackjack model ---------- */
+const cur = p => p && S.room && p.bjRound === S.room.roundId && (p.hands || []).length;
+const bjStake = p => (p.hands || []).reduce((a,x) => a + x.bet, 0);
+async function bjBet(){
+  const m = me(), r = S.room; if (!m || r.phase !== 'betting') return;
+  const add = Math.min(S.pending, m.stack || 0); if (!add) return;
+  const total = (cur(m) ? m.hands[0].bet : 0) + add;
+  if (r.maxBet && total > r.maxBet){ toast(`ההימור המקסימלי הוא ${fmt(r.maxBet)}`); return; }
+  if (total < (r.minBet || 0)){ toast(`ההימור המינימלי הוא ${fmt(r.minBet)}`); return; }
+  buzz();
+  const ok = await w(pPath(), 'update', { stack: m.stack - add, bjRound: r.roundId, hands: [{ bet: total }], insurance:0, surrendered:false, lastAction:{ k:'bet', amt: total }, ts: now() });
+  if (ok) S.pending = 0; render();
+}
+async function bjClear(){
+  const m = me(); if (!cur(m) || S.room.phase !== 'betting') return;
+  await w(pPath(), 'update', { stack: m.stack + bjStake(m), bjRound: null, hands: [], lastAction:{ k:'clear' }, ts: now() });
+}
+async function bjDo(kind, i){
+  const m = me(), r = S.room; if (!cur(m) || r.phase !== 'playing') return;
+  const hands = m.hands.map(x => ({...x})); const hnd = hands[i] || hands[0]; let stack = m.stack; const patch = {};
+  if (kind === 'double'){ if (hnd.doubled || hnd.result || stack < hnd.bet) return; stack -= hnd.bet; hnd.bet *= 2; hnd.doubled = true; }
+  else if (kind === 'split'){ if (hands.length >= 4 || hnd.doubled || hnd.result || stack < hnd.bet) return; stack -= hnd.bet; hnd.split = true; hands.splice(i + 1, 0, { bet: hnd.bet, split: true }); }
+  else if (kind === 'ins'){ const amt = Math.floor(hands[0].bet / 2); if (m.insurance || hands.length > 1 || stack < amt || !amt) return; stack -= amt; patch.insurance = amt; }
+  else if (kind === 'surrender'){ if (hands.length > 1 || hnd.doubled || hnd.result) return; stack += Math.floor(hnd.bet / 2); hnd.result = 'surrender'; patch.surrendered = true; }
+  buzz();
+  await w(pPath(), 'update', { stack, hands, ...patch, lastAction:{ k: kind }, ts: now() });
+}
+const MULT = { win: b => b * 2, bj: b => b + Math.floor(b * 1.5), push: b => b, lose: () => 0 };
+async function bjPayout(){
+  const r = S.room; const list = players().filter(cur);
+  let houseIn = 0, houseOut = 0; const writes = [];
+  for (const p of list){
+    const hands = p.hands.map((x,i) => ({ ...x, result: x.result || S.settle[p.pid + ':' + i] }));
+    if (hands.some(x => !x.result)){ toast('סמנו תוצאה לכל הידיים'); return; }
+    let pay = 0, stake = 0, back = 0;
+    hands.forEach(x => { stake += x.bet; if (x.result === 'surrender') back += Math.floor(x.bet/2); else pay += MULT[x.result](x.bet); });
+    const ins = p.insurance || 0, insPay = ins && S.dealerBJ ? ins * 3 : 0;
+    houseIn += stake + ins; houseOut += pay + back + insPay;
+    const net = pay + back + insPay - stake - ins;
+    writes.push([p.pid, { stack: (p.stack || 0) + pay + insPay, hands, lastAction: { k:'bjres', amt: net }, ts: now() }]);
+  }
+  buzz();
+  const ok = await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, dealerBJ: false, house: (r.house || 0) + houseIn - houseOut, ...setEvent(`סיבוב ${r.roundId} שולם · הבית \u2066${houseIn - houseOut >= 0 ? '+' : '−'}${fmt(Math.abs(houseIn - houseOut))}\u2069`) });
+  if (!ok) return;
+  await Promise.all(writes.map(([id, d]) => w(pPath(id), 'update', d)));
+  S.sheet = null; S.settle = {}; S.dealerBJ = false; render();
+}
+async function bjCancelRound(){
+  const r = S.room; const list = players().filter(cur);
+  await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, ...setEvent('הסיבוב בוטל וההימורים הוחזרו') });
+  await Promise.all(list.map(p => { const back = p.hands.reduce((a,x) => a + (x.result === 'surrender' ? Math.ceil(x.bet/2) : x.bet), 0) + (p.insurance || 0); return w(pPath(p.pid), 'update', { stack: p.stack + back, hands: [], bjRound: null, lastAction:{ k:'refund', amt: back }, ts: now() }); }));
+  S.sheet = null; S.confirm = null; render();
+}
+
+/* ---------- create / join ---------- */
+const randCode = () => Array.from(crypto.getRandomValues(new Uint8Array(4)), b => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[b % 24]).join('');
+async function createRoom(){
+  if (!S.name.trim()){ toast('כתבו את השם שלכם קודם'); document.getElementById('name')?.focus(); return; }
+  await dbReady;
+  if (S.readOnly){ toast('אין לך הרשאת כתיבה בשולחן המשותף'); return; }
+  const c = S.create, n = v => Math.max(0, Math.floor(Number(v) || 0));
+  if (n(c.stack) < 1){ toast('קבעו כמות צ\'יפים התחלתית'); return; }
+  let code = randCode();
+  for (let i = 0; i < 4; i++){ try { const s = await S.db.doc('rooms/' + code).get(); if (!s.exists) break; } catch(e){ break; } code = randCode(); }
+  const room = { code, game: c.game, startStack: n(c.stack), sb: Math.max(1, n(c.sb)), bb: Math.max(1, n(c.bb)), minBet: Math.max(1, n(c.minBet)), maxBet: n(c.maxBet),
+    hostId: S.myId, createdAt: now(), handId:0, streetId:0, stage:'idle', potLevel:0, buttonPid:null, roundId:1, phase:'betting', house:0, dealerBJ:false, ...setEvent('השולחן נפתח') };
+  if (!await w('rooms/' + code, 'set', room)) return;
+  S.code = code;
+  if (c.play) await w('rooms/' + code + '/players/' + S.myId, 'set', newPlayer(room.startStack));
+  enterRoom(code);
+}
+async function joinTable(){
+  if (!S.name.trim()){ toast('כתבו את השם שלכם קודם'); document.getElementById('jname')?.focus(); return; }
+  ls.set('chips.name', S.name.trim());
+  await w(pPath(), 'set', newPlayer(S.room.startStack || 0));
+}
+function claimSeat(pid){ S.myId = pid; ls.set('chips.pid', pid); S.pending = 0; render(); }
+
+/* ---------- UI helpers ---------- */
+let tt;
+function toast(t){ toastEl.textContent = t; toastEl.hidden = false; clearTimeout(tt); tt = setTimeout(() => toastEl.hidden = true, 3200); }
+const hue = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+const avatar = p => `<div class="av" style="background:hsl(${hue(p.pid)} 55% 68%)">${esc((p.name || '?').trim().charAt(0) || '?')}</div>`;
+const actText = a => { if (!a) return ''; const x = fmt(a.amt); return ({ fold:'קיפל', check:'צ\'ק', call:`השווה ${x}`, raise:`העלה ל-${x}`, bet:`הימר ${x}`, allin:`אול-אין ${x}`, blind:`בליינד ${x}`, won:`זכה ב-${x}`, refund:`הוחזר ${x}`, clear:'ביטל הימור', double:'דאבל דאון', split:'ספליט', ins:'ביטוח', surrender:'כניעה', bjres: a.amt > 0 ? `הרוויח ${x}` : a.amt < 0 ? `הפסיד ${fmt(-a.amt)}` : 'תיקו' })[a.k] || ''; };
+const RES_HE = { win:'ניצחון', bj:'בלאק ג\'ק', push:'תיקו', lose:'הפסד', surrender:'כניעה' };
+
+/* ---------- views ---------- */
+function render(){
+  const a = document.activeElement, id = a && a.id; let s1, s2; try { s1 = a.selectionStart; s2 = a.selectionEnd; } catch(e){}
+  if (!S.code){ app.innerHTML = homeView(); app.className = ''; renderRooms(); }
+  else app.innerHTML = roomView();
+  if (S.sheet && S.room){ sheetEl.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${sheetView()}</div>`; sheetEl.hidden = false; }
+  else { sheetEl.hidden = true; sheetEl.innerHTML = ''; }
+  if (id){ const el = document.getElementById(id); if (el && el !== document.activeElement){ el.focus({ preventScroll:true }); try { if (s1 != null) el.setSelectionRange(s1, s2); } catch(e){} } }
+}
+
+function modeBanner(){
+  if (S.mode === 'pending') return `<div class="banner">מתחבר לשרת…</div>`;
+  if (S.mode === 'local') return `<div class="banner"><b>מצב מכשיר אחד</b><span class="muted">האפליקציה עוד לא מחוברת לשרת, אז הכל נשמר רק בטלפון הזה. כדי לשחק ביחד, מלאו את פרטי Firebase בקובץ config.js (ההוראות בקובץ README).</span><button class="btn small ghost" data-a="retry">ניסיון חיבור מחדש</button></div>`;
+  if (S.readOnly) return '';
+  return '';
+}
+
+function homeView(){
+  const c = S.create, hold = c.game === 'holdem';
+  return `
+  <header class="brand"><h1>צ'יפים<span>.</span></h1><p>הקלפים אמיתיים, הצ'יפים כאן. כל אחד מהטלפון שלו.</p></header>
+  <div class="stack">
+    ${installEvt ? '<button class="btn ghost wide" data-a="install">התקנת האפליקציה בטלפון</button>' : ''}
+    ${modeBanner()}
+    <div class="card">
+      <label class="field"><span class="label">השם שלך</span><input id="name" data-bind="name" value="${esc(S.name)}" maxlength="20" placeholder="למשל: סמי" autocomplete="nickname"></label>
+    </div>
+    <div class="card">
+      <span class="label">הצטרפות לשולחן</span>
+      <div class="row"><input id="jcode" data-bind="joinCode" value="${esc(S.joinCode)}" maxlength="4" placeholder="קוד חדר" style="direction:ltr;text-align:center;letter-spacing:6px;font-weight:700;text-transform:uppercase"><button class="btn primary" data-a="join">הצטרפות</button></div>
+      <div id="roomsList" class="rooms"></div>
+    </div>
+    <div class="card">
+      <span class="label">שולחן חדש</span>
+      <div class="seg" role="group" aria-label="סוג משחק">
+        <button data-a="cgame" data-v="holdem" aria-pressed="${hold}">טקסס הולדם</button>
+        <button data-a="cgame" data-v="blackjack" aria-pressed="${!hold}">בלאק ג'ק</button>
+      </div>
+      <label class="field"><span class="label">צ'יפים לכל שחקן</span><input id="cstack" data-bind="create.stack" inputmode="numeric" value="${esc(c.stack)}" style="direction:ltr"></label>
+      ${hold ? `<div class="grid2">
+        <label class="field"><span class="label">ביג בליינד</span><input id="cbb" data-bind="create.bb" inputmode="numeric" value="${esc(c.bb)}" style="direction:ltr"></label>
+        <label class="field"><span class="label">סמול בליינד</span><input id="csb" data-bind="create.sb" inputmode="numeric" value="${esc(c.sb)}" style="direction:ltr"></label>
+      </div>` : `<div class="grid2">
+        <label class="field"><span class="label">הימור מינימלי</span><input id="cmin" data-bind="create.minBet" inputmode="numeric" value="${esc(c.minBet)}" style="direction:ltr"></label>
+        <label class="field"><span class="label">הימור מקסימלי (0 = ללא)</span><input id="cmax" data-bind="create.maxBet" inputmode="numeric" value="${esc(c.maxBet)}" style="direction:ltr"></label>
+      </div>`}
+      <label class="check"><input type="checkbox" id="cplay" data-bind="create.play" ${c.play ? 'checked' : ''}> ${hold ? 'אני גם משחק, לא רק מנהל' : 'אני גם מהמר (לא רק הדילר)'}</label>
+      <button class="btn primary wide" data-a="create">פתיחת שולחן</button>
+      <span class="muted">מי שפותח את השולחן הוא הדילר: מתחיל ידיים, מקדם רחובות ומחלק את הקופה לזוכים.</span>
+    </div>
+  </div>`;
+}
+function renderRooms(){
+  const el = document.getElementById('roomsList'); if (!el) return;
+  el.innerHTML = S.rooms.length ? `<span class="muted">שולחנות פעילים</span>` + S.rooms.map(r => `<button class="roomrow" data-a="open" data-v="${esc(r.code)}"><span><span class="code">${esc(r.code)}</span></span><span class="muted">${r.game === 'holdem' ? 'הולדם' : 'בלאק ג\'ק'} · ${r.lastEvent ? esc(r.lastEvent.t) : ''}</span></button>`).join('') : '';
+}
+
+function roomView(){
+  if (!S.roomLoaded) return `<div class="spin">טוען את השולחן…</div>`;
+  if (!S.room) return `<div class="stack" style="padding-top:40px"><div class="card"><h2 style="font-family:var(--f-display);font-size:36px">החדר ${esc(S.code)} לא נמצא</h2><span class="muted">בדקו את הקוד ונסו שוב.</span><button class="btn primary" data-a="home">חזרה</button></div></div>`;
+  const r = S.room, m = me(), hold = r.game === 'holdem';
+  const body = hold ? holdemView() : bjView();
+  const dock = m ? (hold ? holdemDock() : bjDock()) : '';
+  app.className = dock ? 'has-dock' : '';
+  return `
+  <div class="top">
+    <button class="code-btn" data-a="copy" aria-label="העתקת קוד החדר"><small>${hold ? 'טקסס הולדם' : 'בלאק ג\'ק'} · קוד חדר</small><span class="code">${esc(r.code)}</span></button>
+    <div class="actions">
+      <button class="btn small ghost" data-a="sheet" data-v="players">שחקנים</button>
+      <button class="btn small ghost" data-a="sheet" data-v="settings">הגדרות</button>
+    </div>
+  </div>
+  ${S.mode !== 'cloud' || S.readOnly ? `<div style="margin-bottom:12px">${modeBanner()}</div>` : ''}
+  <div class="event">${r.lastEvent ? esc(r.lastEvent.t) : ''}</div>
+  ${body}
+  ${!m ? joinCard() : ''}
+  ${isHost() ? (hold ? holdemHost() : bjHost()) : ''}
+  ${dock ? `<div class="dock"><div class="dock-in">${dock}</div></div>` : ''}`;
+}
+
+function joinCard(){
+  const list = players();
+  if (isHost() && S.room.game === 'blackjack') return `<div class="card" style="margin-top:14px"><span class="muted">אתה הדילר. אם תרצה גם להמר:</span><button class="btn ghost" data-a="sit">הצטרפות כמהמר</button></div>`;
+  return `<div class="card" style="margin-top:14px">
+    <span class="label">הצטרפות לשולחן</span>
+    <input id="jname" data-bind="name" value="${esc(S.name)}" maxlength="20" placeholder="השם שלך">
+    <button class="btn primary" data-a="sit">שבו לשולחן עם ${fmt(S.room.startStack)} צ'יפים</button>
+    ${list.length ? `<span class="muted">כבר ישבתם מטלפון אחר? בחרו את עצמכם:</span><div class="btns">${list.map(p => `<button class="btn small ghost" data-a="claim" data-v="${esc(p.pid)}">${esc(p.name)}</button>`).join('')}</div>` : ''}
+  </div>`;
+}
+
+function seatRow(p, extraTags, right, sub){
+  const host = S.room.hostId === p.pid;
+  const swap = S.mode === 'local' && p.pid !== S.myId ? `<button class="btn small ghost" data-a="claim" data-v="${esc(p.pid)}">שחק בתור</button>` : '';
+  return `<div class="seat ${p.pid === S.myId ? 'me' : ''} ${p._out ? 'out' : ''}">
+    ${avatar(p)}
+    <div class="who"><div class="nm"><b>${esc(p.name)}</b>${p.pid === S.myId ? '<span class="tag">את/ה</span>' : ''}${host ? '<span class="tag host">דילר</span>' : ''}${extraTags}</div>
+      <div class="sub"><span class="num">${fmt(p.stack)} צ'יפים</span>${sub ? `<span>${sub}</span>` : ''}</div></div>
+    <div style="display:grid;gap:6px;justify-items:end">${right}${swap}</div>
+  </div>`;
+}
+
+function holdemView(){
+  const h = H(), r = h.r;
+  const si = STAGES.indexOf(r.stage), cards = si < 0 ? 0 : [0,3,4,5,5][si];
+  const rows = h.list.map(p => {
+    const inH = h.inHand(p);
+    let tags = '';
+    if (inH && r.buttonPid === p.pid) tags += '<span class="tag btn-d">D</span>';
+    if (inH && r.stage === 'preflop' && r.sbPid === p.pid) tags += '<span class="tag">SB</span>';
+    if (inH && r.stage === 'preflop' && r.bbPid === p.pid) tags += '<span class="tag">BB</span>';
+    if (inH && p.folded) tags += '<span class="tag fold">קיפל</span>';
+    if (inH && p.allIn && !p.folded) tags += '<span class="tag allin">ALL-IN</span>';
+    if (p.sittingOut) tags += '<span class="tag">בהפסקה</span>';
+    else if (!inH && r.stage !== 'idle') tags += '<span class="tag">ממתין ליד הבאה</span>';
+    const sb = h.st(p);
+    const right = sb ? `<div class="amt num"><span class="mini"></span>${fmt(sb)}</div>` : '';
+    return seatRow({ ...p, _out: inH && p.folded }, tags, right, inH || p.lastAction?.k === 'won' ? esc(actText(p.lastAction)) : '');
+  }).join('');
+  return `
+  <section class="table">
+    <div class="stage-row"><span class="pill ${r.stage === 'idle' ? 'ok' : ''}">${STAGE_HE[r.stage] || ''}${r.handId ? ` · יד ${r.handId}` : ''}</span><span class="meta num">בליינדים ${fmt(r.sb)}/${fmt(r.bb)}</span></div>
+    <div class="board" aria-label="קלפים על השולחן">${[0,1,2,3,4].map(i => `<span class="slot ${i < cards ? 'on' : ''}"></span>`).join('')}</div>
+    <div class="pot"><span class="lbl">קופה</span><span class="big num">${fmt(h.pot)}</span></div>
+    <div class="tocall">${r.stage === 'idle' ? (r.handId ? 'היד הסתיימה. הדילר יתחיל יד חדשה.' : 'מחכים שהדילר יתחיל את היד הראשונה') : h.maxSt ? `ההימור ברחוב: ${fmt(h.maxSt)}` : 'אין הימור ברחוב הזה'}</div>
+  </section>
+  <div class="seats">${rows || '<div class="muted" style="text-align:center;padding:16px">עוד אין שחקנים. שתפו את הקוד.</div>'}</div>`;
+}
+
+function holdemDock(){
+  const h = H(), m = me();
+  const stackHead = `<div class="dock-head"><div class="mystack"><span class="big num">${fmt(m.stack)}</span><span class="muted">הצ'יפים שלך</span></div>${pendingBox()}</div>`;
+  if (m.sittingOut) return `${stackHead}<div class="status">אתם בהפסקה. אפשר לחזור מתפריט השחקנים.</div>`;
+  if (!h.inHand(m)) return `${stackHead}<div class="status">${h.r.stage === 'idle' ? 'מחכים ליד הבאה' : 'תצטרפו ביד הבאה'}</div>`;
+  if (m.folded) return `${stackHead}<div class="status">קיפלתם ביד הזו</div>`;
+  if (m.allIn) return `${stackHead}<div class="status">אתם באול-אין. בהצלחה.</div>`;
+  if (!canAct(h, m)) return `${stackHead}<div class="status">שואודאון. מחכים לדילר שיחלק את הקופה.</div>`;
+  const mySt = h.st(m), toCall = Math.max(0, h.maxSt - mySt), stack = m.stack || 0;
+  const add = Math.min(S.pending, stack), newSt = mySt + add;
+  let label, dis = false;
+  if (add === 0) label = toCall === 0 ? 'צ\'ק' : (toCall >= stack ? `אול-אין ${fmt(stack)}` : `השוואה ${fmt(toCall)}`);
+  else if (add === stack) label = `אול-אין ${fmt(stack)}`;
+  else if (newSt < h.maxSt){ label = `חסר ${fmt(h.maxSt - newSt)} להשוואה`; dis = true; }
+  else if (newSt === h.maxSt) label = `השוואה ${fmt(add)}`;
+  else if (newSt < h.minTo){ label = `העלאה מינימלית ל-${fmt(h.minTo)}`; dis = true; }
+  else label = h.maxSt === 0 ? `הימור ${fmt(add)}` : `העלאה ל-${fmt(newSt)}`;
+  const callAmt = add === 0 ? Math.min(toCall, stack) : add;
+  const toAdd = to => Math.max(0, Math.min(stack, to - mySt));
+  const potTo = h.maxSt + h.pot + toCall, halfTo = h.maxSt + Math.round((h.pot + toCall) / 2);
+  const presets = [
+    toCall ? ['השוואה', Math.min(toCall, stack)] : null,
+    ['מינימום', toAdd(h.minTo)],
+    ['½ קופה', toAdd(Math.max(h.minTo, halfTo))],
+    ['קופה', toAdd(Math.max(h.minTo, potTo))],
+    ['אול-אין', stack]
+  ].filter(Boolean);
+  return `${stackHead}
+    <div class="tray">${denoms().map(d => `<button class="chip" style="${chipStyle(d)}" data-a="add" data-v="${d}" aria-label="הוספת ${d}"><span>${chipLabel(d)}</span></button>`).join('')}</div>
+    <div class="presets">${presets.map(([t,v]) => `<button data-a="setp" data-v="${v}">${t} <span class="num">${fmt(v)}</span></button>`).join('')}</div>
+    <div class="acts"><button class="btn danger" data-a="fold">קיפול</button><button class="btn primary" data-a="hgo" data-v="${callAmt}" ${dis ? 'disabled' : ''}>${label}</button></div>`;
+}
+function pendingBox(){
+  return `<div class="pending"><button data-a="clearp" aria-label="ניקוי">×</button><span class="v num">${fmt(S.pending)}</span><span class="muted">להוסיף</span></div>`;
+}
+
+function holdemHost(){
+  const h = H(), r = h.r, i = STAGES.indexOf(r.stage);
+  const nextLbl = { preflop:'פתיחת פלופ', flop:'פתיחת טרן', turn:'פתיחת ריבר', river:'לשואודאון' }[r.stage];
+  const solo = h.live.length === 1 && h.pot > 0 ? h.live[0] : null;
+  return `<section class="host"><h3>בקרת דילר</h3>
+    ${solo ? `<button class="btn primary" data-a="solo" data-v="${esc(solo.pid)}">${esc(solo.name)} לוקח את הקופה (${fmt(h.pot)})</button>` : ''}
+    <div class="btns">
+      ${r.stage === 'idle' || h.pot === 0 ? `<button class="btn ${solo ? '' : 'primary'}" data-a="newhand">יד חדשה</button>` : ''}
+      ${nextLbl && h.pot >= 0 && r.stage !== 'idle' ? `<button class="btn" data-a="next">${nextLbl}</button>` : ''}
+      ${h.pot > 0 ? `<button class="btn ${r.stage === 'showdown' ? 'primary' : ''}" data-a="sheet" data-v="award">חלוקת הקופה</button>` : ''}
+      ${r.stage !== 'idle' ? `<button class="btn ghost" data-a="sheet" data-v="cancel">ביטול היד</button>` : ''}
+    </div>
+  </section>`;
+}
+
+function bjView(){
+  const r = S.room, list = players();
+  const phaseTxt = r.phase === 'betting' ? 'הימורים פתוחים' : 'קלפים חולקו';
+  const bettors = list.filter(cur), inTable = bettors.reduce((a,p) => a + bjStake(p) + (p.insurance||0), 0);
+  const rows = list.map(p => {
+    const c = cur(p), last = !c && p.bjRound === r.roundId - 1 && (p.hands || []).length;
+    let right = '';
+    if (c || last) right = `<div class="hands">${p.hands.map(x => `<span class="hchip num ${x.result ? 'res-' + x.result : ''}">${fmt(x.bet)}${x.doubled ? '×2' : ''}${x.result ? ' · ' + RES_HE[x.result] : ''}</span>`).join('')}${c && p.insurance ? `<span class="hchip">ביטוח ${fmt(p.insurance)}</span>` : ''}</div>`;
+    const sub = c ? '' : last ? esc(actText(p.lastAction)) : (r.phase === 'betting' ? 'עוד לא הימר' : 'לא בסיבוב');
+    return seatRow({ ...p, _out: !c && r.phase === 'playing' }, '', right, sub);
+  }).join('');
+  return `
+  <section class="table">
+    <div class="stage-row"><span class="pill ${r.phase === 'betting' ? 'ok' : ''}">${phaseTxt} · סיבוב ${r.roundId}</span><span class="meta num">${fmt(r.minBet)}${r.maxBet ? '–' + fmt(r.maxBet) : '+'}</span></div>
+    <div class="pot"><span class="lbl">על השולחן</span><span class="big num">${fmt(inTable)}</span></div>
+    <div class="tocall">${r.phase === 'betting' ? `${bettors.length} מתוך ${list.length} הימרו` : 'שחקו את הידיים. הדילר יסמן מי ניצח.'}</div>
+    <div class="meta num">מאזן הבית: <span dir="ltr">${(r.house||0) >= 0 ? '+' : '−'}${fmt(Math.abs(r.house||0))}</span></div>
+  </section>
+  <div class="seats">${rows || '<div class="muted" style="text-align:center;padding:16px">עוד אין מהמרים. שתפו את הקוד.</div>'}</div>`;
+}
+
+function bjDock(){
+  const r = S.room, m = me(), c = cur(m);
+  const head = `<div class="dock-head"><div class="mystack"><span class="big num">${fmt(m.stack)}</span><span class="muted">הצ'יפים שלך</span></div>${r.phase === 'betting' ? pendingBox() : ''}</div>`;
+  if (r.phase === 'betting'){
+    const curBet = c ? m.hands[0].bet : 0;
+    return `${head}
+      <div class="tray">${denoms().map(d => `<button class="chip" style="${chipStyle(d)}" data-a="add" data-v="${d}" aria-label="הוספת ${d}"><span>${chipLabel(d)}</span></button>`).join('')}</div>
+      <div class="acts">${c ? `<button class="btn ghost" data-a="bjclear">ביטול ${fmt(curBet)}</button>` : `<button class="btn ghost" data-a="setp" data-v="${r.minBet}">מינימום ${fmt(r.minBet)}</button>`}
+      <button class="btn primary" data-a="bjbet" ${S.pending ? '' : 'disabled'}>${c ? `הוספה להימור (${fmt(curBet + S.pending)})` : `הימור ${fmt(S.pending)}`}</button></div>`;
+  }
+  if (!c) return `${head}<div class="status">לא הימרת בסיבוב הזה. אפשר להמר בסיבוב הבא.</div>`;
+  const handsHtml = m.hands.map((x, i) => {
+    if (x.result) return `<div class="status">יד ${i+1}: ${fmt(x.bet)} · ${RES_HE[x.result]}</div>`;
+    return `<div class="handrow"><div class="row" style="justify-content:space-between"><b>${m.hands.length > 1 ? `יד ${i+1}` : 'ההימור שלך'}</b><span class="amt num"><span class="mini"></span>${fmt(x.bet)}${x.doubled ? ' · דאבל' : ''}</span></div>
+      <div class="acts3"><button class="btn small" data-a="bj" data-v="double:${i}" ${x.doubled || m.stack < x.bet ? 'disabled' : ''}>דאבל דאון</button><button class="btn small" data-a="bj" data-v="split:${i}" ${x.doubled || m.hands.length >= 4 || m.stack < x.bet ? 'disabled' : ''}>ספליט</button></div></div>`;
+  }).join('');
+  const one = m.hands.length === 1 && !m.hands[0].doubled && !m.hands[0].result;
+  return `${head}${handsHtml}
+    <div class="acts3"><button class="btn small ghost" data-a="bj" data-v="ins:0" ${m.insurance || m.hands.length > 1 || m.stack < Math.floor(m.hands[0].bet/2) ? 'disabled' : ''}>${m.insurance ? `ביטוח ${fmt(m.insurance)}` : `ביטוח (${fmt(Math.floor(m.hands[0].bet/2))})`}</button><button class="btn small ghost" data-a="bj" data-v="surrender:0" ${one ? '' : 'disabled'}>כניעה (מקבלים חצי)</button></div>`;
+}
+
+function bjHost(){
+  const r = S.room, n = players().filter(cur).length;
+  return `<section class="host"><h3>בקרת דילר</h3><div class="btns">
+    ${r.phase === 'betting' ? `<button class="btn primary" data-a="deal" ${n ? '' : 'disabled'}>חלוקת קלפים (נועל הימורים)</button>` : `<button class="btn primary" data-a="sheet" data-v="settle">סימון זוכים ותשלום</button><button class="btn ghost" data-a="sheet" data-v="cancel">ביטול הסיבוב</button>`}
+  </div>${r.phase === 'betting' && !n ? '<span class="muted">מחכים שמישהו יהמר.</span>' : ''}</section>`;
+}
+
+/* ---------- sheets ---------- */
+function sheetView(){
+  const head = t => `<div class="sheet-head"><h2>${t}</h2><button class="btn small ghost" data-a="close">סגירה</button></div>`;
+  const r = S.room;
+  if (S.sheet === 'award'){
+    const h = H(); const cands = h.list.filter(p => h.inHand(p) && h.com(p) > h.lvl);
+    const prev = computeAward(S.sel);
+    return `${head('חלוקת הקופה')}
+      <span class="muted">בחרו את הזוכה. בתיקו בחרו כמה זוכים והקופה תתחלק ביניהם. קופות צדדיות מחושבות לבד לפי מה שכל אחד הכניס.</span>
+      <div class="stack" style="gap:8px">${cands.map(p => `<button class="opt" data-a="pick" data-v="${esc(p.pid)}" aria-pressed="${S.sel.includes(p.pid)}"><span class="box"></span><span><b>${esc(p.name)}</b> <span class="muted">${p.folded ? '· קיפל' : p.allIn ? '· אול-אין' : ''}</span></span><span class="num muted">הכניס ${fmt(h.com(p))}</span></button>`).join('')}</div>
+      ${S.sel.length ? `<div class="card" style="padding:12px;gap:4px">${Object.entries(prev.pay).filter(([,a]) => a > 0).map(([id,a]) => `<div class="payline"><span>${esc(nameOf(id))}</span><b class="num">+${fmt(a)}</b></div>`).join('')}${prev.left ? `<div class="payline muted"><span>נשאר בקופה צדדית</span><span class="num">${fmt(prev.left)}</span></div>` : ''}</div>` : ''}
+      <button class="btn primary wide" data-a="award" ${S.sel.length ? '' : 'disabled'}>תשלום לזוכים</button>`;
+  }
+  if (S.sheet === 'settle'){
+    const list = players().filter(cur); const anyIns = list.some(p => p.insurance);
+    let missing = 0;
+    const rows = list.map(p => p.hands.map((x,i) => {
+      if (x.result) return `<div class="handrow"><div class="row" style="justify-content:space-between"><b>${esc(p.name)}${p.hands.length > 1 ? ` · יד ${i+1}` : ''}</b><span class="num muted">${fmt(x.bet)} · ${RES_HE[x.result]}</span></div></div>`;
+      const k = p.pid + ':' + i, v = S.settle[k]; if (!v) missing++;
+      return `<div class="handrow"><div class="row" style="justify-content:space-between"><b>${esc(p.name)}${p.hands.length > 1 ? ` · יד ${i+1}` : ''}</b><span class="amt num"><span class="mini"></span>${fmt(x.bet)}${x.doubled ? ' · דאבל' : ''}</span></div>
+        <div class="res4">${[['win','ניצח','w'],['bj','בלאק ג\'ק','b'],['push','תיקו','p'],['lose','הפסיד','l']].map(([rv,t,cl]) => `<button class="${cl}" data-a="res" data-v="${esc(k)}|${rv}" aria-pressed="${v === rv}">${t}</button>`).join('')}</div></div>`;
+    }).join('')).join('');
+    return `${head('סיום סיבוב')}
+      <button class="btn ghost" data-a="allwin">הדילר נשרף: כל מי שלא סומן ניצח</button>
+      ${anyIns ? `<button class="opt" data-a="dbj" aria-pressed="${S.dealerBJ}"><span class="box"></span><span>לדילר יש בלאק ג'ק (ביטוח משלם 2:1)</span><span></span></button>` : ''}
+      <div class="stack" style="gap:8px">${rows}</div>
+      <button class="btn primary wide" data-a="payout" ${missing ? 'disabled' : ''}>${missing ? `נשארו ${missing} ידיים לסמן` : 'תשלום וסיבוב חדש'}</button>`;
+  }
+  if (S.sheet === 'cancel'){
+    const hold = r.game === 'holdem';
+    return `${head(hold ? 'ביטול היד' : 'ביטול הסיבוב')}
+      <span class="muted">כל הצ'יפים שהוכנסו ${hold ? 'ביד הזו וטרם חולקו' : 'בסיבוב הזה'} יחזרו לשחקנים.</span>
+      <button class="btn danger wide" data-a="${hold ? 'cancelhand' : 'cancelround'}">כן, לבטל ולהחזיר</button>`;
+  }
+  if (S.sheet === 'players'){
+    const host = isHost(); const list = players();
+    return `${head('שחקנים')}
+      ${host ? '<span class="muted">כאן מוסיפים צ\'יפים (ריביי), מורידים, ומעבירים את תפקיד הדילר. אפשר גם להוסיף שחקן בלי טלפון, ואז מנהלים אותו מכאן.</span><div class="row"><input id="newp" data-bind="newName" value="' + esc(S.newName) + '" maxlength="20" placeholder="שם שחקן חדש"><button class="btn small" data-a="addp">הוספה</button></div>' : ''}
+      <div class="stack" style="gap:8px">${list.map(p => `<div class="mgr">
+        <div class="row" style="justify-content:space-between"><b>${esc(p.name)}${r.hostId === p.pid ? ' · דילר' : ''}</b><span class="num">${fmt(p.stack)}</span></div>
+        ${host ? `<div class="row"><input id="adj-${esc(p.pid)}" data-bind="adj.${esc(p.pid)}" inputmode="numeric" value="${esc(S.adj[p.pid] ?? r.startStack)}"><button class="btn small" data-a="adj" data-v="${esc(p.pid)}|1">הוספה</button><button class="btn small ghost" data-a="adj" data-v="${esc(p.pid)}|-1">הורדה</button></div>
+        <div class="row" style="flex-wrap:wrap">${r.game === 'holdem' ? `<button class="btn small ghost" data-a="sitout" data-v="${esc(p.pid)}">${p.sittingOut ? 'חזרה למשחק' : 'הפסקה'}</button>` : ''}${r.hostId !== p.pid ? `<button class="btn small ghost" data-a="mkhost" data-v="${esc(p.pid)}">העברת דילר</button>` : ''}<button class="btn small danger" data-a="remove" data-v="${esc(p.pid)}">${S.confirm === p.pid ? 'בטוח? להסיר' : 'הסרה'}</button></div>` :
+        (p.pid === S.myId && r.game === 'holdem' ? `<button class="btn small ghost" data-a="sitout" data-v="${esc(p.pid)}">${p.sittingOut ? 'חזרה למשחק' : 'הפסקה'}</button>` : '')}
+      </div>`).join('') || '<span class="muted">אין שחקנים עדיין.</span>'}</div>`;
+  }
+  if (S.sheet === 'settings'){
+    const host = isHost(), hold = r.game === 'holdem'; const e = S.edit;
+    const busy = hold ? H().pot > 0 : players().some(cur);
+    return `${head('הגדרות')}
+      <div class="card" style="padding:12px"><span class="muted">שתפו את הקישור לעמוד הזה ואת הקוד</span><div class="row" style="justify-content:space-between"><span class="code">${esc(r.code)}</span><button class="btn small" data-a="copy">שיתוף הזמנה</button></div>
+      <span class="muted">להתקנה: באנדרואיד, תפריט הדפדפן ← "התקנת אפליקציה". באייפון, ספארי ← שיתוף ← "הוספה למסך הבית".</span></div>
+      ${host ? `
+        <span class="label">סוג משחק</span>
+        <div class="seg"><button data-a="setgame" data-v="holdem" aria-pressed="${hold}" ${busy ? 'disabled' : ''}>טקסס הולדם</button><button data-a="setgame" data-v="blackjack" aria-pressed="${!hold}" ${busy ? 'disabled' : ''}>בלאק ג'ק</button></div>
+        ${busy ? '<span class="muted">אפשר להחליף משחק כשאין צ\'יפים על השולחן.</span>' : ''}
+        ${hold ? `<div class="grid2"><label class="field"><span class="label">ביג בליינד</span><input id="ebb" data-bind="edit.bb" inputmode="numeric" value="${esc(e.bb)}" style="direction:ltr"></label><label class="field"><span class="label">סמול בליינד</span><input id="esb" data-bind="edit.sb" inputmode="numeric" value="${esc(e.sb)}" style="direction:ltr"></label></div>`
+               : `<div class="grid2"><label class="field"><span class="label">הימור מינימלי</span><input id="emin" data-bind="edit.minBet" inputmode="numeric" value="${esc(e.minBet)}" style="direction:ltr"></label><label class="field"><span class="label">מקסימלי (0 = ללא)</span><input id="emax" data-bind="edit.maxBet" inputmode="numeric" value="${esc(e.maxBet)}" style="direction:ltr"></label></div>`}
+        <label class="field"><span class="label">צ'יפים למצטרפים חדשים</span><input id="estack" data-bind="edit.startStack" inputmode="numeric" value="${esc(e.startStack)}" style="direction:ltr"></label>
+        <button class="btn primary" data-a="saveset">שמירה</button>` :
+        `<span class="muted">${esc(nameOf(r.hostId))} הוא הדילר. אם הוא עזב, אפשר לקחת את התפקיד.</span><button class="btn ghost" data-a="mkhost" data-v="${esc(S.myId)}">אני הדילר עכשיו</button>`}
+      <button class="btn ghost" data-a="home">יציאה למסך הראשי</button>`;
+  }
+  return '';
+}
+
+/* ---------- events ---------- */
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (!S.code) render(); });
+window.addEventListener('appinstalled', () => { installEvt = null; toast('האפליקציה הותקנה'); if (!S.code) render(); });
+const A = {
+  install: async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch(e){} installEvt = null; render(); },
+  local: () => useLocal(),
+  addp: async () => { const n = S.newName.trim(); if (!n){ toast('כתבו שם'); return; } const pid = 'p_' + rid(10); const d = newPlayer(S.room.startStack || 0); d.name = n.slice(0,20); if (await w(pPath(pid), 'set', d)) { S.newName = ''; toast(n + ' נוסף לשולחן'); render(); } },
+  retry: () => { try { location.reload(); } catch(e){} },
+  cgame: v => { S.create.game = v; S.create.play = v === 'holdem'; render(); },
+  create: () => createRoom(),
+  join: async () => { const c = S.joinCode.trim().toUpperCase(); if (c.length !== 4){ toast('קוד החדר הוא 4 אותיות'); return; } if (S.name.trim()) ls.set('chips.name', S.name.trim()); await dbReady; enterRoom(c); },
+  open: async v => { await dbReady; enterRoom(v); },
+  home: () => goHome(),
+  sit: () => joinTable(),
+  claim: v => claimSeat(v),
+  copy: () => { const t = S.room.code; const link = location.origin + location.pathname + '#' + t; try { navigator.share ? navigator.share({ title: 'שולחן צ\'יפים', text: 'בואו לשולחן ' + t, url: link }).catch(() => {}) : navigator.clipboard.writeText(link).then(() => toast('קישור ההזמנה הועתק'), () => toast('קוד החדר: ' + t)); } catch(e){ toast('קוד החדר: ' + t); } },
+  sheet: v => { S.sheet = v; S.confirm = null; if (v === 'award'){ const h = H(); S.sel = h.live.length === 1 ? [h.live[0].pid] : []; } if (v === 'settle'){ S.settle = {}; S.dealerBJ = false; } if (v === 'settings'){ const r = S.room; S.edit = { sb: String(r.sb), bb: String(r.bb), minBet: String(r.minBet), maxBet: String(r.maxBet || 0), startStack: String(r.startStack) }; } render(); },
+  close: () => { S.sheet = null; render(); },
+  add: v => { const m = me(); S.pending = Math.min((m?.stack || 0), S.pending + Number(v)); buzz(); render(); },
+  setp: v => { S.pending = Math.max(0, Math.min(me()?.stack || 0, Number(v))); render(); },
+  clearp: () => { S.pending = 0; render(); },
+  hgo: v => hAct(Number(v)),
+  fold: () => hFold(),
+  newhand: () => newHand(),
+  next: () => nextStreet(),
+  solo: v => award([v]),
+  pick: v => { S.sel = S.sel.includes(v) ? S.sel.filter(x => x !== v) : [...S.sel, v]; render(); },
+  award: () => award(S.sel),
+  cancelhand: () => cancelHand(),
+  bjbet: () => bjBet(),
+  bjclear: () => bjClear(),
+  bj: v => { const [k, i] = v.split(':'); bjDo(k, Number(i)); },
+  deal: async () => { buzz(); await w(roomPath(), 'update', { phase:'playing', dealerBJ:false, ...setEvent(`סיבוב ${S.room.roundId}: הקלפים חולקו`) }); },
+  res: v => { const [k, rv] = v.split('|'); S.settle[k] = rv; render(); },
+  allwin: () => { players().filter(cur).forEach(p => p.hands.forEach((x,i) => { const k = p.pid + ':' + i; if (!x.result && !S.settle[k]) S.settle[k] = 'win'; })); render(); },
+  dbj: () => { S.dealerBJ = !S.dealerBJ; render(); },
+  payout: () => bjPayout(),
+  cancelround: () => bjCancelRound(),
+  adj: async v => { const [id, sign] = v.split('|'); const amt = Math.floor(Number(S.adj[id] ?? S.room.startStack) || 0); const p = S.players[id]; if (!p || !amt) return; const ns = Math.max(0, (p.stack || 0) + amt * Number(sign)); if (await w(pPath(id), 'update', { stack: ns, lastAction: { k:'refund', amt: ns - (p.stack||0) }, ts: now() })) { await w(roomPath(), 'update', setEvent(`${p.name}: ${Number(sign) > 0 ? '+' : '−'}${fmt(amt)} צ'יפים`)); toast('עודכן'); } },
+  sitout: v => { const p = S.players[v]; if (p) w(pPath(v), 'update', { sittingOut: !p.sittingOut }); },
+  mkhost: async v => { if (await w(roomPath(), 'update', { hostId: v, ...setEvent(`${nameOf(v)} הוא הדילר עכשיו`) })) { S.sheet = null; render(); } },
+  remove: async v => { if (S.confirm !== v){ S.confirm = v; render(); return; } S.confirm = null; await w(pPath(v), 'delete'); if (v === S.myId) render(); },
+  setgame: async v => { await w(roomPath(), 'update', { game: v, stage:'idle', phase:'betting', roundId: (S.room.roundId || 1) + 1, ...setEvent(v === 'holdem' ? 'עוברים לטקסס הולדם' : 'עוברים לבלאק ג\'ק') }); S.pending = 0; },
+  saveset: async () => { const e = S.edit, n = v => Math.max(0, Math.floor(Number(v) || 0)); if (await w(roomPath(), 'update', { sb: Math.max(1, n(e.sb)), bb: Math.max(1, n(e.bb)), minBet: Math.max(1, n(e.minBet)), maxBet: n(e.maxBet), startStack: n(e.startStack), updatedAt: now() })) { toast('נשמר'); S.sheet = null; render(); } }
+};
+document.addEventListener('click', e => {
+  if (e.target === sheetEl){ S.sheet = null; render(); return; }
+  const t = e.target.closest('[data-a]'); if (!t || t.disabled) return;
+  const f = A[t.dataset.a]; if (f) f(t.dataset.v, t);
+});
+function bind(e){
+  const b = e.target.dataset && e.target.dataset.bind; if (!b) return;
+  const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+  const [a, k] = b.split('.');
+  if (k === undefined){ S[a] = a === 'joinCode' ? String(v).toUpperCase() : v; if (a === 'name') ls.set('chips.name', String(v).trim()); }
+  else if (S[a]) S[a][k] = v;
+  if (a === 'joinCode' && e.target.value !== S.joinCode) e.target.value = S.joinCode;
+}
+document.addEventListener('input', bind);
+document.addEventListener('change', bind);
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'jcode') A.join(); if (e.key === 'Escape' && S.sheet){ S.sheet = null; render(); } });
+
+render();
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+</script>
+</body>
+</html>
