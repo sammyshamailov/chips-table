@@ -231,7 +231,7 @@ let roomsUnsub = null;
 const dbReady = (async () => {
   let db = null;
   const cfg = window.FIREBASE_CONFIG;
-  try { if (cfg && cfg.projectId && !String(cfg.apiKey).startsWith('PASTE') && window.firebase){ firebase.initializeApp(cfg); db = firebase.firestore(); try { db.settings({ ignoreUndefinedProperties: true }); } catch(e){} } } catch(e){ console.error(e); }
+  try { if (cfg && cfg.projectId && !String(cfg.apiKey).startsWith('PASTE') && window.firebase){ firebase.initializeApp(cfg); db = firebase.firestore(); try { db.settings({ ignoreUndefinedProperties: true, experimentalAutoDetectLongPolling: true, merge: true }); } catch(e){} } } catch(e){ console.error(e); }
   if (db){ S.db = db; S.mode = 'cloud'; }
   else { S.db = LocalDB(); S.mode = 'local'; }
   subRooms();
@@ -274,18 +274,18 @@ const setEvent = t => ({ lastEvent: { t, ts: now() }, updatedAt: now() });
 function leaveSubs(){ S.unsubs.forEach(u => { try { u(); } catch(e){} }); S.unsubs = []; }
 function enterRoom(code){
   leaveSubs();
-  Object.assign(S, { code, room:null, roomLoaded:false, players:{}, pending:0, sheet:null, confirm:null });
+  Object.assign(S, { syncErr:null, synced:false, pSynced:false, code, room:null, roomLoaded:false, players:{}, pending:0, sheet:null, confirm:null });
   ls.set('chips.room', code);
   const mine = code;
-  const onErr = e => { if (S.code !== mine) return; if (e && (e.code === 'unavailable' || e.code === 'internal')) setTimeout(() => { if (S.code === mine) enterRoom(mine); }, 2500); };
+  const onErr = e => { if (S.code !== mine) return; S.syncErr = (e && e.code) || 'error'; toast('שגיאת סנכרון: ' + S.syncErr); render(); if (e && (e.code === 'unavailable' || e.code === 'internal')) setTimeout(() => { if (S.code === mine) enterRoom(mine); }, 2500); };
   S.unsubs.push(S.db.doc('rooms/' + code).onSnapshot(s => {
     if (S.code !== mine) return;
     if (!s.exists){ if (!s.metadata.fromCache){ S.room = null; S.roomLoaded = true; render(); } return; }
-    S.room = s.data(); S.roomLoaded = true; render();
+    S.room = s.data(); S.roomLoaded = true; S.synced = !s.metadata.fromCache; render();
   }, onErr));
   S.unsubs.push(S.db.collection('rooms/' + code + '/players').onSnapshot(s => {
     if (S.code !== mine) return;
-    const m = {}; s.docs.forEach(d => { if (d.exists) m[d.id] = d.data(); }); S.players = m; render();
+    const m = {}; s.docs.forEach(d => { if (d.exists) m[d.id] = d.data(); }); S.players = m; S.pSynced = !s.metadata.fromCache; render();
   }, onErr));
   wake(); render();
 }
@@ -551,7 +551,7 @@ function roomView(){
   app.className = dock ? 'has-dock' : '';
   return `
   <div class="top">
-    <button class="code-btn" data-a="copy" aria-label="העתקת קוד החדר"><small>${hold ? 'טקסס הולדם' : 'בלאק ג\'ק'} · קוד חדר</small><span class="code">${esc(r.code)}</span></button>
+    <button class="code-btn" data-a="copy" aria-label="העתקת קוד החדר"><small>${hold ? 'טקסס הולדם' : 'בלאק ג\'ק'} · ${S.mode === 'cloud' ? (S.syncErr ? '<span style="color:var(--danger)">שגיאה: ' + esc(S.syncErr) + '</span>' : (S.synced && S.pSynced ? '<span style="color:var(--ok)">● מחובר</span>' : '<span style="color:var(--brass)">● מתחבר…</span>')) : '<span style="color:var(--danger)">● לא מחובר</span>'}</small><span class="code">${esc(r.code)}</span></button>
     <div class="actions">
       <button class="btn small ghost" data-a="sheet" data-v="players">שחקנים</button>
       <button class="btn small ghost" data-a="sheet" data-v="settings">הגדרות</button>
