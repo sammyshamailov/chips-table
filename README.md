@@ -12,7 +12,7 @@
 ## 2. העלאה לאוויר (בחרו אחת)
 - **Netlify Drop (הכי פשוט, ממחשב):** נכנסים ל־https://app.netlify.com/drop וגוררים את כל התיקייה. מקבלים קישור https מיד.
 - **Firebase Hosting:** `npm i -g firebase-tools`, ואז `firebase login`, `firebase init hosting` (תיקייה `.`, לא SPA), ואז `firebase deploy`.
-- **GitHub Pages:** מעלים את הקבצים לריפו ← Settings ← Pages ← Deploy from branch.
+- **GitHub Pages:** ב־Settings ← Pages מגדירים את **Source** ל־**GitHub Actions**. אחרי מיזוג ל־`main`, האתר ייפרס אוטומטית; אפשר גם להפעיל פריסה ידנית מתוך Actions.
 
 האתר חייב לרוץ על https כדי שההתקנה כאפליקציה תעבוד. כל האפשרויות למעלה נותנות https.
 
