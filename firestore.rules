@@ -3,9 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Chip rooms: anyone with the app can read and play. Nothing else in the database is reachable.
     match /rooms/{room} {
-      allow read, write: if room.matches('^[A-Z]{4}$');
+      allow list: if true;
+      allow get, write: if room.matches('^[A-Z]{4}$');
       match /players/{pid} {
-        allow read, write: if pid.matches('^p_[a-z0-9]{6,16}$');
+        allow list: if true;
+        allow get, write: if pid.matches('^p_[a-z0-9]{6,16}$');
       }
     }
   }
