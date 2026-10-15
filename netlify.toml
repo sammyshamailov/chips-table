@@ -1,8 +1,25 @@
 [build]
   publish = "."
-  command = ""
+  command = "node scripts/build-config.js"
+
+[build.environment]
+  # The Firebase web config ends up in the browser by design, so Netlify's secret scan should not block it.
+  SECRETS_SCAN_OMIT_KEYS = "FIREBASE_API_KEY,FIREBASE_PROJECT_ID,FIREBASE_MESSAGING_SENDER_ID,FIREBASE_APP_ID,FIREBASE_AUTH_DOMAIN,FIREBASE_STORAGE_BUCKET"
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
 [[headers]]
   for = "/sw.js"
   [headers.values]
     Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/config.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# Keep build and repo files off the public site
+[[redirects]]
+  from = "/scripts/*"
+  to = "/404"
+  status = 404
+  force = true

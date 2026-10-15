@@ -7,7 +7,10 @@
 2. בתפריט הצד: **Build ← Firestore Database ← Create database**. בוחרים מיקום (למשל `eur3`) ו־**production mode**.
 3. בלשונית **Rules** של Firestore: מוחקים את מה שיש, מדביקים את התוכן של `firestore.rules` ולוחצים **Publish**.
 4. בגלגל השיניים ← **Project settings ← Your apps** ← אייקון `</>` (Web). נותנים שם ולוחצים Register.
-5. מעתיקים את האובייקט `firebaseConfig` שמוצג, ומדביקים את הערכים בקובץ `config.js` במקום ה־`PASTE`.
+5. מעתיקים את הערכים מ־`firebaseConfig` למשתני סביבה ב־Netlify (Project configuration ← Environment variables):
+   `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_MESSAGING_SENDER_ID`, `FIREBASE_APP_ID`.
+   בזמן ה־deploy הסקריפט `scripts/build-config.js` יוצר מהם את `config.js`. הקובץ לא נשמר בריפו.
+   לבדיקה מקומית: מעתיקים את `config.example.js` ל־`config.js` וממלאים.
 
 ## 2. העלאה לאוויר (בחרו אחת)
 - **Netlify Drop (הכי פשוט, ממחשב):** נכנסים ל־https://app.netlify.com/drop וגוררים את כל התיקייה. מקבלים קישור https מיד.
