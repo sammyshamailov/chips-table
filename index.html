@@ -232,7 +232,45 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .fly-c{position:absolute;left:0;bottom:0;transform:translate(-50%,calc(var(--u)*2.2))}
 .ft{position:absolute;left:0;top:0;white-space:nowrap;font-family:var(--f-display);font-weight:700;font-size:calc(var(--u)*8);line-height:1;color:var(--brass);text-shadow:0 2px 0 rgba(0,0,0,.5),0 0 18px rgba(0,0,0,.6);direction:ltr}
 .ft.w{color:var(--ok)} .ft.l{color:var(--danger)} .ft.p{color:var(--chalk)}
-.cb{display:block;width:calc(var(--u)*6.6);height:calc(var(--u)*9.4);border-radius:calc(var(--u)*.9);background:repeating-linear-gradient(45deg,#f7f2e6 0 3px,#b8322a 3px 6px);border:2px solid #f7f2e6;box-shadow:0 3px 8px rgba(0,0,0,.5)}
+/* ---------- room layout: portrait stacks everything; landscape puts the table beside a control panel ---------- */
+.room{display:flex;flex-direction:column}
+.side{display:contents}
+.room .top{order:1}.room .mb{order:2}.room .event{order:3}.stage{order:4}.o-join{order:5}.o-host{order:6}.room .dock{order:7}
+@media (orientation:landscape){
+  #app.in-room{max-width:1200px;padding-block:10px}
+  #app.in-room.has-dock{padding-bottom:10px}
+  .room{display:grid;grid-template-columns:minmax(0,1fr) var(--tw);gap:18px;align-items:start}
+  .side{display:flex;flex-direction:column;min-width:0;position:sticky;top:10px;max-height:calc(100vh - 20px);max-height:calc(100dvh - 20px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+  .stage.fit{position:sticky;top:10px}
+  .room .top{order:1}.room .event{order:2}.room .dock{order:3}.o-host{order:4}.o-join{order:5}.room .mb{order:6;margin-top:10px}
+  .room .dock{position:static;z-index:auto;background:none;border:0;padding:12px 0 2px;backdrop-filter:none;-webkit-backdrop-filter:none}
+  .room .dock-in{max-width:none}
+  .room .top{padding-bottom:6px;flex-wrap:wrap;row-gap:6px}
+  .room .top .actions{flex-wrap:wrap}
+  .room .event{padding-bottom:2px}
+  .room .host{margin-top:10px}
+  .o-join .card{margin-top:10px!important}
+}
+
+/* ---------- turn-the-phone prompt ---------- */
+#rot{position:fixed;inset:0;z-index:55;display:grid;place-items:center;padding:24px;background:rgba(4,10,8,.84);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.rot-card{width:100%;max-width:340px;box-sizing:border-box;display:grid;gap:12px;justify-items:center;text-align:center;background:var(--felt);border:1px solid var(--line);border-radius:24px;padding:24px 20px 20px;box-shadow:0 20px 60px rgba(0,0,0,.5);animation:rotin .4s cubic-bezier(.2,.8,.3,1.15)}
+.rot-card h2{font-family:var(--f-display);font-size:42px;font-weight:700;line-height:1}
+.rot-card p{margin:0;max-width:30ch}
+@keyframes rotin{from{opacity:0;transform:translateY(18px) scale(.95)}}
+.rot-anim{position:relative;width:140px;height:140px;display:grid;place-items:center}
+.rot-arrow{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:var(--brass);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;animation:rotarrow 3.2s ease-in-out infinite}
+.phone{width:60px;height:108px;box-sizing:border-box;border-radius:14px;border:4px solid var(--chalk);background:#06110c;padding:3px;animation:rotturn 3.2s cubic-bezier(.65,0,.3,1) infinite;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.scr{width:100%;height:100%;border-radius:8px;overflow:hidden;display:grid;place-items:center;background:#0b1813}
+.scr-in{position:relative;width:86px;height:46px;animation:rotfit 3.2s cubic-bezier(.65,0,.3,1) infinite}
+.mf{position:absolute;inset:0;box-sizing:border-box;border-radius:3px 3px 50% 50%/3px 3px 100% 100%;background:radial-gradient(ellipse at 50% 20%,#26955f,#0e4a30);border:3px solid #6b4428;border-top-width:1px}
+.mc{position:absolute;width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:2px dashed #f7f2e6;animation:rotchip 3.2s ease-out infinite}
+.mc.a{background:#c8372d;left:17px;top:18px}.mc.b{background:#2f5fb8;left:38px;top:26px;animation-delay:.1s}.mc.c{background:#2e8a4f;left:59px;top:18px;animation-delay:.2s}
+@keyframes rotturn{0%,20%{transform:rotate(0)}42%,78%{transform:rotate(-90deg)}96%,100%{transform:rotate(0)}}
+@keyframes rotfit{0%,20%{transform:scale(.52)}42%,78%{transform:rotate(90deg) scale(1)}96%,100%{transform:scale(.52)}}
+@keyframes rotarrow{0%,8%{opacity:0}18%,38%{opacity:1}52%,100%{opacity:0}}
+@keyframes rotchip{0%,44%{transform:translateY(-7px);opacity:0}52%,80%{transform:none;opacity:1}92%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.phone,.scr-in,.rot-arrow,.mc,.rot-card{animation:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 <script src="config.js"></script>
@@ -244,10 +282,11 @@ h1,h2,h3{margin:0;text-wrap:balance}
 <div id="sheet" dir="rtl" hidden></div>
 <div id="toast" dir="rtl" hidden></div>
 <div id="fx" aria-hidden="true"></div>
+<div id="rot" dir="rtl" hidden></div>
 
 <script>
 (() => {
-const app = document.getElementById('app'), sheetEl = document.getElementById('sheet'), toastEl = document.getElementById('toast');
+const app = document.getElementById('app'), sheetEl = document.getElementById('sheet'), toastEl = document.getElementById('toast'), rotEl = document.getElementById('rot');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => Math.round(n || 0).toLocaleString('en-US');
 const ls = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }, del(k){ try { localStorage.removeItem(k); } catch(e){} } };
@@ -299,7 +338,6 @@ const SND = (() => {
   }
   // one clay chip landing on another: a bright, very short click with a little body
   function clack(t, v = 1){ const f = 2800 + Math.random() * 2400; noise(t, .026, f, 5, .5 * v); tone(t, f * 1.55, .016, .06 * v, 'triangle'); noise(t + .003, .05, 1300 + Math.random() * 500, 9, .1 * v); }
-  function card(t){ noise(t, .1, 3200, .9, .28, 'bandpass', 800); noise(t + .085, .025, 5200, 1.5, .12, 'highpass'); }
   const notes = (t, list, gap, d, peak, type = 'triangle') => list.forEach((f, i) => { tone(t + i * gap, f, d, peak, type); tone(t + i * gap, f * 2, d * .6, peak * .25, 'sine'); });
   const api = {
     init,
@@ -314,13 +352,7 @@ const SND = (() => {
     tick(){ if (!ready()) return; tone(ctx.currentTime, 1900, .014, .035, 'triangle'); },
     slide(){ if (!ready()) return; noise(ctx.currentTime, .24, 700, .7, .14, 'lowpass', 2400); },
     whoosh(){ if (!ready()) return; noise(ctx.currentTime, .3, 350, 1.3, .22, 'bandpass', 2800); },
-    card(){ if (!ready()) return; card(ctx.currentTime); },
-    flip(n = 1){ if (!ready()) return; for (let i = 0; i < n; i++) card(ctx.currentTime + i * .13); },
-    shuffle(){
-      if (!ready()) return; let t = ctx.currentTime;
-      for (let i = 0; i < 30; i++){ noise(t, .018, 2400 + Math.random() * 2400, 3, .16); t += .016 + (i / 30) * .014; }
-      noise(t + .02, .3, 2400, .8, .2, 'lowpass', 500);
-    },
+    bell(){ if (!ready()) return; const t = ctx.currentTime; [[1318.5, 1], [1975.5, .6]].forEach(([f, g], i) => { tone(t + i * .13, f, .9, .07 * g, 'sine'); tone(t + i * .13, f * 2.76, .3, .018 * g, 'sine'); }); },
     knock(){ if (!ready()) return; const t = ctx.currentTime; [0, .14].forEach(d => { tone(t + d, 150, .09, .45, 'sine', 70); noise(t + d, .05, 450, 1, .28, 'lowpass'); }); },
     fold(){ if (!ready()) return; noise(ctx.currentTime, .2, 2400, .8, .17, 'bandpass', 600); },
     win(){ if (!ready()) return; notes(ctx.currentTime + .05, [659.25, 783.99, 1046.5, 1318.5], .085, .24, .11); },
@@ -353,9 +385,8 @@ const unitPx = () => parseFloat(getComputedStyle(document.documentElement).getPr
 function seatTarget(pid){
   const s = rectOf('seat:' + pid);
   if (pid !== S.myId) return s;
-  const d = rectOf('mystack'), dock = document.querySelector('.dock');
-  if (d && dock){ const top = dock.getBoundingClientRect().top + scrollY; if (!s || s.y > top - 8 || s.y < scrollY) return d; }
-  return s || d;
+  const d = rectOf('mystack');
+  return onScreen(s) ? s : (d || s);
 }
 function setOv(pid, o, ms){ const tok = ++FX.n; FX.ov[pid] = { ...o, tok, until: now() + ms + 600 }; setTimeout(() => clearOv(pid, tok), ms + 650); return tok; }
 function clearOv(pid, tok){ if (FX.ov[pid] && FX.ov[pid].tok === tok){ delete FX.ov[pid]; render(); } }
@@ -392,8 +423,24 @@ function floatText(at, text, cls = ''){
 }
 function pulse(k, s = 1.14){ const el = document.querySelector('[data-k="' + k + '"]'); if (!el || RM) return; try { el.animate([{ scale: '1' }, { scale: String(s) }, { scale: '1' }], { duration: 300, easing: 'ease-out' }); } catch(e){} }
 function paintGhost(){ const el = document.querySelector('[data-k="ghost"]'); if (el){ const g = Math.max(0, S.pending - FX.pendFly); el.innerHTML = g ? stackHTML(g) : ''; } }
-function setU(){ const w = app.clientWidth || 340; document.documentElement.style.setProperty('--u', (Math.min(w, 520) / 100).toFixed(3) + 'px'); }
+const LAND = matchMedia('(orientation: landscape)');
+const PORTRAIT_PHONE = matchMedia('(orientation: portrait) and (max-width: 700px) and (pointer: coarse)');
+const landRoom = () => LAND.matches && !!S.code;
+function setU(){
+  const aw = app.clientWidth || 340; let w = Math.min(aw, 520);
+  if (landRoom()) w = Math.max(220, Math.min(600, (innerHeight - 20) / .98, aw - 276));   // leave room for the side panel
+  const st = document.documentElement.style; st.setProperty('--u', (w / 100).toFixed(3) + 'px'); st.setProperty('--tw', Math.floor(w) + 'px');
+}
 window.addEventListener('resize', setU);
+const onTurn = () => { if (S.code) render(); else setU(); };
+[LAND, PORTRAIT_PHONE].forEach(q => { try { q.addEventListener('change', onTurn); } catch(e){ try { q.addListener(onTurn); } catch(e2){} } });
+// Is this point visible, and not hidden behind the fixed bottom dock (portrait)?
+function onScreen(r){
+  if (!r) return false;
+  let bottom = scrollY + innerHeight; const dock = document.querySelector('.dock');
+  if (dock && getComputedStyle(dock).position === 'fixed') bottom = dock.getBoundingClientRect().top + scrollY;
+  return r.y > scrollY && r.y < bottom - 8;
+}
 
 /* ---------- local single-device store (same surface as db) ---------- */
 function LocalDB(){
@@ -471,7 +518,7 @@ function leaveSubs(){ S.unsubs.forEach(u => { try { u(); } catch(e){} }); S.unsu
 function enterRoom(code){
   leaveSubs();
   Object.assign(S, { syncErr:null, synced:false, pSynced:false, code, room:null, roomLoaded:false, players:{}, pending:0, sheet:null, confirm:null });
-  FX.ov = {}; FX.pendFly = 0;
+  FX.ov = {}; FX.pendFly = 0; S.rotOff = false;
   ls.set('chips.room', code);
   const mine = code;
   const onErr = e => { if (S.code !== mine) return; S.syncErr = (e && e.code) || 'error'; toast('שגיאת סנכרון: ' + S.syncErr); render(); if (e && (e.code === 'unavailable' || e.code === 'internal')) setTimeout(() => { if (S.code === mine) enterRoom(mine); }, 2500); };
@@ -491,7 +538,7 @@ function enterRoom(code){
   }, onErr));
   wake(); render();
 }
-function goHome(){ leaveSubs(); try { history.replaceState(null, '', location.pathname); } catch(e){} S.code = null; S.room = null; S.sheet = null; ls.del('chips.room'); render(); }
+function goHome(){ leaveSubs(); unlockTurn(); try { history.replaceState(null, '', location.pathname); } catch(e){} S.code = null; S.room = null; S.sheet = null; ls.del('chips.room'); render(); }
 
 let lock = null;
 async function wake(){ try { if ('wakeLock' in navigator && !lock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => lock = null); } } catch(e){} }
@@ -647,27 +694,12 @@ function fxHold(pid, a, b, r){
 }
 function fxRoom(a, b){
   if (!a || !b || a.code !== b.code) return null;
-  if (b.game === 'blackjack' && a.phase === 'betting' && b.phase === 'playing' && a.roundId === b.roundId) return dealFx;
-  if (b.game === 'holdem'){
-    if ((b.handId || 0) > (a.handId || 0)) return () => SND.shuffle();
-    const i = STAGES.indexOf(a.stage), j = STAGES.indexOf(b.stage);
-    if (b.handId === a.handId && j > i && i >= 0 && j <= 3){
-      const before = [0, 3, 4, 5][i], after = [0, 3, 4, 5][j];
-      return () => { SND.flip(after - before); for (let x = before; x < after; x++){ const el = document.querySelector(`[data-k="slot:${x}"]`); if (el && !RM) try { el.animate([{ transform: 'rotateY(90deg) scale(1.1)' }, { transform: 'rotateY(0) scale(1)' }], { duration: 320, delay: (x - before) * 130, easing: 'ease-out', fill: 'backwards' }); } catch(e){} } };
-    }
-  }
+  if (b.game === 'blackjack' && a.phase === 'betting' && b.phase === 'playing' && a.roundId === b.roundId) return lockFx;
+  if (b.game === 'holdem' && (b.handId || 0) > (a.handId || 0)) return () => SND.bell();
   return null;
 }
-function dealFx(){
-  const dealer = rectOf('dealer'); if (!dealer) return;
-  const targets = players().filter(cur).flatMap(p => p.hands.map((_, j) => rectOf(`spot:${p.pid}:${j}`)));
-  const u = unitPx(), house = shift(dealer, 0, u * 16);
-  let n = 0;
-  [0, 1].forEach(() => [...targets, house].forEach(t => {
-    const d = n++ * 150;
-    fly({ from: shift(dealer, -u * 14), to: shift(t, 0, -u * 2), html: '<i class="cb"></i>', delay: d, dur: 380, lift: 10, fadeOut: true, sound: SND.card });
-  }));
-}
+// The dealer locked the bets: a bell, and every stack on the felt gives a little bump.
+function lockFx(){ SND.bell(); players().filter(cur).forEach(p => p.hands.forEach((_, j) => pulse(`spot:${p.pid}:${j}`, 1.1))); }
 
 /* ---------- Hold'em model ---------- */
 const STAGES = ['preflop','flop','turn','river','showdown'];
@@ -848,14 +880,36 @@ const avatar = (p, k) => `<div class="av"${k ? ` data-k="${esc(k)}"` : ''} style
 const actText = a => { if (!a) return ''; const x = fmt(a.amt); return ({ fold:'קיפל', check:'צ\'ק', call:`השווה ${x}`, raise:`העלה ל-${x}`, bet:`הימר ${x}`, allin:`אול-אין ${x}`, blind:`בליינד ${x}`, won:`זכה ב-${x}`, refund:`הוחזר ${x}`, clear:'ביטל הימור', double:'דאבל דאון', split:'ספליט', ins:'ביטוח', surrender:'כניעה', bjres: a.amt > 0 ? `הרוויח ${x}` : a.amt < 0 ? `הפסיד ${fmt(-a.amt)}` : 'תיקו' })[a.k] || ''; };
 const RES_HE = { win:'ניצחון', bj:'בלאק ג\'ק', push:'תיקו', lose:'הפסד', surrender:'כניעה' };
 
+/* ---------- turn-the-phone prompt: shown only inside a table, on a phone held upright ---------- */
+const canLock = () => !!(window.screen && screen.orientation && screen.orientation.lock && document.documentElement.requestFullscreen);
+function renderRot(){
+  const show = !!(S.code && S.room && !S.rotOff && PORTRAIT_PHONE.matches);
+  if (!show){ if (!rotEl.hidden){ rotEl.hidden = true; rotEl.innerHTML = ''; } return; }
+  if (!rotEl.hidden) return;                       // already showing: don't restart the animation on every update
+  rotEl.innerHTML = `<div class="rot-card" role="dialog" aria-modal="true" aria-labelledby="rot-t">
+    <div class="rot-anim" aria-hidden="true">
+      <svg class="rot-arrow" viewBox="0 0 120 120"><path d="M96 34 A46 46 0 0 0 30 30"/><path d="M38 22 L28 31 L41 36"/></svg>
+      <div class="phone"><div class="scr"><div class="scr-in"><i class="mf"></i><i class="mc a"></i><i class="mc b"></i><i class="mc c"></i></div></div></div>
+    </div>
+    <h2 id="rot-t">סובבו את הטלפון</h2>
+    <p class="muted">לרוחב יש לשולחן הרבה יותר מקום: כל השחקנים, הצ'יפים והכפתורים במסך אחד.</p>
+    ${canLock() ? '<button class="btn primary wide" data-a="rotlock">מסך מלא לרוחב</button>' : ''}
+    <button class="btn ghost wide" data-a="rotoff">להמשיך לאורך</button>
+  </div>`;
+  rotEl.hidden = false;
+}
+function unlockTurn(){ try { screen.orientation.unlock(); } catch(e){} try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch(e){} }
+
 /* ---------- views ---------- */
 const ICON_SND_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 const ICON_SND_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>';
 function render(){
-  FX.rects = measure(); setU();
+  FX.rects = measure();
   const a = document.activeElement, id = a && a.id; let s1, s2; try { s1 = a.selectionStart; s2 = a.selectionEnd; } catch(e){}
+  const sideTop = (app.querySelector('.side') || {}).scrollTop || 0;      // keep the landscape panel where the player scrolled it
   if (!S.code){ app.innerHTML = homeView(); app.className = ''; renderRooms(); }
-  else app.innerHTML = roomView();
+  else { app.innerHTML = roomView(); const sd = app.querySelector('.side'); if (sd && sideTop) sd.scrollTop = sideTop; }
+  setU(); renderRot();
   if (S.sheet && S.room){ sheetEl.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${sheetView()}</div>`; sheetEl.hidden = false; }
   else { sheetEl.hidden = true; sheetEl.innerHTML = ''; }
   if (id){ const el = document.getElementById(id); if (el && el !== document.activeElement){ el.focus({ preventScroll:true }); try { if (s1 != null) el.setSelectionRange(s1, s2); } catch(e){} } }
@@ -914,8 +968,8 @@ function roomView(){
   const r = S.room, m = me(), hold = r.game === 'holdem';
   const body = hold ? holdemView() : bjView();
   const dock = m ? (hold ? holdemDock() : bjDock()) : '';
-  app.className = dock ? 'has-dock' : '';
-  return `
+  app.className = 'in-room' + (dock ? ' has-dock' : '');
+  return `<div class="room"><div class="side">
   <div class="top">
     <button class="code-btn" data-a="copy" aria-label="העתקת קוד החדר"><small>${hold ? 'טקסס הולדם' : 'בלאק ג\'ק'} · ${S.mode === 'cloud' ? (S.syncErr ? '<span style="color:var(--danger)">שגיאה: ' + esc(S.syncErr) + '</span>' : (S.synced && S.pSynced ? '<span style="color:var(--ok)">● מחובר</span>' : '<span style="color:var(--brass)">● מתחבר…</span>')) : '<span style="color:var(--danger)">● לא מחובר</span>'}</small><span class="code">${esc(r.code)}</span></button>
     <div class="actions">
@@ -924,12 +978,12 @@ function roomView(){
       <button class="btn small ghost" data-a="sheet" data-v="settings">הגדרות</button>
     </div>
   </div>
-  ${S.mode !== 'cloud' || S.readOnly ? `<div style="margin-bottom:12px">${modeBanner()}</div>` : ''}
+  ${S.mode !== 'cloud' || S.readOnly ? `<div class="mb" style="margin-bottom:12px">${modeBanner()}</div>` : ''}
   <div class="event">${r.lastEvent ? esc(r.lastEvent.t) : ''}</div>
-  ${body}
-  ${!m ? joinCard() : ''}
-  ${isHost() ? (hold ? holdemHost() : bjHost()) : ''}
-  ${dock ? `<div class="dock"><div class="dock-in">${dock}</div></div>` : ''}`;
+  ${!m ? `<div class="o-join">${joinCard()}</div>` : ''}
+  ${isHost() ? `<div class="o-host">${hold ? holdemHost() : bjHost()}</div>` : ''}
+  ${dock ? `<div class="dock"><div class="dock-in">${dock}</div></div>` : ''}
+  </div><div class="stage${hold ? '' : ' fit'}">${body}</div></div>`;
 }
 
 function joinCard(){
@@ -979,7 +1033,7 @@ function holdemView(){
   return `
   <section class="table">
     <div class="stage-row"><span class="pill ${r.stage === 'idle' ? 'ok' : ''}">${STAGE_HE[r.stage] || ''}${r.handId ? ` · יד ${r.handId}` : ''}</span><span class="meta num">בליינדים ${fmt(r.sb)}/${fmt(r.bb)}</span></div>
-    <div class="board" aria-label="קלפים על השולחן">${[0,1,2,3,4].map(i => `<span class="slot ${i < cards ? 'on' : ''}" data-k="slot:${i}"></span>`).join('')}</div>
+    <div class="board" aria-label="קלפים על השולחן">${[0,1,2,3,4].map(i => `<span class="slot ${i < cards ? 'on' : ''}"></span>`).join('')}</div>
     <div class="pot"><span class="lbl">קופה</span><span class="big num" data-k="pot">${fmt(h.pot)}</span></div>
     <div class="tocall">${r.stage === 'idle' ? (r.handId ? 'היד הסתיימה. הדילר יתחיל יד חדשה.' : 'מחכים שהדילר יתחיל את היד הראשונה') : h.maxSt ? `ההימור ברחוב: ${fmt(h.maxSt)}` : 'אין הימור ברחוב הזה'}</div>
   </section>
@@ -1222,12 +1276,17 @@ const A = {
     const from = t && pageRect(t);
     if (!added || !from || RM){ render(); return; }
     FX.pendFly += added; render();                       // the chip flies from the tray onto your betting spot
-    const spot = S.room.game === 'blackjack' && rectOf('spot:' + S.myId + ':0'), dock = document.querySelector('.dock');
-    const spotOk = spot && dock && spot.y < dock.getBoundingClientRect().top + scrollY - 10 && spot.y > scrollY;
-    fly({ from, to: spotOk ? spot : rectOf('pend'), amt: added, dur: 380, lift: 34, land: () => { FX.pendFly = Math.max(0, FX.pendFly - added); paintGhost(); SND.chips(1, .8); } });
+    const spot = S.room.game === 'blackjack' && rectOf('spot:' + S.myId + ':0');
+    fly({ from, to: onScreen(spot) ? spot : rectOf('pend'), amt: added, dur: 380, lift: 34, land: () => { FX.pendFly = Math.max(0, FX.pendFly - added); paintGhost(); SND.chips(1, .8); } });
   },
   setp: v => { S.pending = Math.max(0, Math.min(me()?.stack || 0, Number(v))); FX.pendFly = 0; SND.chips(3); render(); },
   clearp: () => { if (S.pending) SND.slide(); S.pending = 0; FX.pendFly = 0; render(); },
+  rotoff: () => { S.rotOff = true; render(); },
+  rotlock: async () => {
+    try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); await screen.orientation.lock('landscape'); }
+    catch(e){ toast('הטלפון לא מאפשר לסובב מכאן. סובבו אותו ביד.'); }
+    render();
+  },
   snd: () => { const on = SND.toggle(); toast(on ? 'הצלילים פועלים' : 'הצלילים כבויים'); render(); },
   hgo: v => hAct(Number(v)),
   fold: () => hFold(),
@@ -1269,7 +1328,7 @@ function bind(e){
 }
 document.addEventListener('input', bind);
 document.addEventListener('change', bind);
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'jcode') A.join(); if (e.key === 'Escape' && S.sheet){ S.sheet = null; render(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'jcode') A.join(); if (e.key === 'Escape' && S.sheet){ S.sheet = null; render(); } else if (e.key === 'Escape' && !rotEl.hidden){ S.rotOff = true; render(); } });
 
 render();
 })();
