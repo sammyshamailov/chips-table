@@ -173,7 +173,15 @@ h1,h2,h3{margin:0;text-wrap:balance}
 /* --u = 1% of the table width, set from JS, so the table scales as one picture on any phone */
 :root{--u:3.4px}
 .icon-btn{min-width:38px;padding:8px}
-.bjt{position:relative;width:100%;aspect-ratio:100/98;user-select:none;-webkit-user-select:none;margin-top:2px}
+.bjt{position:relative;isolation:isolate;width:100%;aspect-ratio:100/98;user-select:none;-webkit-user-select:none;--dtop:21;margin-top:calc(var(--u)*var(--dtop))}
+/* the dealer stands behind the table: her lower half is hidden by the felt */
+.dfig{position:absolute;left:50%;top:calc(var(--u)*var(--dtop)*-1);width:calc(var(--u)*30);transform:translateX(-50%);z-index:-1;pointer-events:none}
+.dsvg{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 4px 10px rgba(0,0,0,.45))}
+.dhead{transform-box:fill-box;transform-origin:50% 95%}
+.lids ellipse{transform-box:fill-box;transform-origin:50% 0;transform:scaleY(0);animation:dblink 5.2s infinite;animation-delay:inherit}
+@keyframes dblink{0%,91%{transform:scaleY(0)}94%{transform:scaleY(1)}97%,100%{transform:scaleY(0)}}
+.hdealer{width:118px;margin:0 auto -24px;position:relative;z-index:0}
+.stage .table{z-index:1}
 .bjt .felt{position:absolute;left:0;right:0;top:0;height:86%;box-sizing:border-box;border:calc(var(--u)*3) solid transparent;border-top-width:calc(var(--u)*1.3);
   border-radius:calc(var(--u)*3) calc(var(--u)*3) 50% 50% / calc(var(--u)*3) calc(var(--u)*3) 90.7% 90.7%;
   background:radial-gradient(ellipse 80% 70% at 50% 26%,#26955f 0%,#1a7148 46%,#0e4a30 100%) padding-box,linear-gradient(180deg,#7a4d2c,#4a2b17 45%,#2a170b) border-box;
@@ -243,6 +251,7 @@ h1,h2,h3{margin:0;text-wrap:balance}
   .side{display:flex;flex-direction:column;min-width:0;position:sticky;top:10px;max-height:calc(100vh - 20px);max-height:calc(100dvh - 20px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
   .stage.fit{position:sticky;top:10px}
   .room .top{order:1}.room .event{order:2}.room .dock{order:3}.o-host{order:4}.o-join{order:5}.room .mb{order:6;margin-top:10px}
+  .bjt{--dtop:18.5}
   .room .dock{position:static;z-index:auto;background:none;border:0;padding:12px 0 2px;backdrop-filter:none;-webkit-backdrop-filter:none}
   .room .dock-in{max-width:none}
   .room .top{padding-bottom:6px;flex-wrap:wrap;row-gap:6px}
@@ -270,7 +279,7 @@ h1,h2,h3{margin:0;text-wrap:balance}
 @keyframes rotfit{0%,20%{transform:scale(.52)}42%,78%{transform:rotate(90deg) scale(1)}96%,100%{transform:scale(.52)}}
 @keyframes rotarrow{0%,8%{opacity:0}18%,38%{opacity:1}52%,100%{opacity:0}}
 @keyframes rotchip{0%,44%{transform:translateY(-7px);opacity:0}52%,80%{transform:none;opacity:1}92%,100%{opacity:0}}
-@media (prefers-reduced-motion:reduce){.phone,.scr-in,.rot-arrow,.mc,.rot-card{animation:none}}
+@media (prefers-reduced-motion:reduce){.phone,.scr-in,.rot-arrow,.mc,.rot-card,.lids ellipse{animation:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 <script src="config.js"></script>
@@ -326,18 +335,35 @@ const SND = (() => {
   }
   const ready = () => on && ctx && ctx.state === 'running';
   function env(g, t, peak, a, d){ g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
-  function noise(t, d, f, q, peak, type = 'bandpass', f2){
+  function noise(t, d, f, q, peak, type = 'bandpass', f2, dst = out){
     const s = ctx.createBufferSource(); s.buffer = nbuf;
     const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.setValueAtTime(f, t); if (f2) fl.frequency.exponentialRampToValueAtTime(f2, t + d); fl.Q.value = q;
     const g = ctx.createGain(); env(g, t, peak, .002, d);
-    s.connect(fl); fl.connect(g); g.connect(out); s.start(t, Math.random() * .8); s.stop(t + d + .05);
+    s.connect(fl); fl.connect(g); g.connect(dst); s.start(t, Math.random() * .8); s.stop(t + d + .05);
   }
-  function tone(t, f, d, peak, type = 'sine', f2, a = .005){
+  function tone(t, f, d, peak, type = 'sine', f2, a = .005, dst = out){
     const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
-    const g = ctx.createGain(); env(g, t, peak, a, d); o.connect(g); g.connect(out); o.start(t); o.stop(t + a + d + .05);
+    const g = ctx.createGain(); env(g, t, peak, a, d); o.connect(g); g.connect(dst); o.start(t); o.stop(t + a + d + .05);
   }
   // one clay chip landing on another: a bright, very short click with a little body
-  function clack(t, v = 1){ const f = 2800 + Math.random() * 2400; noise(t, .026, f, 5, .5 * v); tone(t, f * 1.55, .016, .06 * v, 'triangle'); noise(t + .003, .05, 1300 + Math.random() * 500, 9, .1 * v); }
+  function clack(t, v = 1, dst = out, lo = 2800, span = 2400){ const f = lo + Math.random() * span; noise(t, .026, f, 5, .5 * v, 'bandpass', null, dst); tone(t, f * 1.55, .016, .06 * v, 'triangle', null, .005, dst); noise(t + .003, .05, 1300 + Math.random() * 500, 9, .1 * v, 'bandpass', null, dst); }
+  // A player somewhere at the table playing with their chips: quieter, panned to one side, slightly duller.
+  function ambBus(){ const g = ctx.createGain(); g.gain.value = .42; let n = g; try { const p = ctx.createStereoPanner(); p.pan.value = (Math.random() < .5 ? -1 : 1) * (.35 + Math.random() * .45); g.connect(p); n = p; } catch(e){} n.connect(out); return g; }
+  const AMB = [
+    (t, bus) => {                       // riffle: two stacks pushed into each other, chips interleaving fast
+      const n = 14 + Math.floor(Math.random() * 10);
+      for (let i = 0; i < n; i++){ clack(t, .55 + Math.random() * .35, bus, 2200, 1600); t += .022 + Math.random() * .014; }
+      clack(t + .06, .5, bus, 2000, 900); clack(t + .1, .3, bus, 2000, 900);
+    },
+    (t, bus) => {                       // lifting a few chips and letting them drop back on the stack
+      const k = 2 + Math.floor(Math.random() * 3);
+      for (let j = 0; j < k; j++){ let u = t + j * (.34 + Math.random() * .2); for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++){ clack(u, .7 - i * .1, bus); u += .03 + Math.random() * .02; } }
+    },
+    (t, bus) => {                       // counting chips one by one off a stack
+      const n = 5 + Math.floor(Math.random() * 5);
+      for (let i = 0; i < n; i++){ clack(t, .6 + Math.random() * .3, bus, 2600, 2000); t += .16 + Math.random() * .12; }
+    }
+  ];
   const notes = (t, list, gap, d, peak, type = 'triangle') => list.forEach((f, i) => { tone(t + i * gap, f, d, peak, type); tone(t + i * gap, f * 2, d * .6, peak * .25, 'sine'); });
   const api = {
     init,
@@ -348,6 +374,7 @@ const SND = (() => {
       if (t0 - lastT < .07){ if (++burst > 4) return; } else burst = 0; lastT = t0;   // many chips at once: keep it pleasant
       let t = t0; for (let i = 0; i < n; i++){ clack(t, v * (1 - i * .07)); t += .028 + Math.random() * .05; }
     },
+    ambient(){ if (!ready()) return; AMB[Math.floor(Math.random() * AMB.length)](ctx.currentTime + .05, ambBus()); },
     tap(){ if (!ready()) return; const t = ctx.currentTime; clack(t, .9); clack(t + .05, .35); },
     tick(){ if (!ready()) return; tone(ctx.currentTime, 1900, .014, .035, 'triangle'); },
     slide(){ if (!ready()) return; noise(ctx.currentTime, .24, 700, .7, .14, 'lowpass', 2400); },
@@ -368,6 +395,8 @@ const SND = (() => {
   return api;
 })();
 ['pointerdown', 'touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => SND.init(), { passive: true, capture: true }));
+// Casino vibes: now and then someone at the table plays with their chips. Only inside a table, only when the screen is on.
+(function ambLoop(){ setTimeout(() => { if (S.code && S.room && document.visibilityState === 'visible') SND.ambient(); ambLoop(); }, 15000 + Math.random() * 25000); })();
 
 /* ---------- effects: flying chips and cards ----------
    Everything here is derived from changes in the synced documents, so the stored data format is unchanged.
@@ -428,7 +457,7 @@ const PORTRAIT_PHONE = matchMedia('(orientation: portrait) and (max-width: 700px
 const landRoom = () => LAND.matches && !!S.code;
 function setU(){
   const aw = app.clientWidth || 340; let w = Math.min(aw, 520);
-  if (landRoom()) w = Math.max(220, Math.min(600, (innerHeight - 20) / .98, aw - 276));   // leave room for the side panel
+  if (landRoom()) w = Math.max(220, Math.min(600, (innerHeight - 20) / (.98 + .185), aw - 276));   // .185: the dealer above the table   // leave room for the side panel
   const st = document.documentElement.style; st.setProperty('--u', (w / 100).toFixed(3) + 'px'); st.setProperty('--tw', Math.floor(w) + 'px');
 }
 window.addEventListener('resize', setU);
@@ -695,11 +724,11 @@ function fxHold(pid, a, b, r){
 function fxRoom(a, b){
   if (!a || !b || a.code !== b.code) return null;
   if (b.game === 'blackjack' && a.phase === 'betting' && b.phase === 'playing' && a.roundId === b.roundId) return lockFx;
-  if (b.game === 'holdem' && (b.handId || 0) > (a.handId || 0)) return () => SND.bell();
+  if (b.game === 'holdem' && (b.handId || 0) > (a.handId || 0)) return () => { SND.bell(); dealerNod(); };
   return null;
 }
 // The dealer locked the bets: a bell, and every stack on the felt gives a little bump.
-function lockFx(){ SND.bell(); players().filter(cur).forEach(p => p.hands.forEach((_, j) => pulse(`spot:${p.pid}:${j}`, 1.1))); }
+function lockFx(){ SND.bell(); dealerNod(); players().filter(cur).forEach(p => p.hands.forEach((_, j) => pulse(`spot:${p.pid}:${j}`, 1.1))); }
 
 /* ---------- Hold'em model ---------- */
 const STAGES = ['preflop','flop','turn','river','showdown'];
@@ -900,6 +929,37 @@ function renderRot(){
 }
 function unlockTurn(){ try { screen.orientation.unlock(); } catch(e){} try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch(e){} }
 
+/* ---------- the dealer: an original illustration, standing behind the table ---------- */
+function dealerSVG(){
+  const ph = `animation-delay:-${((now() % 5200) / 1000).toFixed(2)}s`;    // keeps the blink rhythm steady across re-renders
+  return `<svg class="dsvg" viewBox="0 0 120 110" aria-hidden="true">
+    <defs><linearGradient id="dg-skin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2c8a6"/><stop offset="1" stop-color="#dca783"/></linearGradient></defs>
+    <path d="M52.5 52H67.5L68 66Q60 70 52 66Z" fill="#d49e7b"/>
+    <path d="M16 110C16 80 32 63 60 63S104 80 104 110Z" fill="#f4f1ea"/>
+    <path d="M16 110C16 82 30 66 48 63.5L60 90V110Z" fill="#17171c"/><path d="M104 110C104 82 90 66 72 63.5L60 90V110Z" fill="#17171c"/>
+    <circle cx="60" cy="94" r="1.2" fill="#e0b766"/><circle cx="60" cy="102" r="1.2" fill="#e0b766"/><rect x="75" y="80" width="12" height="4.2" rx="1" fill="#e0b766"/>
+    <path d="M51 62L60 70L55 76L46 65Z" fill="#fff"/><path d="M69 62L60 70L65 76L74 65Z" fill="#fff"/>
+    <path d="M60 70L50.5 65.5V74.5ZM60 70L69.5 65.5V74.5Z" fill="#b3203c"/><circle cx="60" cy="70" r="2.3" fill="#86152d"/>
+    <g class="dhead">
+      <circle cx="60" cy="11.5" r="8.5" fill="#3a2217"/><path d="M53 13Q60 9 67 13" stroke="#5a3626" stroke-width="1.2" fill="none"/>
+      <ellipse cx="44.6" cy="39" rx="3" ry="4.2" fill="#e0ab88"/><ellipse cx="75.4" cy="39" rx="3" ry="4.2" fill="#e0ab88"/>
+      <ellipse cx="60" cy="37" rx="15.5" ry="18.5" fill="url(#dg-skin)"/>
+      <path d="M44 38C41 19 51 15.5 60 15.5S79 19 76 38C75 30 71 25 64 24C57 27 50 30 44 38Z" fill="#3a2217"/>
+      <path d="M64 24C58 26.5 52 29.5 47 34C51 28 57 25 64 24Z" fill="#5a3626"/>
+      <circle cx="44.6" cy="45.2" r="1.8" fill="#e0b766"/><circle cx="75.4" cy="45.2" r="1.8" fill="#e0b766"/>
+      <path d="M49.5 32.3Q53.5 30.1 57 32.1M63 32.1Q66.5 30.1 70.5 32.3" stroke="#3a2217" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+      <ellipse cx="53.5" cy="37.6" rx="2" ry="2.5" fill="#2a1a12"/><ellipse cx="66.5" cy="37.6" rx="2" ry="2.5" fill="#2a1a12"/>
+      <circle cx="54.2" cy="36.7" r=".75" fill="#fff"/><circle cx="67.2" cy="36.7" r=".75" fill="#fff"/>
+      <path d="M51.3 36.3L49.8 35.1M68.7 36.3L70.2 35.1" stroke="#2a1a12" stroke-width=".9" stroke-linecap="round"/>
+      <g class="lids" style="${ph}"><ellipse cx="53.5" cy="37.4" rx="2.7" ry="3.1" fill="#edc19e"/><ellipse cx="66.5" cy="37.4" rx="2.7" ry="3.1" fill="#edc19e"/></g>
+      <path d="M60 39.5Q58.8 43.5 60.8 44.2" stroke="#c48a68" stroke-width=".9" fill="none" stroke-linecap="round"/>
+      <ellipse cx="50.6" cy="44.6" rx="3" ry="1.8" fill="#f08a8a" opacity=".35"/><ellipse cx="69.4" cy="44.6" rx="3" ry="1.8" fill="#f08a8a" opacity=".35"/>
+      <path d="M55.4 47.6Q60 52.2 64.6 47.6Q60 49.4 55.4 47.6Z" fill="#c2414f"/>
+    </g>
+  </svg>`;
+}
+function dealerNod(){ if (RM) return; document.querySelectorAll('.dhead').forEach(el => { try { el.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-7deg) translateY(1px)' }, { transform: 'rotate(4deg)' }, { transform: 'rotate(0)' }], { duration: 750, easing: 'ease-in-out' }); } catch(e){} }); }
+
 /* ---------- views ---------- */
 const ICON_SND_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 const ICON_SND_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>';
@@ -1031,6 +1091,7 @@ function holdemView(){
     return seatRow({ ...p, stack: shownStack(p), _out: inH && p.folded }, tags, right, inH || p.lastAction?.k === 'won' ? esc(actText(p.lastAction)) : '');
   }).join('');
   return `
+  <div class="hdealer">${dealerSVG()}</div>
   <section class="table">
     <div class="stage-row"><span class="pill ${r.stage === 'idle' ? 'ok' : ''}">${STAGE_HE[r.stage] || ''}${r.handId ? ` · יד ${r.handId}` : ''}</span><span class="meta num">בליינדים ${fmt(r.sb)}/${fmt(r.bb)}</span></div>
     <div class="board" aria-label="קלפים על השולחן">${[0,1,2,3,4].map(i => `<span class="slot ${i < cards ? 'on' : ''}"></span>`).join('')}</div>
@@ -1149,6 +1210,7 @@ function bjView(){
   const print = `<svg class="print" viewBox="0 0 100 98" preserveAspectRatio="none" aria-hidden="true" direction="ltr"><defs>${arc('pa-bj', GEO.bj, 48)}${arc('pa-it', GEO.insText, 40)}${arc('pa-i1', GEO.in1, 42)}${arc('pa-i2', GEO.in2, 42)}</defs><use href="#pa-i1" class="ln"/><use href="#pa-i2" class="ln"/><text class="t1"><textPath href="#pa-bj" startOffset="50%" text-anchor="middle">BLACKJACK PAYS 3 TO 2</textPath></text><text class="t2"><textPath href="#pa-it" startOffset="50%" text-anchor="middle">INSURANCE PAYS 2 TO 1</textPath></text></svg>`;
   return `
   <section class="bjt${n > 7 ? ' dense' : ''}" aria-label="שולחן בלאק ג'ק">
+    <div class="dfig">${dealerSVG()}</div>
     <div class="felt"></div>
     ${print}
     <div class="dlr"><div class="rack" data-k="dealer">${denoms().slice().reverse().map(d => `<i class="tube" style="${chipStyle(d)}"></i>`).join('')}</div><div class="dn">${esc(r.hostName || 'הדילר')} · דילר</div></div>
