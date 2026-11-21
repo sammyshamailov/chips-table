@@ -364,24 +364,22 @@ let installEvt = null;
 
 /* ---------- casino ambience: a distant crowd talking, slot machines around the room, the hum of the hall ----------
    All synthesized. Works on any AudioContext (live, or offline for a preview). sched(t) schedules everything up to time t. */
-function Ambience(c, dest, level = 1){
-  const R = Math.random, T0 = c.currentTime;
+function Ambience(c, dest, level = 1, mix = {}){
+  const R = Math.random, T0 = c.currentTime, M = { crowd: 1.2, slots: 1.7, wet: .45, dry: .35, ...mix };
   const bus = c.createGain(); bus.gain.setValueAtTime(.0001, T0); bus.gain.exponentialRampToValueAtTime(level, T0 + 2.5); bus.connect(dest);
   const pan = v => { try { const p = c.createStereoPanner(); p.pan.value = v; return p; } catch(e){ return c.createGain(); } };
   // the hall: a long soft reverb so everything sounds far away, plus a little dry signal
   const len = Math.floor(c.sampleRate * 2.4), ir = c.createBuffer(2, len, c.sampleRate);
   for (let ch = 0; ch < 2; ch++){ const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (R() * 2 - 1) * Math.pow(1 - i / len, 3.2) * Math.min(1, i / 300); }
-  const verb = c.createConvolver(); verb.buffer = ir; const wet = c.createGain(); wet.gain.value = .5; verb.connect(wet); wet.connect(bus);
-  const room = c.createGain(); room.connect(verb); const dry = c.createGain(); dry.gain.value = .32; room.connect(dry); dry.connect(bus);
-  // room tone: low brown noise, the air-conditioning-and-carpet hum of a big room
-  const nb = c.createBuffer(1, c.sampleRate * 3, c.sampleRate); { const d = nb.getChannelData(0); let l = 0; for (let i = 0; i < d.length; i++){ l = (l + .02 * (R() * 2 - 1)) / 1.02; d[i] = l * 3.5; } }
-  const hum = c.createBufferSource(); hum.buffer = nb; hum.loop = true; const hlp = c.createBiquadFilter(); hlp.type = 'lowpass'; hlp.frequency.value = 420;
-  const hg = c.createGain(); hg.gain.value = .5; hum.connect(hlp); hlp.connect(hg); hg.connect(bus); hum.start(T0);
+  const verb = c.createConvolver(); verb.buffer = ir; const wet = c.createGain(); wet.gain.value = M.wet; verb.connect(wet); wet.connect(bus);
+  const room = c.createGain(); room.connect(verb); const dry = c.createGain(); dry.gain.value = M.dry; room.connect(dry); dry.connect(bus);
+  // noise for the slot machines' reel clicks (no constant room hum: it came across as white noise)
+  const nb = c.createBuffer(1, c.sampleRate * 3, c.sampleRate); { const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = R() * 2 - 1; }
 
   // ---- people talking: each voice is a buzz shaped by two vowel formants, syllable by syllable ----
-  const crowd = c.createGain(); crowd.gain.value = .3;
+  const crowd = c.createGain(); crowd.gain.value = M.crowd;
   const chp = c.createBiquadFilter(); chp.type = 'highpass'; chp.frequency.value = 160;
-  const clp = c.createBiquadFilter(); clp.type = 'lowpass'; clp.frequency.value = 1900;
+  const clp = c.createBiquadFilter(); clp.type = 'lowpass'; clp.frequency.value = 1500;
   crowd.connect(chp); chp.connect(clp); clp.connect(room);
   const VOW = [[730, 1090], [530, 1840], [270, 2290], [570, 840], [300, 870], [660, 1720], [490, 1350], [400, 2000]];
   const voices = Array.from({ length: 7 }, (_, i) => {
@@ -414,7 +412,7 @@ function Ambience(c, dest, level = 1){
   }
 
   // ---- slot machines scattered around the room ----
-  const slots = c.createGain(); slots.gain.value = .55; slots.connect(room);
+  const slots = c.createGain(); slots.gain.value = M.slots; slots.connect(room);
   function note(t, f, d, g, type, p){
     const o = c.createOscillator(); o.type = type; o.frequency.value = f;
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3600;
@@ -450,7 +448,7 @@ function Ambience(c, dest, level = 1){
   function stop(){
     const t = c.currentTime;
     try { bus.gain.cancelScheduledValues(t); bus.gain.setValueAtTime(Math.max(.0001, bus.gain.value), t); bus.gain.exponentialRampToValueAtTime(.0001, t + .8); } catch(e){}
-    setTimeout(() => { voices.forEach(v => { try { v.o.stop(); } catch(e){} }); try { hum.stop(); } catch(e){} try { bus.disconnect(); } catch(e){} }, 1000);
+    setTimeout(() => { voices.forEach(v => { try { v.o.stop(); } catch(e){} }); try { bus.disconnect(); } catch(e){} }, 1000);
   }
   return { sched, stop };
 }
