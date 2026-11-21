@@ -49,6 +49,12 @@
   force = true
 
 [[redirects]]
+  from = "/ROADMAP.md"
+  to = "/404"
+  status = 404
+  force = true
+
+[[redirects]]
   from = "/CHANGELOG.md"
   to = "/404"
   status = 404

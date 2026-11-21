@@ -31,6 +31,7 @@ table) runs the round. Hebrew, right-to-left, phone first.
 | `docs/ARCHITECTURE.md` | How `index.html` is organised, the stored data model, flows, effects, sound |
 | `docs/TESTING.md` | How to test, including two phones syncing |
 | `lessons-learned.md` | Bugs and mistakes worth not repeating |
+| `ROADMAP.md` | Every planned update and fix, each with a detailed plan. New work starts as an entry here |
 | `CHANGELOG.md` | What changed, newest first |
 | `README.md` | Setup and play instructions for the owner, in Hebrew |
 
@@ -61,6 +62,8 @@ table) runs the round. Hebrew, right-to-left, phone first.
    screenshots. A single-device test can't catch sync bugs; use the two-phone harness for anything that
    other players see.
 9. Keep `CHANGELOG.md`, `docs/ARCHITECTURE.md` and `lessons-learned.md` up to date in the same change.
+10. **Plan in `ROADMAP.md` first.** Every update or fix gets an entry with a full plan before code is
+    written; keep its status and steps current while building, and move it to Done when it reaches `main`.
 
 ## Running locally
 
