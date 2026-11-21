@@ -211,6 +211,7 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .duo{display:flex;gap:calc(var(--u)*.6);align-items:flex-end}
 .ghost{opacity:.62}
 .bl{position:absolute;top:calc(100% + var(--u)*.5);left:50%;transform:translateX(-50%);white-space:nowrap;font-size:calc(var(--u)*2.9);font-weight:700;padding:0 calc(var(--u)*1.3);border-radius:999px;background:rgba(0,0,0,.6);color:var(--chalk);direction:ltr;line-height:1.5;pointer-events:none}
+.bl.bjl{background:var(--brass);color:var(--brass-ink)}
 .insk{position:absolute;width:calc(var(--u)*7);height:calc(var(--u)*7);transform:translate(-50%,-50%)}
 .insk{--chip:calc(var(--u)*5.2)}
 .insk .bl{font-size:calc(var(--u)*2.4)}
@@ -858,6 +859,17 @@ function fxBJ(pid, a, b, r){
     const tok = setOv(pid, { stack: a.stack }, 700);
     return () => { SND.fold(); fly({ from: spot(0), to: seat(), amt: back, fadeOut: true, land: () => { SND.chips(2); clearOv(pid, tok); } }); };
   }
+  if (k === 'bjpay'){
+    const h0 = A[0]; if (!h0) return null; const win = b.lastAction.amt || 0, from = oldRect(`spot:${pid}:0`);
+    const tok = setOv(pid, { hands: [{ ...h0, _hide: true }], stack: a.stack }, 1700);
+    return () => {
+      const dealer = rectOf('dealer'), st = seat(), f = from || spot(0), off = shift(f, u * 4.2);
+      dealerNod(); SND.chips(3); floatText(shift(f, 0, -u * 10), "בלאק ג'ק!");
+      fly({ from: f, to: st, amt: handStack(h0), delay: 1000, fadeOut: true });
+      fly({ from: dealer, to: off, amt: win, delay: 120, dur: 600, sound: () => SND.chips(3), land: () => fly({ from: off, to: st, amt: win, delay: 280, fadeOut: true }) });
+      setTimeout(() => { clearOv(pid, tok); SND.chips(4); pulse('seat:' + pid, 1.2); floatText(shift(rectOf('seat:' + pid) || st, 0, -u * 12), '+' + fmt(win), 'w'); if (mine) SND.bj(); }, 1560);
+    };
+  }
   if (k === 'bjres'){
     if (!B.length) return null;
     const T1 = 1000, from = A.map((_, j) => oldRect(`spot:${pid}:${j}`)), insFrom = oldRect('ins:' + pid);
@@ -865,6 +877,7 @@ function fxBJ(pid, a, b, r){
     return () => {
       const dealer = rectOf('dealer'), st = seat(); let handsNet = 0, anyBJ = false;
       B.forEach((h, j) => {
+        if (h.paid) return;                                    // already paid when the dealer declared the blackjack
         const f = from[j] || spot(j), amt = handStack(A[j] || h), res = h.result;
         if (res === 'lose' || res === 'surrender'){
           handsNet -= res === 'lose' ? h.bet : h.bet - Math.floor(h.bet / 2);
@@ -898,7 +911,7 @@ function fxBJ(pid, a, b, r){
     if (A.length && !B.length){        // the dealer cancelled the round: bets go back from the spots
       const fr = A.map((_, j) => oldRect(`spot:${pid}:${j}`)), fi = a.insurance ? oldRect('ins:' + pid) : null;
       const tok = setOv(pid, { hands: A.map(h => ({ ...h, _hide: true })), ins: 0, stack: a.stack }, 800);
-      return () => { const st = seat(); SND.slide(); A.forEach((h, j) => fly({ from: fr[j], to: st, amt: handStack(h), delay: 70 * j, fadeOut: true })); if (fi) fly({ from: fi, to: st, amt: a.insurance, fadeOut: true }); setTimeout(() => { SND.chips(3); clearOv(pid, tok); }, 640); };
+      return () => { const st = seat(); SND.slide(); A.forEach((h, j) => { if (!h.paid) fly({ from: fr[j], to: st, amt: handStack(h), delay: 70 * j, fadeOut: true }); }); if (fi) fly({ from: fi, to: st, amt: a.insurance, fadeOut: true }); setTimeout(() => { SND.chips(3); clearOv(pid, tok); }, 640); };
     }
     if (!amt) return null;
     if (amt > 0){ const tok = setOv(pid, { stack: a.stack }, 700); return () => fly({ from: rectOf('dealer'), to: seat(), amt, fadeOut: true, sound: SND.slide, land: () => { SND.chips(3); clearOv(pid, tok); } }); }
@@ -1052,20 +1065,20 @@ async function bjDo(kind, i){
   const same = okChips(hnd.chips, hnd.bet) ? hnd.chips.slice() : null;
   if (kind === 'double'){ if (hnd.doubled || hnd.result || stack < hnd.bet) return; stack -= hnd.bet; hnd.bet *= 2; hnd.doubled = true; if (same && same.length * 2 <= MAX_CHIPS) hnd.chips = same.concat(same); else delete hnd.chips; }
   else if (kind === 'split'){ if (hands.length >= 4 || hnd.doubled || hnd.result || stack < hnd.bet) return; stack -= hnd.bet; hnd.split = true; const nh = { bet: hnd.bet, split: true }; if (same) nh.chips = same; hands.splice(i + 1, 0, nh); }
-  else if (kind === 'ins'){ const amt = Math.floor(hands[0].bet / 2); if (m.insurance || hands.length > 1 || stack < amt || !amt) return; stack -= amt; patch.insurance = amt; }
+  else if (kind === 'ins'){ const amt = Math.floor(hands[0].bet / 2); if (m.insurance || hands.length > 1 || hands[0].result || stack < amt || !amt) return; stack -= amt; patch.insurance = amt; }
   else if (kind === 'surrender'){ if (hands.length > 1 || hnd.doubled || hnd.result) return; stack += Math.floor(hnd.bet / 2); hnd.result = 'surrender'; patch.surrendered = true; }
   buzz();
   await w(pPath(), 'update', { stack, hands, ...patch, lastAction:{ k: kind }, ts: now() });
 }
 const MULT = { win: b => b * 2, bj: b => b + Math.floor(b * 1.5), push: b => b, lose: () => 0 };
 async function bjPayout(){
-  const r = S.room; const list = players().filter(cur);
+  const r = S.room; const list = players().filter(cur).filter(p => p.hands.some(h => !h.paid) || p.insurance);   // paid blackjacks are done
   let houseIn = 0, houseOut = 0; const writes = [];
   for (const p of list){
     const hands = p.hands.map((x,i) => ({ ...x, result: x.result || S.settle[p.pid + ':' + i] }));
     if (hands.some(x => !x.result)){ toast('סמנו תוצאה לכל הידיים'); return; }
     let pay = 0, stake = 0, back = 0;
-    hands.forEach(x => { stake += x.bet; if (x.result === 'surrender') back += Math.floor(x.bet/2); else pay += MULT[x.result](x.bet); });
+    hands.forEach(x => { if (x.paid) return; stake += x.bet; if (x.result === 'surrender') back += Math.floor(x.bet/2); else pay += MULT[x.result](x.bet); });
     const ins = p.insurance || 0, insPay = ins && S.dealerBJ ? ins * 3 : 0;
     houseIn += stake + ins; houseOut += pay + back + insPay;
     const net = pay + back + insPay - stake - ins;
@@ -1077,10 +1090,21 @@ async function bjPayout(){
   await Promise.all(writes.map(([id, d]) => w(pPath(id), 'update', d)));
   S.sheet = null; S.settle = {}; S.dealerBJ = false; render();
 }
+// The dealer declares a player's blackjack mid-round: paid 3:2 at once, and the hand is marked paid
+// so the end-of-round payout and a cancelled round both leave it alone.
+const bjEligible = p => cur(p) && p.hands.length === 1 && !p.hands[0].doubled && !p.hands[0].split && !p.hands[0].result;
+async function bjNow(pid){
+  const r = S.room, p = S.players[pid]; if (!p || r.phase !== 'playing' || !bjEligible(p)) return;
+  const h = p.hands[0], win = Math.floor(h.bet * 1.5);
+  buzz();
+  if (!await w(pPath(pid), 'update', { stack: (p.stack || 0) + h.bet + win, hands: [{ ...h, result: 'bj', paid: true }], lastAction: { k:'bjpay', amt: win }, ts: now() })) return;
+  await w(roomPath(), 'update', { house: (r.house || 0) - win, ...setEvent(`${p.name}: בלאק ג'ק! +${fmt(win)}`) });
+  S.confirm = null; if (!players().some(bjEligible)) S.sheet = null; render();
+}
 async function bjCancelRound(){
-  const r = S.room; const list = players().filter(cur);
+  const r = S.room; const list = players().filter(cur).filter(p => p.hands.some(h => !h.paid) || p.insurance);
   await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, ...setEvent('הסיבוב בוטל וההימורים הוחזרו') });
-  await Promise.all(list.map(p => { const back = p.hands.reduce((a,x) => a + (x.result === 'surrender' ? Math.ceil(x.bet/2) : x.bet), 0) + (p.insurance || 0); return w(pPath(p.pid), 'update', { stack: p.stack + back, hands: [], bjRound: null, lastAction:{ k:'refund', amt: back }, ts: now() }); }));
+  await Promise.all(list.map(p => { const back = p.hands.reduce((a,x) => a + (x.paid ? 0 : x.result === 'surrender' ? Math.ceil(x.bet/2) : x.bet), 0) + (p.insurance || 0); return w(pPath(p.pid), 'update', { stack: p.stack + back, hands: [], bjRound: null, lastAction:{ k:'refund', amt: back }, ts: now() }); }));
   S.sheet = null; S.confirm = null; render();
 }
 
@@ -1469,15 +1493,15 @@ function bjSeat(p, phi, base){
   const gc = mine && r.phase === 'betting' ? ghostChips() : null, ghost = gc ? gc.length : -1;
   const spots = hs.map((h, j) => {
     const x = Math.max(size / 2 + .5, Math.min(99.5 - size / 2, bx + (j - (m - 1) / 2) * size * 1.04));
-    const show = h && !h._hide;
+    const paid = h && h.paid, show = h && !h._hide && !paid;
     let inner = show ? (h.doubled ? `<div class="duo">${handHalves(h).map(x => stackHTML(x)).join('')}</div>` : stackHTML(handStack(h))) : '';
     if (j === 0 && gc) inner += `<div class="ghost" data-k="ghost">${ghost ? stackHTML(gc) : ''}</div>`;
-    const lbl = show ? `<span class="bl num">${fmt(h.bet)}${h.doubled ? (m > 1 ? '×2' : ' · ×2') : ''}${h.result === 'surrender' ? ' · ½' : ''}</span>` : '';
+    const lbl = paid && !h._hide ? `<span class="bl bjl">בלאק ג'ק ✓</span>` : show ? `<span class="bl num">${fmt(h.bet)}${h.doubled ? (m > 1 ? '×2' : ' · ×2') : ''}${h.result === 'surrender' ? ' · ½' : ''}</span>` : '';
     const glow = mine && j === 0 && r.phase === 'betting' && !show && !ghost;
     return `<div class="spot${m > 1 ? ' sm' : ''}${mine ? ' mine' : ''}${show ? ' has' : ''}${glow ? ' glow' : ''}" data-k="spot:${pid}:${j}" style="left:${x.toFixed(2)}%;top:${by.toFixed(2)}%;width:${size.toFixed(2)}%;--chip:calc(var(--u)*${(size * .53).toFixed(2)})">${inner}${lbl}</div>`;
   }).join('');
   const ins = `<div class="insk" data-k="ins:${pid}" style="left:${ix.toFixed(2)}%;top:${iy.toFixed(2)}%">${vis.ins ? stackHTML(vis.ins) + `<span class="bl num">ביטוח ${fmt(vis.ins)}</span>` : ''}</div>`;
-  const res = !(o && o.hideRes) && !c && p.bjRound === r.roundId - 1 && p.lastAction && p.lastAction.k === 'bjres' ? (p.lastAction.amt || 0) : null;
+  const res = !(o && o.hideRes) && !c && p.bjRound === r.roundId - 1 && p.lastAction && (p.lastAction.k === 'bjres' || p.lastAction.k === 'bjpay') ? (p.lastAction.amt || 0) : null;
   const claim = S.mode === 'local' && !mine ? ` data-a="claim" data-v="${pid}" role="button" title="שחק בתור ${esc(p.name)}"` : '';
   return spots + ins + `<div class="st${mine ? ' me' : ''}${r.phase === 'playing' && !c ? ' out' : ''}"${claim} style="left:${sx.toFixed(2)}%;top:${sy.toFixed(2)}%">
     ${res != null ? `<span class="rb ${res > 0 ? 'w' : res < 0 ? 'l' : 'p'} num">${res > 0 ? '+' + fmt(res) : res < 0 ? '−' + fmt(-res) : 'תיקו'}</span>` : ''}
@@ -1522,13 +1546,13 @@ function bjDock(){
   }).join('');
   const one = m.hands.length === 1 && !m.hands[0].doubled && !m.hands[0].result;
   return `${head}${handsHtml}
-    <div class="acts3"><button class="btn small ghost" data-a="bj" data-v="ins:0" ${m.insurance || m.hands.length > 1 || m.stack < Math.floor(m.hands[0].bet/2) ? 'disabled' : ''}>${m.insurance ? `ביטוח ${fmt(m.insurance)}` : `ביטוח (${fmt(Math.floor(m.hands[0].bet/2))})`}</button><button class="btn small ghost" data-a="bj" data-v="surrender:0" ${one ? '' : 'disabled'}>כניעה (מקבלים חצי)</button></div>`;
+    <div class="acts3"><button class="btn small ghost" data-a="bj" data-v="ins:0" ${m.insurance || m.hands.length > 1 || m.hands[0].result || m.stack < Math.floor(m.hands[0].bet/2) ? 'disabled' : ''}>${m.insurance ? `ביטוח ${fmt(m.insurance)}` : `ביטוח (${fmt(Math.floor(m.hands[0].bet/2))})`}</button><button class="btn small ghost" data-a="bj" data-v="surrender:0" ${one ? '' : 'disabled'}>כניעה (מקבלים חצי)</button></div>`;
 }
 
 function bjHost(){
   const r = S.room, n = players().filter(cur).length;
   return `<section class="host"><h3>בקרת דילר</h3><div class="btns">
-    ${r.phase === 'betting' ? `<button class="btn primary" data-a="deal" ${n ? '' : 'disabled'}>חלוקת קלפים (נועל הימורים)</button>` : `<button class="btn primary" data-a="sheet" data-v="settle">סימון זוכים ותשלום</button><button class="btn ghost" data-a="sheet" data-v="cancel">ביטול הסיבוב</button>`}
+    ${r.phase === 'betting' ? `<button class="btn primary" data-a="deal" ${n ? '' : 'disabled'}>חלוקת קלפים (נועל הימורים)</button>` : `<button class="btn primary" data-a="sheet" data-v="settle">סימון זוכים ותשלום</button>${players().some(bjEligible) ? `<button class="btn" data-a="sheet" data-v="bjnow">בלאק ג'ק לשחקן</button>` : ''}<button class="btn ghost" data-a="sheet" data-v="cancel">ביטול הסיבוב</button>`}
     <button class="btn ghost" data-a="sheet" data-v="end">סיום המשחק</button>
   </div>${r.phase === 'betting' && !n ? '<span class="muted">מחכים שמישהו יהמר.</span>' : ''}</section>`;
 }
@@ -1560,6 +1584,14 @@ function sheetView(){
       ${anyIns ? `<button class="opt" data-a="dbj" aria-pressed="${S.dealerBJ}"><span class="box"></span><span>לדילר יש בלאק ג'ק (ביטוח משלם 2:1)</span><span></span></button>` : ''}
       <div class="stack" style="gap:8px">${rows}</div>
       <button class="btn primary wide" data-a="payout" ${missing ? 'disabled' : ''}>${missing ? `נשארו ${missing} ידיים לסמן` : 'תשלום וסיבוב חדש'}</button>`;
+  }
+  if (S.sheet === 'bjnow'){
+    const list = players().filter(bjEligible);
+    return `${head('בלאק ג\'ק')}
+      <span class="muted">למי יש בלאק ג'ק (אס ותמונה בשני הקלפים הראשונים)? הוא מקבל עכשיו 3:2 על ההימור, בלי לחכות לסוף הסיבוב.</span>
+      <div class="stack" style="gap:8px">${list.map(p => { const bet = p.hands[0].bet, win = Math.floor(bet * 1.5), sure = S.confirm === 'bj:' + p.pid;
+        return `<div class="handrow hr1"><div class="hl"><b>${esc(p.name)}</b><span class="amt num"><span class="mini"></span>${fmt(bet)}</span></div>
+          <button class="btn small ${sure ? 'primary' : ''}" data-a="bjnow" data-v="${esc(p.pid)}" style="grid-column:span 2">${sure ? `בטוח? לשלם +${fmt(win)}` : `בלאק ג'ק · +${fmt(win)}`}</button></div>`; }).join('') || '<span class="muted">אין ידיים שאפשר לסמן כרגע.</span>'}</div>`;
   }
   if (S.sheet === 'end'){
     const hold = r.game === 'holdem', busy = hold ? H().pot > 0 : players().some(cur), list = standings();
@@ -1641,6 +1673,7 @@ const A = {
   ambi: () => { AMBI_ON = !AMBI_ON; ls.set('chips.ambi', AMBI_ON ? '1' : '0'); ambiSync(); render(); },
   reload: () => { reloading = true; location.reload(); },
   endgame: () => endGame(),
+  bjnow: v => { if (S.confirm !== 'bj:' + v){ S.confirm = 'bj:' + v; render(); return; } bjNow(v); },
   reopen: async () => { if (await w(roomPath(), 'update', { closed: false, ...setEvent('השולחן נפתח מחדש') })) toast('השולחן פתוח שוב'); },
   replay: () => ceremony(),
   finclose: () => { finHide(); FX.signDrop = now(); render(); },
