@@ -65,6 +65,17 @@ table) runs the round. Hebrew, right-to-left, phone first.
    other players see.
 9. Keep `CHANGELOG.md`, `docs/ARCHITECTURE.md` and `lessons-learned.md` up to date in the same change.
 
+## Working with the owner
+
+- The owner and friends play live from `main` (Netlify deploys it). Work on a side branch and push to
+  `main` only when the owner says so.
+- Delegate the work (implementation, testing, research) to cheaper, faster subagents running in the
+  background, so the main conversation stays free to talk with the owner. The main session plans, gives
+  precise instructions, checks the results (test output, screenshots) and reports back.
+- ElevenLabs is connected (MCP) for sound: speech, sound effects, music. Each generation costs the owner
+  credits: use it only when a recording or synthesized sound can't do the job, generate one take at a time,
+  send the owner a preview before shipping, and record anything generated in `sounds/CREDITS.md`.
+
 ## Running locally
 
 ```
