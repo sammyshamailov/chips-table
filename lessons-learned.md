@@ -31,6 +31,12 @@ the fresh DOM for "to". `FX.ov` keeps showing the old stack until the flying chi
 shipped that way for several releases. No error is thrown for broken attributes. *Rule:* look at the
 screenshots of every screen that uses a changed helper, not just the one being worked on.
 
+**Set `box-sizing: border-box` from the start.** Inputs with `width: 100%` plus padding and border were
+wider than their cards from the first version: the name and chips fields stuck out and the two blind
+fields overlapped. It showed in my own test screenshots and I didn't notice; the user did. Now global.
+*Rule:* look at every screenshot for edges that don't line up, not only the feature being tested; the
+overflow check in a test (every input inside its card, page no wider than the screen) catches it in numbers.
+
 ## Stored data and sync
 
 **Store what the player did, not something derived from it.** Bets were stored as amounts and drawn by

@@ -15,6 +15,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Karantina:wght@400;700&display=swap">
 <style>
+/* Widths include padding and border everywhere; without this, width:100% inputs stuck out of their cards. */
+*,*::before,*::after{box-sizing:border-box}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0;font-size:14px}
 img{max-width:100%}
@@ -1835,7 +1837,7 @@ function bind(e){
   const b = e.target.dataset && e.target.dataset.bind; if (!b) return;
   const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
   const [a, k] = b.split('.');
-  if (k === undefined){ S[a] = a === 'joinCode' ? String(v).toUpperCase() : v; if (a === 'name') ls.set('chips.name', String(v).trim()); }
+  if (k === undefined){ S[a] = a === 'joinCode' ? String(v).toUpperCase() : v; if (a === 'name'){ ls.set('chips.name', String(v).trim()); if (!S.avatar) document.querySelectorAll('.avbtn .av').forEach(el => el.textContent = String(v).trim().charAt(0) || '?'); } }
   else if (S[a]) S[a][k] = v;
   if (a === 'joinCode' && e.target.value !== S.joinCode) e.target.value = S.joinCode;
 }
