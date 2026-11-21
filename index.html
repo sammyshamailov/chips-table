@@ -154,6 +154,10 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .opt[aria-pressed="true"] .box::after{content:"";width:9px;height:5px;border:2.5px solid var(--brass-ink);border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
 .payline{display:flex;justify-content:space-between;font-size:14px;padding:2px 2px}
 .handrow{display:grid;gap:8px;padding:12px;border-radius:12px;background:var(--bg)}
+.hr1{grid-template-columns:1fr auto auto;align-items:center;padding:8px 8px 8px 10px}
+.hr1 .hl{display:grid;gap:2px;min-width:0}
+.hr1 .btn.small{padding:8px 10px}
+.spot.sm .bl{font-size:calc(var(--u)*2.4);padding:0 calc(var(--u)*.8)}
 .res4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .res4 button{padding:9px 4px;border-radius:9px;background:var(--felt);font-size:13px;font-weight:600;color:var(--dim)}
 .res4 button[aria-pressed="true"].w{background:var(--ok);color:#0c2016}
@@ -165,6 +169,70 @@ h1,h2,h3{margin:0;text-wrap:balance}
 
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:60;background:var(--chalk);color:#1a1a1a;padding:10px 16px;border-radius:12px;font-weight:600;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 8px 30px rgba(0,0,0,.4);text-align:center}
 .spin{display:grid;place-items:center;min-height:50vh;color:var(--dim)}
+/* ---------- blackjack table ---------- */
+/* --u = 1% of the table width, set from JS, so the table scales as one picture on any phone */
+:root{--u:3.4px}
+.icon-btn{min-width:38px;padding:8px}
+.bjt{position:relative;width:100%;aspect-ratio:100/98;user-select:none;-webkit-user-select:none;margin-top:2px}
+.bjt .felt{position:absolute;left:0;right:0;top:0;height:86%;box-sizing:border-box;border:calc(var(--u)*3) solid transparent;border-top-width:calc(var(--u)*1.3);
+  border-radius:calc(var(--u)*3) calc(var(--u)*3) 50% 50% / calc(var(--u)*3) calc(var(--u)*3) 90.7% 90.7%;
+  background:radial-gradient(ellipse 80% 70% at 50% 26%,#26955f 0%,#1a7148 46%,#0e4a30 100%) padding-box,linear-gradient(180deg,#7a4d2c,#4a2b17 45%,#2a170b) border-box;
+  box-shadow:0 12px 30px rgba(0,0,0,.55),inset 0 0 calc(var(--u)*12) rgba(0,0,0,.42)}
+.bjt .felt::after{content:"";position:absolute;inset:calc(var(--u)*1.2);border-radius:inherit;border:1px solid rgba(255,226,160,.16)}
+.bjt .print{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.print .ln{fill:none;stroke:rgba(244,214,140,.38);stroke-width:.28}
+.print text{font-family:var(--f-body);font-weight:700;fill:rgba(244,214,140,.55);letter-spacing:.32px}
+.print .t1{font-size:3.1px}
+.print .t2{font-size:2.5px}
+.dlr{position:absolute;left:50%;top:1.7%;transform:translateX(-50%);display:grid;justify-items:center;gap:calc(var(--u)*.8)}
+.rack{display:flex;gap:calc(var(--u)*.6);padding:calc(var(--u)*1) calc(var(--u)*1.4);background:linear-gradient(#2c1b10,#160d06);border-radius:calc(var(--u)*1.6);box-shadow:inset 0 2px 6px rgba(0,0,0,.75),0 1px 0 rgba(255,255,255,.08)}
+.tube{display:block;width:calc(var(--u)*4.2);height:calc(var(--u)*6.6);border-radius:calc(var(--u)*1.3);background:repeating-linear-gradient(180deg,var(--c) 0 calc(var(--u)*.75),color-mix(in srgb,var(--c) 55%,#000) calc(var(--u)*.75) calc(var(--u)*.95));box-shadow:inset 0 0 0 1px rgba(0,0,0,.3),inset calc(var(--u)*.8) 0 calc(var(--u)*.8) rgba(255,255,255,.18)}
+.dn{font-size:calc(var(--u)*3);color:var(--chalk);font-weight:600;background:rgba(0,0,0,.38);padding:0 calc(var(--u)*2.2);border-radius:999px;line-height:1.6;white-space:nowrap}
+.plac,.rnd{position:absolute;top:2.6%;display:grid;gap:calc(var(--u)*.2);font-size:calc(var(--u)*2.6);font-weight:700;line-height:1.35;color:var(--chalk);background:rgba(0,0,0,.4);border:1px solid rgba(244,214,140,.3);border-radius:calc(var(--u)*1.4);padding:calc(var(--u)*.8) calc(var(--u)*1.6)}
+.plac{right:4.5%} .rnd{left:4.5%}
+.cst{position:absolute;left:50%;top:19%;transform:translateX(-50%);width:36%;display:grid;justify-items:center;gap:calc(var(--u)*.5);text-align:center}
+.cst .pill{font-size:calc(var(--u)*2.9);padding:calc(var(--u)*.6) calc(var(--u)*2.4)}
+.cst .meta{font-size:calc(var(--u)*2.8);color:rgba(238,244,238,.78);line-height:1.3}
+.bjt .empty{position:absolute;left:50%;top:66%;transform:translate(-50%,-50%);text-align:center;color:var(--chalk);opacity:.8;font-size:calc(var(--u)*3.6)}
+.spot{position:absolute;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;border:max(1.5px,calc(var(--u)*.5)) solid rgba(245,222,160,.55);background:radial-gradient(circle,rgba(0,0,0,.04) 40%,rgba(0,0,0,.18))}
+.spot.mine{border-color:var(--brass)}
+.spot.glow{animation:spotglow 1.8s ease-in-out infinite}
+@keyframes spotglow{50%{box-shadow:0 0 0 calc(var(--u)*1.1) rgba(224,183,102,.22),0 0 calc(var(--u)*4) rgba(224,183,102,.55)}}
+.spot>.stk,.spot>.duo,.spot>.ghost,.insk>.stk{position:absolute;left:50%;bottom:calc(50% - var(--u)*2.2);transform:translateX(-50%)}
+.spot.has>.ghost{left:96%}
+.duo{display:flex;gap:calc(var(--u)*.6);align-items:flex-end}
+.ghost{opacity:.62}
+.bl{position:absolute;top:calc(100% + var(--u)*.5);left:50%;transform:translateX(-50%);white-space:nowrap;font-size:calc(var(--u)*2.9);font-weight:700;padding:0 calc(var(--u)*1.3);border-radius:999px;background:rgba(0,0,0,.6);color:var(--chalk);direction:ltr;line-height:1.5;pointer-events:none}
+.insk{position:absolute;width:calc(var(--u)*7);height:calc(var(--u)*7);transform:translate(-50%,-50%)}
+.insk{--chip:calc(var(--u)*5.2)}
+.insk .bl{font-size:calc(var(--u)*2.4)}
+.st{position:absolute;z-index:2;width:calc(var(--u)*17);transform:translate(-50%,calc(var(--u)*-5.2));display:grid;justify-items:center;gap:calc(var(--u)*.3);text-align:center}
+.st[data-a]{cursor:pointer}
+.st .av{width:calc(var(--u)*10.4);height:calc(var(--u)*10.4);font-size:calc(var(--u)*4.8);border:calc(var(--u)*.7) solid #2a1a0e;box-shadow:0 3px 8px rgba(0,0,0,.5)}
+.st.me .av{border-color:var(--brass);box-shadow:0 0 0 calc(var(--u)*.7) rgba(224,183,102,.3),0 3px 10px rgba(0,0,0,.5)}
+.st.out{opacity:.5}
+.st .sn{font-size:calc(var(--u)*3.2);font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2;text-shadow:0 1px 3px #000}
+.st .ss{font-size:calc(var(--u)*3.1);font-weight:700;color:var(--brass);background:rgba(0,0,0,.62);border-radius:999px;padding:0 calc(var(--u)*1.5);line-height:1.45;direction:ltr}
+.st .rb{position:absolute;top:calc(var(--u)*-4.6);left:50%;transform:translateX(-50%);font-size:calc(var(--u)*3);font-weight:700;padding:0 calc(var(--u)*1.5);border-radius:999px;line-height:1.5;direction:ltr;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.rb.w{background:var(--ok);color:#0c2016} .rb.l{background:var(--danger);color:#fff} .rb.p{background:var(--chalk);color:#222}
+.bjt.dense .st{width:calc(var(--u)*13.5)}
+.bjt.dense .st .av{width:calc(var(--u)*8.4);height:calc(var(--u)*8.4);font-size:calc(var(--u)*4)}
+
+/* chip stacks, seen from the side */
+.stk{--cs:var(--chip,calc(var(--u)*7.2));display:flex;align-items:flex-end;gap:calc(var(--cs)*.06)}
+.stk .col{position:relative;width:var(--cs);height:calc(var(--cs)*.52 + (var(--n) - 1)*var(--cs)*.14)}
+.cd{position:absolute;left:0;width:100%;height:calc(var(--cs)*.44);bottom:calc(var(--i)*var(--cs)*.14 + var(--cs)*.08);border-radius:50%;
+  background:radial-gradient(ellipse 58% 56% at 50% 50%,var(--c) 0 64%,transparent 66%),repeating-conic-gradient(from 8deg,var(--e) 0 7%,var(--c) 7% 25%);
+  box-shadow:0 calc(var(--cs)*.08) 0 color-mix(in srgb,var(--c) 55%,#000),0 calc(var(--cs)*.1) calc(var(--cs)*.06) rgba(0,0,0,.45)}
+.cd::after{content:"";position:absolute;inset:26% 23%;border-radius:50%;border:max(1px,calc(var(--cs)*.03)) dashed color-mix(in srgb,var(--e) 75%,transparent)}
+
+/* effects layer: chips and cards in flight */
+#fx{position:absolute;left:0;top:0;width:0;height:0;z-index:30;pointer-events:none}
+.fly,.fly-y{position:absolute;left:0;top:0;width:0;height:0}
+.fly-c{position:absolute;left:0;bottom:0;transform:translate(-50%,calc(var(--u)*2.2))}
+.ft{position:absolute;left:0;top:0;white-space:nowrap;font-family:var(--f-display);font-weight:700;font-size:calc(var(--u)*8);line-height:1;color:var(--brass);text-shadow:0 2px 0 rgba(0,0,0,.5),0 0 18px rgba(0,0,0,.6);direction:ltr}
+.ft.w{color:var(--ok)} .ft.l{color:var(--danger)} .ft.p{color:var(--chalk)}
+.cb{display:block;width:calc(var(--u)*6.6);height:calc(var(--u)*9.4);border-radius:calc(var(--u)*.9);background:repeating-linear-gradient(45deg,#f7f2e6 0 3px,#b8322a 3px 6px);border:2px solid #f7f2e6;box-shadow:0 3px 8px rgba(0,0,0,.5)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 <script src="config.js"></script>
@@ -175,6 +243,7 @@ h1,h2,h3{margin:0;text-wrap:balance}
 <div id="app" dir="rtl"></div>
 <div id="sheet" dir="rtl" hidden></div>
 <div id="toast" dir="rtl" hidden></div>
+<div id="fx" aria-hidden="true"></div>
 
 <script>
 (() => {
@@ -198,6 +267,133 @@ const S = {
 };
 ls.set('chips.pid', S.myId);
 let installEvt = null;
+
+/* ---------- sounds: synthesized with Web Audio, so nothing to download and it works offline ---------- */
+const SND = (() => {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let ctx = null, out = null, nbuf = null, on = ls.get('chips.sound') !== '0', lastT = 0, burst = 0;
+  function init(){
+    if (!AC || !on) return;
+    try {
+      if (!ctx){
+        ctx = new AC();
+        const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
+        out = ctx.createGain(); out.gain.value = .8; out.connect(comp); comp.connect(ctx.destination);
+        nbuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+        const d = nbuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    } catch(e){}
+  }
+  const ready = () => on && ctx && ctx.state === 'running';
+  function env(g, t, peak, a, d){ g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+  function noise(t, d, f, q, peak, type = 'bandpass', f2){
+    const s = ctx.createBufferSource(); s.buffer = nbuf;
+    const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.setValueAtTime(f, t); if (f2) fl.frequency.exponentialRampToValueAtTime(f2, t + d); fl.Q.value = q;
+    const g = ctx.createGain(); env(g, t, peak, .002, d);
+    s.connect(fl); fl.connect(g); g.connect(out); s.start(t, Math.random() * .8); s.stop(t + d + .05);
+  }
+  function tone(t, f, d, peak, type = 'sine', f2, a = .005){
+    const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+    const g = ctx.createGain(); env(g, t, peak, a, d); o.connect(g); g.connect(out); o.start(t); o.stop(t + a + d + .05);
+  }
+  // one clay chip landing on another: a bright, very short click with a little body
+  function clack(t, v = 1){ const f = 2800 + Math.random() * 2400; noise(t, .026, f, 5, .5 * v); tone(t, f * 1.55, .016, .06 * v, 'triangle'); noise(t + .003, .05, 1300 + Math.random() * 500, 9, .1 * v); }
+  function card(t){ noise(t, .1, 3200, .9, .28, 'bandpass', 800); noise(t + .085, .025, 5200, 1.5, .12, 'highpass'); }
+  const notes = (t, list, gap, d, peak, type = 'triangle') => list.forEach((f, i) => { tone(t + i * gap, f, d, peak, type); tone(t + i * gap, f * 2, d * .6, peak * .25, 'sine'); });
+  const api = {
+    init,
+    get on(){ return on; },
+    toggle(){ on = !on; ls.set('chips.sound', on ? '1' : '0'); if (on){ init(); setTimeout(() => api.chips(3), 60); } return on; },
+    chips(n = 3, v = 1){
+      if (!ready()) return; const t0 = ctx.currentTime;
+      if (t0 - lastT < .07){ if (++burst > 4) return; } else burst = 0; lastT = t0;   // many chips at once: keep it pleasant
+      let t = t0; for (let i = 0; i < n; i++){ clack(t, v * (1 - i * .07)); t += .028 + Math.random() * .05; }
+    },
+    tap(){ if (!ready()) return; const t = ctx.currentTime; clack(t, .9); clack(t + .05, .35); },
+    tick(){ if (!ready()) return; tone(ctx.currentTime, 1900, .014, .035, 'triangle'); },
+    slide(){ if (!ready()) return; noise(ctx.currentTime, .24, 700, .7, .14, 'lowpass', 2400); },
+    whoosh(){ if (!ready()) return; noise(ctx.currentTime, .3, 350, 1.3, .22, 'bandpass', 2800); },
+    card(){ if (!ready()) return; card(ctx.currentTime); },
+    flip(n = 1){ if (!ready()) return; for (let i = 0; i < n; i++) card(ctx.currentTime + i * .13); },
+    shuffle(){
+      if (!ready()) return; let t = ctx.currentTime;
+      for (let i = 0; i < 30; i++){ noise(t, .018, 2400 + Math.random() * 2400, 3, .16); t += .016 + (i / 30) * .014; }
+      noise(t + .02, .3, 2400, .8, .2, 'lowpass', 500);
+    },
+    knock(){ if (!ready()) return; const t = ctx.currentTime; [0, .14].forEach(d => { tone(t + d, 150, .09, .45, 'sine', 70); noise(t + d, .05, 450, 1, .28, 'lowpass'); }); },
+    fold(){ if (!ready()) return; noise(ctx.currentTime, .2, 2400, .8, .17, 'bandpass', 600); },
+    win(){ if (!ready()) return; notes(ctx.currentTime + .05, [659.25, 783.99, 1046.5, 1318.5], .085, .24, .11); },
+    bj(){
+      if (!ready()) return; const t = ctx.currentTime + .05;
+      notes(t, [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98], .075, .22, .1);
+      [1046.5, 1318.5, 1567.98].forEach(f => tone(t + .5, f, .8, .045, 'triangle', null, .02));
+      for (let i = 0; i < 9; i++) tone(t + .45 + i * .07, 2400 + Math.random() * 2400, .07, .03, 'sine');
+    },
+    lose(){ if (!ready()) return; const t = ctx.currentTime + .05; tone(t, 392, .22, .09, 'triangle', 370); tone(t + .22, 311.13, .45, .09, 'triangle', 285); },
+    push(){ if (!ready()) return; const t = ctx.currentTime + .05; tone(t, 587.33, .14, .07, 'triangle'); tone(t + .17, 587.33, .22, .06, 'triangle'); }
+  };
+  return api;
+})();
+['pointerdown', 'touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => SND.init(), { passive: true, capture: true }));
+
+/* ---------- effects: flying chips and cards ----------
+   Everything here is derived from changes in the synced documents, so the stored data format is unchanged.
+   While chips are in the air, FX.ov holds what a player's spot and stack looked like before, and the
+   table keeps showing that until the chips land. */
+const RM = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){ return false; } })();
+const FX = { rects: {}, ov: {}, pendFly: 0, n: 0 };
+const fxLayer = document.getElementById('fx');
+const pageRect = el => { const b = el.getBoundingClientRect(); return (b.width || b.height) ? { x: b.left + scrollX + b.width / 2, y: b.top + scrollY + b.height / 2, w: b.width, h: b.height } : null; };
+function measure(){ const m = {}; document.querySelectorAll('[data-k]').forEach(el => { const r = pageRect(el); if (r) m[el.dataset.k] = r; }); return m; }
+function rectOf(k){ const el = document.querySelector('[data-k="' + k + '"]'); return el ? pageRect(el) : null; }
+const oldRect = k => FX.rects[k] || rectOf(k);
+const shift = (r, dx, dy = 0) => r && { ...r, x: r.x + dx, y: r.y + dy };
+const unitPx = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--u')) || 3.4;
+function seatTarget(pid){
+  const s = rectOf('seat:' + pid);
+  if (pid !== S.myId) return s;
+  const d = rectOf('mystack'), dock = document.querySelector('.dock');
+  if (d && dock){ const top = dock.getBoundingClientRect().top + scrollY; if (!s || s.y > top - 8 || s.y < scrollY) return d; }
+  return s || d;
+}
+function setOv(pid, o, ms){ const tok = ++FX.n; FX.ov[pid] = { ...o, tok, until: now() + ms + 600 }; setTimeout(() => clearOv(pid, tok), ms + 650); return tok; }
+function clearOv(pid, tok){ if (FX.ov[pid] && FX.ov[pid].tok === tok){ delete FX.ov[pid]; render(); } }
+const ov = pid => { const o = FX.ov[pid]; return o && o.until > now() ? o : null; };
+const shownStack = p => { const o = ov(p.pid); return o && o.stack != null ? o.stack : p.stack; };
+
+function fly(o){
+  let done = false, el = null;
+  const fin = () => { if (done) return; done = true; if (el) el.remove(); if (o.land) o.land(); };
+  if (!o.from || !o.to || RM){ setTimeout(fin, RM ? Math.min(o.delay || 0, 300) : 0); return; }
+  el = document.createElement('div'); el.className = 'fly';
+  el.style.left = o.from.x + 'px'; el.style.top = o.from.y + 'px';
+  el.innerHTML = `<div class="fly-y"><div class="fly-c">${o.html || stackHTML(o.amt)}</div></div>`;
+  fxLayer.appendChild(el);
+  const dx = o.to.x - o.from.x, dy = o.to.y - o.from.y, dur = o.dur || 540, delay = o.delay || 0;
+  const lift = o.lift ?? Math.min(70, 14 + Math.hypot(dx, dy) * .22);
+  const opt = { duration: dur, delay, fill: 'both' };
+  try {
+    const a = el.animate([{ transform: 'translate(0,0)' }, { transform: `translate(${dx}px,${dy}px)` }], { ...opt, easing: 'cubic-bezier(.5,0,.3,1)' });
+    el.firstChild.animate([{ transform: 'translateY(0) scale(1)', easing: 'ease-out' }, { transform: `translateY(${-lift}px) scale(1.12)`, offset: .45, easing: 'ease-in' }, { transform: `translateY(0) scale(${o.fadeOut ? .7 : 1})` }], opt);
+    if (o.fadeOut || o.fadeIn) el.firstChild.firstChild.animate([{ opacity: o.fadeIn ? 0 : 1 }, { opacity: 1, offset: o.fadeIn ? .25 : .72 }, { opacity: o.fadeOut ? 0 : 1 }], opt);
+    a.onfinish = fin;
+  } catch(e){ fin(); return; }
+  if (o.sound) setTimeout(o.sound, delay);
+  setTimeout(fin, delay + dur + 500);
+}
+function floatText(at, text, cls = ''){
+  if (!at) return;
+  const el = document.createElement('div'); el.className = 'ft ' + cls; el.textContent = text;
+  el.style.left = at.x + 'px'; el.style.top = at.y + 'px'; fxLayer.appendChild(el);
+  const c = 'translate(-50%,-50%)';
+  try { el.animate([{ transform: `${c} translateY(0) scale(.5)`, opacity: 0 }, { transform: `${c} translateY(-8px) scale(1.15)`, opacity: 1, offset: .2 }, { transform: `${c} translateY(-14px) scale(1)`, opacity: 1, offset: .65 }, { transform: `${c} translateY(-40px) scale(1)`, opacity: 0 }], { duration: 1600, easing: 'ease-out', fill: 'both' }); } catch(e){}
+  setTimeout(() => el.remove(), 1700);
+}
+function pulse(k, s = 1.14){ const el = document.querySelector('[data-k="' + k + '"]'); if (!el || RM) return; try { el.animate([{ scale: '1' }, { scale: String(s) }, { scale: '1' }], { duration: 300, easing: 'ease-out' }); } catch(e){} }
+function paintGhost(){ const el = document.querySelector('[data-k="ghost"]'); if (el){ const g = Math.max(0, S.pending - FX.pendFly); el.innerHTML = g ? stackHTML(g) : ''; } }
+function setU(){ const w = app.clientWidth || 340; document.documentElement.style.setProperty('--u', (Math.min(w, 520) / 100).toFixed(3) + 'px'); }
+window.addEventListener('resize', setU);
 
 /* ---------- local single-device store (same surface as db) ---------- */
 function LocalDB(){
@@ -275,17 +471,23 @@ function leaveSubs(){ S.unsubs.forEach(u => { try { u(); } catch(e){} }); S.unsu
 function enterRoom(code){
   leaveSubs();
   Object.assign(S, { syncErr:null, synced:false, pSynced:false, code, room:null, roomLoaded:false, players:{}, pending:0, sheet:null, confirm:null });
+  FX.ov = {}; FX.pendFly = 0;
   ls.set('chips.room', code);
   const mine = code;
   const onErr = e => { if (S.code !== mine) return; S.syncErr = (e && e.code) || 'error'; toast('שגיאת סנכרון: ' + S.syncErr); render(); if (e && (e.code === 'unavailable' || e.code === 'internal')) setTimeout(() => { if (S.code === mine) enterRoom(mine); }, 2500); };
   S.unsubs.push(S.db.doc('rooms/' + code).onSnapshot(s => {
     if (S.code !== mine) return;
     if (!s.exists){ if (!s.metadata.fromCache){ S.room = null; S.roomLoaded = true; render(); } return; }
-    S.room = s.data(); S.roomLoaded = true; S.synced = !s.metadata.fromCache; render();
+    const nr = s.data(); let run = null; try { run = fxRoom(S.room, nr); } catch(e){ console.error(e); }
+    S.room = nr; S.roomLoaded = true; S.synced = !s.metadata.fromCache; render();
+    if (run) try { run(); } catch(e){ console.error(e); }
   }, onErr));
   S.unsubs.push(S.db.collection('rooms/' + code + '/players').onSnapshot(s => {
     if (S.code !== mine) return;
-    const m = {}; s.docs.forEach(d => { if (d.exists) m[d.id] = d.data(); }); S.players = m; S.pSynced = !s.metadata.fromCache; render();
+    const m = {}; s.docs.forEach(d => { if (d.exists) m[d.id] = d.data(); });
+    let runs = []; try { runs = fxPlayers(S.players, m); } catch(e){ console.error(e); }
+    S.players = m; S.pSynced = !s.metadata.fromCache; render();
+    runs.forEach(f => { try { f(); } catch(e){ console.error(e); } });
   }, onErr));
   wake(); render();
 }
@@ -313,6 +515,159 @@ function denoms(){
 }
 const chipStyle = d => { const dark = [5,10,25,100,250,500,2500,5000,10000].includes(d); return `--c:var(--c${d});--e:${d===1||d===2||d===1000?'var(--c5)':'var(--chalk)'};--t:${dark?'#fff':'#1a1a1a'}`; };
 const chipLabel = d => d >= 1000 ? (d/1000) + 'K' : d;
+function chipsOf(amt){ const out = []; let left = Math.floor(amt || 0); for (let k = DEN.length - 1; k >= 0 && left > 0; k--) while (left >= DEN[k] && out.length < 36){ out.push(DEN[k]); left -= DEN[k]; } return out; }
+function stackHTML(amt, per = 8){
+  const c = chipsOf(amt); if (!c.length) return '';
+  const p = c.length > per * 3 ? Math.ceil(c.length / 3) : per, cols = [];
+  for (let i = 0; i < c.length; i += p) cols.push(c.slice(i, i + p));
+  return `<div class="stk">${cols.map(col => `<div class="col" style="--n:${col.length}">${col.map((d, i) => `<i class="cd" style="${chipStyle(d)};--i:${i}"></i>`).join('')}</div>`).join('')}</div>`;
+}
+const dispAmt = h => h.result === 'surrender' ? h.bet - Math.floor(h.bet / 2) : h.bet;
+
+/* ---------- turning document changes into animations ----------
+   Every player write sets lastAction and ts, so a new ts tells us exactly what just happened.
+   Each handler may set an override before the render, and returns a function that runs after it. */
+function fxPlayers(old, nw){
+  const r = S.room; if (!r) return [];
+  const runs = [];
+  for (const pid in nw){
+    const a = old[pid], b = nw[pid];
+    if (!a || !b || !b.lastAction || (b.ts || 0) === (a.ts || 0)) continue;
+    const f = (r.game === 'holdem' ? fxHold : fxBJ)(pid, a, b, r);
+    if (f) runs.push(f);
+  }
+  return runs;
+}
+function fxBJ(pid, a, b, r){
+  const k = b.lastAction.k, mine = pid === S.myId, A = a.hands || [], B = b.hands || [];
+  const sum = hs => hs.reduce((x, h) => x + (h.bet || 0), 0);
+  const seat = () => seatTarget(pid), spot = j => rectOf(`spot:${pid}:${j}`), u = unitPx();
+  if (k === 'bet'){
+    const prev = a.bjRound === b.bjRound ? A : [], d = sum(B) - sum(prev); if (d <= 0) return null;
+    if (mine) return () => { SND.chips(4); pulse(`spot:${pid}:0`, 1.08); };      // my pending chips were already on the spot
+    const tok = setOv(pid, { hands: prev }, 700);
+    return () => fly({ from: seat(), to: spot(0), amt: d, sound: SND.slide, land: () => { SND.chips(3); clearOv(pid, tok); } });
+  }
+  if (k === 'clear'){
+    const amt = sum(A); if (!amt) return null;
+    const from = oldRect(`spot:${pid}:0`), tok = setOv(pid, { stack: a.stack }, 700);
+    return () => fly({ from, to: seat(), amt, fadeOut: true, sound: SND.slide, land: () => { SND.chips(2); clearOv(pid, tok); } });
+  }
+  if (k === 'double'){
+    const i = B.findIndex((h, j) => h.doubled && !(A[j] && A[j].doubled)); if (i < 0) return null;
+    const half = B[i].bet / 2;
+    const tok = setOv(pid, { hands: B.map((h, j) => j === i ? { ...h, doubled: false, bet: half } : h) }, 800);
+    return () => { SND.whoosh(); const t = spot(i); fly({ from: seat(), to: shift(t, u * 3.8), amt: half, dur: 600, land: () => { SND.chips(4); clearOv(pid, tok); pulse(`spot:${pid}:${i}`); floatText(shift(t, 0, -u * 9), '×2'); } }); };
+  }
+  if (k === 'split'){
+    if (B.length <= A.length) return null;
+    const same = (x, y) => x && y && x.bet === y.bet && !!x.split === !!y.split && !!x.doubled === !!y.doubled && x.result === y.result;
+    let j = 0; while (j < A.length && same(A[j], B[j])) j++;
+    const i = A[j] && !A[j].split && B[j] && B[j].split && A[j].bet === B[j].bet ? j : Math.max(0, j - 1);
+    const from = oldRect(`spot:${pid}:${i}`);
+    const tok = setOv(pid, { hands: B.map((h, x) => x === i || x === i + 1 ? { ...h, _hide: true } : h) }, 900);
+    return () => {
+      SND.whoosh();
+      fly({ from, to: spot(i), amt: B[i].bet, dur: 420, lift: 12, land: () => { const o = FX.ov[pid]; if (o && o.tok === tok){ o.hands[i]._hide = false; render(); } } });
+      fly({ from: seat(), to: spot(i + 1), amt: B[i + 1].bet, delay: 140, dur: 580, land: () => { SND.chips(4); clearOv(pid, tok); const t = spot(i + 1); floatText(shift(t, 0, -u * 9), 'ספליט'); } });
+    };
+  }
+  if (k === 'ins'){
+    const amt = b.insurance || 0; if (!amt) return null;
+    const tok = setOv(pid, { ins: 0 }, 700);
+    return () => fly({ from: seat(), to: rectOf('ins:' + pid), amt, sound: SND.slide, land: () => { SND.chips(3); clearOv(pid, tok); } });
+  }
+  if (k === 'surrender'){
+    const h = B[0]; if (!h) return null; const back = Math.floor(h.bet / 2); if (!back) return null;
+    const tok = setOv(pid, { stack: a.stack }, 700);
+    return () => { SND.fold(); fly({ from: spot(0), to: seat(), amt: back, fadeOut: true, land: () => { SND.chips(2); clearOv(pid, tok); } }); };
+  }
+  if (k === 'bjres'){
+    if (!B.length) return null;
+    const T1 = 1000, from = A.map((_, j) => oldRect(`spot:${pid}:${j}`)), insFrom = oldRect('ins:' + pid);
+    const tok = setOv(pid, { hands: A.map(h => ({ ...h, _hide: true })), ins: 0, stack: a.stack, hideRes: true }, T1 + 700);
+    return () => {
+      const dealer = rectOf('dealer'), st = seat(); let handsNet = 0, anyBJ = false;
+      B.forEach((h, j) => {
+        const f = from[j] || spot(j), amt = dispAmt(A[j] || h), res = h.result;
+        if (res === 'lose' || res === 'surrender'){
+          handsNet -= res === 'lose' ? h.bet : h.bet - Math.floor(h.bet / 2);
+          fly({ from: f, to: dealer, amt, delay: 80 * j, dur: 640, fadeOut: true, sound: SND.slide });
+        } else if (res === 'push'){
+          fly({ from: f, to: st, amt, delay: T1, fadeOut: true });
+        } else if (res === 'win' || res === 'bj'){
+          const pay = res === 'bj' ? Math.floor(h.bet * 1.5) : h.bet, off = shift(f, u * 4.2), d0 = 120 + 80 * j;
+          handsNet += pay; anyBJ = anyBJ || res === 'bj';
+          fly({ from: f, to: st, amt, delay: T1, fadeOut: true });
+          fly({ from: dealer, to: off, amt: pay, delay: d0, dur: 600, sound: () => SND.chips(3), land: () => fly({ from: off, to: st, amt: pay, delay: Math.max(0, T1 - d0 - 600), fadeOut: true }) });
+        }
+      });
+      const ins = a.insurance || 0;
+      if (ins){
+        const won = (b.lastAction.amt || 0) - handsNet > 0, f = insFrom || rectOf('ins:' + pid);
+        if (!won) fly({ from: f, to: dealer, amt: ins, dur: 600, fadeOut: true });
+        else { const off = shift(f, u * 3.4); fly({ from: f, to: st, amt: ins, delay: T1, fadeOut: true }); fly({ from: dealer, to: off, amt: ins * 2, delay: 160, dur: 600, land: () => fly({ from: off, to: st, amt: ins * 2, delay: Math.max(0, T1 - 760), fadeOut: true }) }); }
+      }
+      const net = b.lastAction.amt || 0;
+      setTimeout(() => {
+        clearOv(pid, tok); if (net >= 0) SND.chips(4);
+        pulse('seat:' + pid, 1.2);
+        floatText(shift(rectOf('seat:' + pid) || st, 0, -u * 12), net > 0 ? '+' + fmt(net) : net < 0 ? '−' + fmt(-net) : 'תיקו', net > 0 ? 'w' : net < 0 ? 'l' : 'p');
+        if (mine){ if (net > 0) (anyBJ ? SND.bj : SND.win)(); else if (net < 0) SND.lose(); else SND.push(); }
+      }, (B.some(h => ['win', 'bj', 'push'].includes(h.result)) || (ins && net > handsNet) ? T1 + 560 : 760));
+    };
+  }
+  if (k === 'refund'){
+    const amt = b.lastAction.amt || 0;
+    if (A.length && !B.length){        // the dealer cancelled the round: bets go back from the spots
+      const fr = A.map((_, j) => oldRect(`spot:${pid}:${j}`)), fi = a.insurance ? oldRect('ins:' + pid) : null;
+      const tok = setOv(pid, { hands: A.map(h => ({ ...h, _hide: true })), ins: 0, stack: a.stack }, 800);
+      return () => { const st = seat(); SND.slide(); A.forEach((h, j) => fly({ from: fr[j], to: st, amt: dispAmt(h), delay: 70 * j, fadeOut: true })); if (fi) fly({ from: fi, to: st, amt: a.insurance, fadeOut: true }); setTimeout(() => { SND.chips(3); clearOv(pid, tok); }, 640); };
+    }
+    if (!amt) return null;
+    if (amt > 0){ const tok = setOv(pid, { stack: a.stack }, 700); return () => fly({ from: rectOf('dealer'), to: seat(), amt, fadeOut: true, sound: SND.slide, land: () => { SND.chips(3); clearOv(pid, tok); } }); }
+    return () => fly({ from: seat(), to: rectOf('dealer'), amt: -amt, fadeOut: true, sound: SND.slide, land: () => SND.chips(2) });
+  }
+  return null;
+}
+function fxHold(pid, a, b, r){
+  const k = b.lastAction.k;
+  if (['blind', 'call', 'bet', 'raise', 'allin'].includes(k)){
+    const d = (a.stack || 0) - (b.stack || 0); if (d <= 0) return null;
+    return () => fly({ from: seatTarget(pid), to: rectOf('pot'), amt: d, sound: SND.slide, land: () => { SND.chips(3); pulse('pot', 1.06); } });
+  }
+  if (k === 'won' || k === 'refund'){
+    const d = (b.stack || 0) - (a.stack || 0); if (d <= 0) return null;
+    const tok = setOv(pid, { stack: a.stack }, 700);
+    return () => fly({ from: rectOf('pot'), to: seatTarget(pid), amt: d, fadeOut: true, sound: SND.slide, land: () => { SND.chips(4); clearOv(pid, tok); if (k === 'won'){ pulse('seat:' + pid, 1.2); if (pid === S.myId) SND.win(); } } });
+  }
+  if (k === 'check') return () => SND.knock();
+  if (k === 'fold') return () => SND.fold();
+  return null;
+}
+function fxRoom(a, b){
+  if (!a || !b || a.code !== b.code) return null;
+  if (b.game === 'blackjack' && a.phase === 'betting' && b.phase === 'playing' && a.roundId === b.roundId) return dealFx;
+  if (b.game === 'holdem'){
+    if ((b.handId || 0) > (a.handId || 0)) return () => SND.shuffle();
+    const i = STAGES.indexOf(a.stage), j = STAGES.indexOf(b.stage);
+    if (b.handId === a.handId && j > i && i >= 0 && j <= 3){
+      const before = [0, 3, 4, 5][i], after = [0, 3, 4, 5][j];
+      return () => { SND.flip(after - before); for (let x = before; x < after; x++){ const el = document.querySelector(`[data-k="slot:${x}"]`); if (el && !RM) try { el.animate([{ transform: 'rotateY(90deg) scale(1.1)' }, { transform: 'rotateY(0) scale(1)' }], { duration: 320, delay: (x - before) * 130, easing: 'ease-out', fill: 'backwards' }); } catch(e){} } };
+    }
+  }
+  return null;
+}
+function dealFx(){
+  const dealer = rectOf('dealer'); if (!dealer) return;
+  const targets = players().filter(cur).flatMap(p => p.hands.map((_, j) => rectOf(`spot:${p.pid}:${j}`)));
+  const u = unitPx(), house = shift(dealer, 0, u * 16);
+  let n = 0;
+  [0, 1].forEach(() => [...targets, house].forEach(t => {
+    const d = n++ * 150;
+    fly({ from: shift(dealer, -u * 14), to: shift(t, 0, -u * 2), html: '<i class="cb"></i>', delay: d, dur: 380, lift: 10, fadeOut: true, sound: SND.card });
+  }));
+}
 
 /* ---------- Hold'em model ---------- */
 const STAGES = ['preflop','flop','turn','river','showdown'];
@@ -416,8 +771,9 @@ async function bjBet(){
   if (r.maxBet && total > r.maxBet){ toast(`ההימור המקסימלי הוא ${fmt(r.maxBet)}`); return; }
   if (total < (r.minBet || 0)){ toast(`ההימור המינימלי הוא ${fmt(r.minBet)}`); return; }
   buzz();
+  const pend = S.pending; S.pending = 0; FX.pendFly = 0;
   const ok = await w(pPath(), 'update', { stack: m.stack - add, bjRound: r.roundId, hands: [{ bet: total }], insurance:0, surrendered:false, lastAction:{ k:'bet', amt: total }, ts: now() });
-  if (ok) S.pending = 0; render();
+  if (!ok) S.pending = pend; render();
 }
 async function bjClear(){
   const m = me(); if (!cur(m) || S.room.phase !== 'betting') return;
@@ -488,12 +844,15 @@ function claimSeat(pid){ S.myId = pid; ls.set('chips.pid', pid); S.pending = 0; 
 let tt;
 function toast(t){ toastEl.textContent = t; toastEl.hidden = false; clearTimeout(tt); tt = setTimeout(() => toastEl.hidden = true, 3200); }
 const hue = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
-const avatar = p => `<div class="av" style="background:hsl(${hue(p.pid)} 55% 68%)">${esc((p.name || '?').trim().charAt(0) || '?')}</div>`;
+const avatar = (p, k) => `<div class="av"${k ? ` data-k="${esc(k)}"` : ''} style=""background:hsl(${hue(p.pid)} 55% 68%)">${esc((p.name || '?').trim().charAt(0) || '?')}</div>`;
 const actText = a => { if (!a) return ''; const x = fmt(a.amt); return ({ fold:'קיפל', check:'צ\'ק', call:`השווה ${x}`, raise:`העלה ל-${x}`, bet:`הימר ${x}`, allin:`אול-אין ${x}`, blind:`בליינד ${x}`, won:`זכה ב-${x}`, refund:`הוחזר ${x}`, clear:'ביטל הימור', double:'דאבל דאון', split:'ספליט', ins:'ביטוח', surrender:'כניעה', bjres: a.amt > 0 ? `הרוויח ${x}` : a.amt < 0 ? `הפסיד ${fmt(-a.amt)}` : 'תיקו' })[a.k] || ''; };
 const RES_HE = { win:'ניצחון', bj:'בלאק ג\'ק', push:'תיקו', lose:'הפסד', surrender:'כניעה' };
 
 /* ---------- views ---------- */
+const ICON_SND_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+const ICON_SND_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>';
 function render(){
+  FX.rects = measure(); setU();
   const a = document.activeElement, id = a && a.id; let s1, s2; try { s1 = a.selectionStart; s2 = a.selectionEnd; } catch(e){}
   if (!S.code){ app.innerHTML = homeView(); app.className = ''; renderRooms(); }
   else app.innerHTML = roomView();
@@ -560,6 +919,7 @@ function roomView(){
   <div class="top">
     <button class="code-btn" data-a="copy" aria-label="העתקת קוד החדר"><small>${hold ? 'טקסס הולדם' : 'בלאק ג\'ק'} · ${S.mode === 'cloud' ? (S.syncErr ? '<span style="color:var(--danger)">שגיאה: ' + esc(S.syncErr) + '</span>' : (S.synced && S.pSynced ? '<span style="color:var(--ok)">● מחובר</span>' : '<span style="color:var(--brass)">● מתחבר…</span>')) : '<span style="color:var(--danger)">● לא מחובר</span>'}</small><span class="code">${esc(r.code)}</span></button>
     <div class="actions">
+      <button class="btn small ghost icon-btn" data-a="snd" aria-label="${SND.on ? 'השתקת צלילים' : 'הפעלת צלילים'}" aria-pressed="${SND.on}">${SND.on ? ICON_SND_ON : ICON_SND_OFF}</button>
       <button class="btn small ghost" data-a="sheet" data-v="players">שחקנים</button>
       <button class="btn small ghost" data-a="sheet" data-v="settings">הגדרות</button>
     </div>
@@ -592,7 +952,7 @@ function seatRow(p, extraTags, right, sub){
   const host = S.room.hostId === p.pid;
   const swap = S.mode === 'local' && p.pid !== S.myId ? `<button class="btn small ghost" data-a="claim" data-v="${esc(p.pid)}">שחק בתור</button>` : '';
   return `<div class="seat ${p.pid === S.myId ? 'me' : ''} ${p._out ? 'out' : ''}">
-    ${avatar(p)}
+    ${avatar(p, 'seat:' + p.pid)}
     <div class="who"><div class="nm"><b>${esc(p.name)}</b>${p.pid === S.myId ? '<span class="tag">את/ה</span>' : ''}${host ? '<span class="tag host">דילר</span>' : ''}${extraTags}</div>
       <div class="sub"><span class="num">${fmt(p.stack)} צ'יפים</span>${sub ? `<span>${sub}</span>` : ''}</div></div>
     <div style="display:grid;gap:6px;justify-items:end">${right}${swap}</div>
@@ -614,13 +974,13 @@ function holdemView(){
     else if (!inH && r.stage !== 'idle') tags += '<span class="tag">ממתין ליד הבאה</span>';
     const sb = h.st(p);
     const right = sb ? `<div class="amt num"><span class="mini"></span>${fmt(sb)}</div>` : '';
-    return seatRow({ ...p, _out: inH && p.folded }, tags, right, inH || p.lastAction?.k === 'won' ? esc(actText(p.lastAction)) : '');
+    return seatRow({ ...p, stack: shownStack(p), _out: inH && p.folded }, tags, right, inH || p.lastAction?.k === 'won' ? esc(actText(p.lastAction)) : '');
   }).join('');
   return `
   <section class="table">
     <div class="stage-row"><span class="pill ${r.stage === 'idle' ? 'ok' : ''}">${STAGE_HE[r.stage] || ''}${r.handId ? ` · יד ${r.handId}` : ''}</span><span class="meta num">בליינדים ${fmt(r.sb)}/${fmt(r.bb)}</span></div>
-    <div class="board" aria-label="קלפים על השולחן">${[0,1,2,3,4].map(i => `<span class="slot ${i < cards ? 'on' : ''}"></span>`).join('')}</div>
-    <div class="pot"><span class="lbl">קופה</span><span class="big num">${fmt(h.pot)}</span></div>
+    <div class="board" aria-label="קלפים על השולחן">${[0,1,2,3,4].map(i => `<span class="slot ${i < cards ? 'on' : ''}" data-k="slot:${i}"></span>`).join('')}</div>
+    <div class="pot"><span class="lbl">קופה</span><span class="big num" data-k="pot">${fmt(h.pot)}</span></div>
     <div class="tocall">${r.stage === 'idle' ? (r.handId ? 'היד הסתיימה. הדילר יתחיל יד חדשה.' : 'מחכים שהדילר יתחיל את היד הראשונה') : h.maxSt ? `ההימור ברחוב: ${fmt(h.maxSt)}` : 'אין הימור ברחוב הזה'}</div>
   </section>
   <div class="seats">${dealerRow()}${rows || '<div class="muted" style="text-align:center;padding:16px">עוד אין שחקנים. שתפו את הקוד.</div>'}</div>`;
@@ -628,7 +988,7 @@ function holdemView(){
 
 function holdemDock(){
   const h = H(), m = me();
-  const stackHead = `<div class="dock-head"><div class="mystack"><span class="big num">${fmt(m.stack)}</span><span class="muted">הצ'יפים שלך</span></div>${pendingBox()}</div>`;
+  const stackHead = `<div class="dock-head"><div class="mystack"><span class="big num" data-k="mystack">${fmt(shownStack(m))}</span><span class="muted">הצ'יפים שלך</span></div>${pendingBox()}</div>`;
   if (m.sittingOut) return `${stackHead}<div class="status">אתם בהפסקה. אפשר לחזור מתפריט השחקנים.</div>`;
   if (!h.inHand(m)) return `${stackHead}<div class="status">${h.r.stage === 'idle' ? 'מחכים ליד הבאה' : 'תצטרפו ביד הבאה'}</div>`;
   if (m.folded) return `${stackHead}<div class="status">קיפלתם ביד הזו</div>`;
@@ -659,7 +1019,7 @@ function holdemDock(){
     <div class="acts"><button class="btn danger" data-a="fold">קיפול</button><button class="btn primary" data-a="hgo" data-v="${callAmt}" ${dis ? 'disabled' : ''}>${label}</button></div>`;
 }
 function pendingBox(){
-  return `<div class="pending"><button data-a="clearp" aria-label="ניקוי">×</button><span class="v num">${fmt(S.pending)}</span><span class="muted">להוסיף</span></div>`;
+  return `<div class="pending"><button data-a="clearp" aria-label="ניקוי">×</button><span class="v num" data-k="pend">${fmt(S.pending)}</span><span class="muted">להוסיף</span></div>`;
 }
 
 function holdemHost(){
@@ -677,30 +1037,77 @@ function holdemHost(){
   </section>`;
 }
 
-function bjView(){
-  const r = S.room, list = players();
-  const phaseTxt = r.phase === 'betting' ? 'הימורים פתוחים' : 'קלפים חולקו';
-  const bettors = list.filter(cur), inTable = bettors.reduce((a,p) => a + bjStake(p) + (p.insurance||0), 0);
-  const rows = list.map(p => {
-    const c = cur(p), last = !c && p.bjRound === r.roundId - 1 && (p.hands || []).length;
-    let right = '';
-    if (c || last) right = `<div class="hands">${p.hands.map(x => `<span class="hchip num ${x.result ? 'res-' + x.result : ''}">${fmt(x.bet)}${x.doubled ? '×2' : ''}${x.result ? ' · ' + RES_HE[x.result] : ''}</span>`).join('')}${c && p.insurance ? `<span class="hchip">ביטוח ${fmt(p.insurance)}</span>` : ''}</div>`;
-    const sub = c ? '' : last ? esc(actText(p.lastAction)) : (r.phase === 'betting' ? 'עוד לא הימר' : 'לא בסיבוב');
-    return seatRow({ ...p, _out: !c && r.phase === 'playing' }, '', right, sub);
+/* Table geometry, in % of the table box. Everything sits on ellipses that share one centre near the dealer. */
+const GEO = { cy: 8, seat: [47, 75], spot: [34, 56], ins: [19.5, 32], bj: [25, 43], insText: [19.5, 33.6], in1: [17, 27.5], in2: [22, 37], max: 64 };
+const ept = (phi, e) => [50 + e[0] * Math.sin(phi), GEO.cy + e[1] * Math.cos(phi)];
+// Seats are spaced evenly along the arc of betting circles, so circles never overlap however many players sit down.
+const ARC = (() => {
+  const pts = []; let L = 0, prev = ept(-GEO.max * Math.PI / 180, GEO.spot);
+  for (let d = -GEO.max; d <= GEO.max + .001; d += .5){ const q = ept(d * Math.PI / 180, GEO.spot); L += Math.hypot(q[0] - prev[0], (q[1] - prev[1]) * .98); pts.push([d, L]); prev = q; }
+  return { pts, L };
+})();
+function seatLayout(n){
+  if (n <= 1) return { angles: [0], size: 13.5 };
+  const gap = Math.min(17, ARC.L / (n - 1)), mid = ARC.L / 2;
+  const angles = Array.from({ length: n }, (_, k) => {
+    const target = mid + gap * ((n - 1) / 2 - k);                  // k = 0 sits on the right, the first seat when reading Hebrew
+    const hit = ARC.pts.find(q => q[1] >= target) || ARC.pts[ARC.pts.length - 1];
+    return hit[0] * Math.PI / 180;
+  });
+  return { angles, size: Math.min(13.5, gap * .86) };
+}
+function arc(id, e, deg){
+  const a = deg * Math.PI / 180, k = .98, [x1, y1] = ept(-a, e), [x2, y2] = ept(a, e);
+  return `<path id="${id}" d="M${x1.toFixed(2)} ${(y1 * k).toFixed(2)} A${e[0]} ${(e[1] * k).toFixed(2)} 0 0 0 ${x2.toFixed(2)} ${(y2 * k).toFixed(2)}"/>`;
+}
+function bjVis(p){
+  const r = S.room, o = ov(p.pid), hs = p.hands || [];
+  const show = p.bjRound === r.roundId || (p.bjRound === r.roundId - 1 && hs.some(h => !h.result));   // a round being paid out stays on the felt
+  return { hands: o && o.hands ? o.hands : (show ? hs : []), ins: o && o.ins != null ? o.ins : (show ? p.insurance || 0 : 0) };
+}
+function bjSeat(p, phi, base){
+  const r = S.room, o = ov(p.pid), mine = p.pid === S.myId, vis = bjVis(p), c = cur(p), pid = esc(p.pid);
+  const [sx, sy] = ept(phi, GEO.seat), [bx, by] = ept(phi, GEO.spot), [ix, iy] = ept(phi * .78, GEO.ins);
+  const hs = vis.hands.length ? vis.hands : [null], m = hs.length, size = m === 1 ? base : Math.min(base * (m === 2 ? .8 : .66), 15 / m + 3);
+  const ghost = mine && r.phase === 'betting' ? Math.max(0, S.pending - FX.pendFly) : -1;
+  const spots = hs.map((h, j) => {
+    const x = Math.max(size / 2 + .5, Math.min(99.5 - size / 2, bx + (j - (m - 1) / 2) * size * 1.04));
+    const show = h && !h._hide;
+    let inner = show ? (h.doubled ? `<div class="duo">${stackHTML(h.bet / 2)}${stackHTML(h.bet / 2)}</div>` : stackHTML(dispAmt(h))) : '';
+    if (j === 0 && ghost >= 0) inner += `<div class="ghost" data-k="ghost">${ghost ? stackHTML(ghost) : ''}</div>`;
+    const lbl = show ? `<span class="bl num">${fmt(h.bet)}${h.doubled ? (m > 1 ? '×2' : ' · ×2') : ''}${h.result === 'surrender' ? ' · ½' : ''}</span>` : '';
+    const glow = mine && j === 0 && r.phase === 'betting' && !show && !ghost;
+    return `<div class="spot${m > 1 ? ' sm' : ''}${mine ? ' mine' : ''}${show ? ' has' : ''}${glow ? ' glow' : ''}" data-k="spot:${pid}:${j}" style="left:${x.toFixed(2)}%;top:${by.toFixed(2)}%;width:${size.toFixed(2)}%;--chip:calc(var(--u)*${(size * .53).toFixed(2)})">${inner}${lbl}</div>`;
   }).join('');
+  const ins = `<div class="insk" data-k="ins:${pid}" style="left:${ix.toFixed(2)}%;top:${iy.toFixed(2)}%">${vis.ins ? stackHTML(vis.ins) + `<span class="bl num">ביטוח ${fmt(vis.ins)}</span>` : ''}</div>`;
+  const res = !(o && o.hideRes) && !c && p.bjRound === r.roundId - 1 && p.lastAction && p.lastAction.k === 'bjres' ? (p.lastAction.amt || 0) : null;
+  const claim = S.mode === 'local' && !mine ? ` data-a="claim" data-v="${pid}" role="button" title="שחק בתור ${esc(p.name)}"` : '';
+  return spots + ins + `<div class="st${mine ? ' me' : ''}${r.phase === 'playing' && !c ? ' out' : ''}"${claim} style="left:${sx.toFixed(2)}%;top:${sy.toFixed(2)}%">
+    ${res != null ? `<span class="rb ${res > 0 ? 'w' : res < 0 ? 'l' : 'p'} num">${res > 0 ? '+' + fmt(res) : res < 0 ? '−' + fmt(-res) : 'תיקו'}</span>` : ''}
+    <div class="av" data-k="seat:${pid}" style="background:hsl(${hue(p.pid)} 55% 68%)">${esc((p.name || '?').trim().charAt(0) || '?')}</div>
+    <b class="sn">${esc(p.name)}</b><span class="ss num">${fmt(shownStack(p))}</span></div>`;
+}
+function bjView(){
+  const r = S.room, list = players(), n = list.length;
+  const bettors = list.filter(cur), inTable = bettors.reduce((a, p) => a + bjStake(p) + (p.insurance || 0), 0), house = r.house || 0;
+  const lay = seatLayout(n);
+  const seats = list.map((p, k) => bjSeat(p, lay.angles[k], lay.size)).join('');
+  const print = `<svg class="print" viewBox="0 0 100 98" preserveAspectRatio="none" aria-hidden="true" direction="ltr"><defs>${arc('pa-bj', GEO.bj, 48)}${arc('pa-it', GEO.insText, 40)}${arc('pa-i1', GEO.in1, 42)}${arc('pa-i2', GEO.in2, 42)}</defs><use href="#pa-i1" class="ln"/><use href="#pa-i2" class="ln"/><text class="t1"><textPath href="#pa-bj" startOffset="50%" text-anchor="middle">BLACKJACK PAYS 3 TO 2</textPath></text><text class="t2"><textPath href="#pa-it" startOffset="50%" text-anchor="middle">INSURANCE PAYS 2 TO 1</textPath></text></svg>`;
   return `
-  <section class="table">
-    <div class="stage-row"><span class="pill ${r.phase === 'betting' ? 'ok' : ''}">${phaseTxt} · סיבוב ${r.roundId}</span><span class="meta num">${fmt(r.minBet)}${r.maxBet ? '–' + fmt(r.maxBet) : '+'}</span></div>
-    <div class="pot"><span class="lbl">על השולחן</span><span class="big num">${fmt(inTable)}</span></div>
-    <div class="tocall">${r.phase === 'betting' ? `${bettors.length} מתוך ${list.length} הימרו` : 'שחקו את הידיים. הדילר יסמן מי ניצח.'}</div>
-    <div class="meta num">מאזן הבית: <span dir="ltr">${(r.house||0) >= 0 ? '+' : '−'}${fmt(Math.abs(r.house||0))}</span></div>
-  </section>
-  <div class="seats">${dealerRow()}${rows || '<div class="muted" style="text-align:center;padding:16px">עוד אין מהמרים. שתפו את הקוד.</div>'}</div>`;
+  <section class="bjt${n > 7 ? ' dense' : ''}" aria-label="שולחן בלאק ג'ק">
+    <div class="felt"></div>
+    ${print}
+    <div class="dlr"><div class="rack" data-k="dealer">${denoms().slice().reverse().map(d => `<i class="tube" style="${chipStyle(d)}"></i>`).join('')}</div><div class="dn">${esc(r.hostName || 'הדילר')} · דילר</div></div>
+    <div class="plac num"><span>מינ׳ ${fmt(r.minBet)}</span><span>מקס׳ ${r.maxBet ? fmt(r.maxBet) : '∞'}</span></div>
+    <div class="rnd num"><span>סיבוב ${r.roundId}</span><span>הבית <span dir="ltr">${house >= 0 ? '+' : '−'}${fmt(Math.abs(house))}</span></span></div>
+    <div class="cst"><span class="pill ${r.phase === 'betting' ? 'ok' : ''}">${r.phase === 'betting' ? 'הימורים פתוחים' : 'הקלפים חולקו'}</span><span class="meta num">${r.phase === 'betting' ? `${bettors.length} מתוך ${n} הימרו` : `על השולחן ${fmt(inTable)}`}</span></div>
+    ${seats || `<div class="empty">עוד אין מהמרים.<br>שתפו את הקוד.</div>`}
+  </section>`;
 }
 
 function bjDock(){
   const r = S.room, m = me(), c = cur(m);
-  const head = `<div class="dock-head"><div class="mystack"><span class="big num">${fmt(m.stack)}</span><span class="muted">הצ'יפים שלך</span></div>${r.phase === 'betting' ? pendingBox() : ''}</div>`;
+  const head = `<div class="dock-head"><div class="mystack"><span class="big num" data-k="mystack">${fmt(shownStack(m))}</span><span class="muted">הצ'יפים שלך</span></div>${r.phase === 'betting' ? pendingBox() : ''}</div>`;
   if (r.phase === 'betting'){
     const curBet = c ? m.hands[0].bet : 0;
     return `${head}
@@ -711,8 +1118,8 @@ function bjDock(){
   if (!c) return `${head}<div class="status">לא הימרת בסיבוב הזה. אפשר להמר בסיבוב הבא.</div>`;
   const handsHtml = m.hands.map((x, i) => {
     if (x.result) return `<div class="status">יד ${i+1}: ${fmt(x.bet)} · ${RES_HE[x.result]}</div>`;
-    return `<div class="handrow"><div class="row" style="justify-content:space-between"><b>${m.hands.length > 1 ? `יד ${i+1}` : 'ההימור שלך'}</b><span class="amt num"><span class="mini"></span>${fmt(x.bet)}${x.doubled ? ' · דאבל' : ''}</span></div>
-      <div class="acts3"><button class="btn small" data-a="bj" data-v="double:${i}" ${x.doubled || m.stack < x.bet ? 'disabled' : ''}>דאבל דאון</button><button class="btn small" data-a="bj" data-v="split:${i}" ${x.doubled || m.hands.length >= 4 || m.stack < x.bet ? 'disabled' : ''}>ספליט</button></div></div>`;
+    return `<div class="handrow hr1"><div class="hl"><b>${m.hands.length > 1 ? `יד ${i+1}` : 'ההימור שלך'}</b><span class="amt num"><span class="mini"></span>${fmt(x.bet)}${x.doubled ? ' · דאבל' : ''}</span></div>
+      <button class="btn small" data-a="bj" data-v="double:${i}" ${x.doubled || m.stack < x.bet ? 'disabled' : ''}>דאבל דאון</button><button class="btn small" data-a="bj" data-v="split:${i}" ${x.doubled || m.hands.length >= 4 || m.stack < x.bet ? 'disabled' : ''}>ספליט</button></div>`;
   }).join('');
   const one = m.hands.length === 1 && !m.hands[0].doubled && !m.hands[0].result;
   return `${head}${handsHtml}
@@ -809,9 +1216,19 @@ const A = {
   copy: () => { const t = S.room.code; const link = location.origin + location.pathname + '#' + t; try { navigator.share ? navigator.share({ title: 'שולחן צ\'יפים', text: 'בואו לשולחן ' + t, url: link }).catch(() => {}) : navigator.clipboard.writeText(link).then(() => toast('קישור ההזמנה הועתק'), () => toast('קוד החדר: ' + t)); } catch(e){ toast('קוד החדר: ' + t); } },
   sheet: v => { S.sheet = v; S.confirm = null; if (v === 'award'){ const h = H(); S.sel = h.live.length === 1 ? [h.live[0].pid] : []; } if (v === 'settle'){ S.settle = {}; S.dealerBJ = false; } if (v === 'settings'){ const r = S.room; S.edit = { sb: String(r.sb), bb: String(r.bb), minBet: String(r.minBet), maxBet: String(r.maxBet || 0), startStack: String(r.startStack) }; } render(); },
   close: () => { S.sheet = null; render(); },
-  add: v => { const m = me(); S.pending = Math.min((m?.stack || 0), S.pending + Number(v)); buzz(); render(); },
-  setp: v => { S.pending = Math.max(0, Math.min(me()?.stack || 0, Number(v))); render(); },
-  clearp: () => { S.pending = 0; render(); },
+  add: (v, t) => {
+    const m = me(), before = S.pending; S.pending = Math.min((m?.stack || 0), S.pending + Number(v)); const added = S.pending - before;
+    buzz(); SND.tap();
+    const from = t && pageRect(t);
+    if (!added || !from || RM){ render(); return; }
+    FX.pendFly += added; render();                       // the chip flies from the tray onto your betting spot
+    const spot = S.room.game === 'blackjack' && rectOf('spot:' + S.myId + ':0'), dock = document.querySelector('.dock');
+    const spotOk = spot && dock && spot.y < dock.getBoundingClientRect().top + scrollY - 10 && spot.y > scrollY;
+    fly({ from, to: spotOk ? spot : rectOf('pend'), amt: added, dur: 380, lift: 34, land: () => { FX.pendFly = Math.max(0, FX.pendFly - added); paintGhost(); SND.chips(1, .8); } });
+  },
+  setp: v => { S.pending = Math.max(0, Math.min(me()?.stack || 0, Number(v))); FX.pendFly = 0; SND.chips(3); render(); },
+  clearp: () => { if (S.pending) SND.slide(); S.pending = 0; FX.pendFly = 0; render(); },
+  snd: () => { const on = SND.toggle(); toast(on ? 'הצלילים פועלים' : 'הצלילים כבויים'); render(); },
   hgo: v => hAct(Number(v)),
   fold: () => hFold(),
   newhand: () => newHand(),
@@ -839,6 +1256,7 @@ const A = {
 document.addEventListener('click', e => {
   if (e.target === sheetEl){ S.sheet = null; render(); return; }
   const t = e.target.closest('[data-a]'); if (!t || t.disabled) return;
+  if (t.classList.contains('btn') || t.closest('.seg,.res4,.presets')) SND.tick();
   const f = A[t.dataset.a]; if (f) f(t.dataset.v, t);
 });
 function bind(e){
