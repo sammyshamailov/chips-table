@@ -23,3 +23,33 @@
   to = "/404"
   status = 404
   force = true
+
+[[redirects]]
+  from = "/tests/*"
+  to = "/404"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/docs/*"
+  to = "/404"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/CLAUDE.md"
+  to = "/404"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/lessons-learned.md"
+  to = "/404"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/CHANGELOG.md"
+  to = "/404"
+  status = 404
+  force = true
