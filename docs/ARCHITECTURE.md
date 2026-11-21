@@ -7,7 +7,7 @@ The script is one IIFE. Sections are marked with `/* ---------- name ---------- 
 | Section | What it does |
 |---|---|
 | state (`S`) | Everything the UI needs: identity (`myId`, `name`, `avatar`), current table (`code`, `room`, `players`), chips in hand (`pending`, `pendChips`), open sheet |
-| casino background (`Ambience`, `playLine`) | Schedules random one-shots from `sounds/amb/`. Works on any AudioContext (also offline for `tests/audio.js`) |
+| casino background (`Ambience`, `playLine`) | Plays a looped crowd-murmur bed and schedules random slot-machine one-shots from `sounds/amb/`. Works on any AudioContext (also offline for `tests/audio.js`) |
 | sounds (`SND`) | Chip clacks, slides, bell, drumroll, fanfare, applause, results, and the dealer narration `SND.say`. Unlocked on first touch |
 | ambience control | `ambiSync()`: the background runs only inside an open table, screen on, sound on, setting on; it also starts loading the narration files |
 | effects (`FX`, `fly`, `floatText`, `pulse`) | Flying chips on the `#fx` layer, overrides that hold the old picture until chips land |
@@ -105,15 +105,22 @@ never overlap. In landscape (`@media (orientation: landscape)`) the room becomes
 clay-chip clacks are short band-passed noise plus a click; the bell, drumroll, fanfare and applause are
 oscillators and filtered noise.
 
-**Background.** Not a loop: a continuous bed read as noise on a phone speaker. `AMB_MANIFEST` lists 8 one-shot
-recordings in `sounds/amb/` (`machine-1..4`, `talk-1..3`, `laugh-1`; see `sounds/CREDITS.md`). They are fetched and
-decoded the first time the background is wanted (inside a table, not on the home screen); a missing file is skipped
-and retried at most once a minute. `Ambience(c, dest, level, clips)` returns `{sched(untilTime), stop()}`: an event
-every 7–16 s (the first after 2–5 s), about 55% machine, 35% talk, 10% laugh, never the same clip twice running, one
-at a time, random pan ±0.8, ±3 dB gain jitter, talk and laugh 6 dB under the machines, through a 6 kHz lowpass, a
-light generated reverb (1.2 s, wet 0.25) and a gentle compressor. `SND.ambiStart` calls `sched` every 4 s.
-Measured at the master chain: average about −39 dBFS over 60 s. Every 45–120 s a synthesized "someone plays with
-their chips" sound plays on top.
+**Background.** A quiet steady murmur of people plus a slot machine now and then. `AMB_MANIFEST` lists
+`sounds/amb/crowd-bed.mp3` (kind `bed`, a generated ~39 s murmur already looped and filtered, see
+`sounds/CREDITS.md`) and `machine-1..4` (kind `machine`). They are fetched and decoded the first time the background
+is wanted (inside a table, not on the home screen); a missing file is skipped and retried at most once a minute.
+`Ambience(c, dest, level, clips)` returns `{sched(untilTime), stop()}`; `sched` (called every 4 s by `SND.ambiStart`)
+starts the bed as soon as it is loaded and schedules the machines.
+- *Bed:* one `AudioBufferSourceNode` with `loop = true`, straight to `dest` (not through the event compressor), faded in
+  over 3 s, started at a random offset so phones aren't in step. `loopBounds(buf)` (once per buffer, `WeakMap`) trims
+  decoder silence and crossfades 50 ms at the seam, because MP3 changes the edges. Level `AMB_BED`: about −41 dBFS
+  at the master (both channels summed), 6 dB under the talk clip the owner liked (−35 dBFS measured the same way).
+- *Machines:* one random machine every 10–25 s (the first after 4–8 s), never the same twice running, one at a time,
+  random pan ±0.8, ±3 dB gain jitter, through a 6 kHz lowpass, a light generated reverb (1.2 s, wet 0.25) and a gentle
+  compressor (`AMB_LEVEL`).
+Measured by `node tests/audio.js`: bed about −41 dBFS, loudest 50 ms about −23 dBFS. The header speaker, `ambiSync`
+rules and the 6 dB ducking under narration apply to both. Every 45–120 s a synthesized "someone plays with their
+chips" sound plays on top.
 
 **Narration.** `SND.say(key)` plays `sounds/voice/<key>.mp3` (`open locked blackjack payout winner newhand flop turn
 river allin closed`), loaded together the first time a table is open. One line at a time: a new one is dropped while

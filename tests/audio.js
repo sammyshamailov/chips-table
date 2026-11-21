@@ -1,4 +1,4 @@
-// Renders the casino background (random machine / talk / laugh one-shots) and the dealer narration offline,
+// Renders the casino background (a steady quiet crowd murmur bed plus a slot-machine one-shot now and then) and the dealer narration offline,
 // through the app's own master chain, measures them and writes tests/out/ambience.wav and tests/out/narration.wav
 // to listen to. Run: node tests/audio.js
 // Files that don't exist yet are reported as "missing: ..." instead of failing.
@@ -24,7 +24,7 @@ function toneWav(sec, peakDb, f, mod){
   if (process.env.AUDIO_PLACEHOLDERS){
     await pg.route(/\/sounds\/(amb|voice)\//, r => {
       const u = r.request().url(), nm = u.split('/').pop().replace('.mp3', ''), kind = nm.replace(/-\d+$/, '');
-      const sec = { machine: 2.5, talk: 4, laugh: 2 }[kind] || 1.4 + (nm.length % 3) * .3, pk = u.includes('/voice/') ? -2 : -3;
+      const sec = { machine: 2.5, bed: 8 }[kind] || 1.4 + (nm.length % 3) * .3, pk = u.includes('/voice/') ? -2 : -3;
       r.fulfill({ contentType: 'audio/wav', body: toneWav(sec, pk, u.includes('/voice/') ? 220 : kind === 'machine' ? 1800 : 300, kind === 'machine' ? 7 : 4) });
     });
   }
@@ -50,10 +50,17 @@ function toneWav(sec, peakDb, f, mod){
       for (const m of B.manifest){ const buf = await dec(c0, m.url); if (buf) clips.push({ kind: m.kind, url: m.url, buf }); }
       out.clips = clips.length;
       if (clips.length){
+        // the bed alone, 60 s: level = both channels' power summed (the way an event panned left or right keeps its loudness)
+        const bedOnly = clips.filter(x => x.kind === 'bed');
+        if (bedOnly.length){
+          const cb = new OfflineAudioContext(2, 60 * sr, sr), ab = window.ChipsAmbience(cb, chain(cb), B.level, bedOnly.map(x => ({ ...x }))); ab.sched(60);
+          const rb = await cb.startRendering(), bl = rb.getChannelData(0), br = rb.getChannelData(1), a0 = 5 * sr;
+          out.bed = { sum: db(Math.pow(10, rmsDb(bl, a0, bl.length) / 10) + Math.pow(10, rmsDb(br, a0, br.length) / 10)), ch: rmsDb(bl, a0, bl.length) };
+        }
         const c = new OfflineAudioContext(2, 60 * sr, sr), cl = clips.map(x => ({ ...x }));     // buffers decoded on c0 work on any context of the same rate
         const a = window.ChipsAmbience(c, chain(c), B.level, cl); a.sched(60);
         const res = await c.startRendering(), L = res.getChannelData(0);
-        out.amb = { events: a.events, avg: rmsDb(L, 0, L.length), loud: loudest(L, sr / 20), peak: peakDb(L), wav: wav(res) };
+        out.amb = { events: a.events, avg: rmsDb(L, 0, L.length), avgSum: db(Math.pow(10, rmsDb(L, 0, L.length) / 10) + Math.pow(10, rmsDb(res.getChannelData(1), 0, L.length) / 10)), loud: loudest(L, sr / 20), peak: peakDb(L), wav: wav(res) };
       } }
     // 2. narration: three lines over the running background, 10 s
     { const c0 = new OfflineAudioContext(2, sr, sr), lines = [], clips = [];
@@ -77,7 +84,8 @@ function toneWav(sec, peakDb, f, mod){
   const miss = [...new Set(r.missing)];
   if (miss.length) console.log('missing: ' + miss.join(', '));
   if (r.amb){
-    console.log(`background (${r.clips} clips) 60 s at the app's master: average ${r.amb.avg.toFixed(1)} dBFS (target about -38) · loudest 50 ms ${r.amb.loud.toFixed(1)} dBFS (events should stay under about -20) · peak ${r.amb.peak.toFixed(1)} dBFS · events ${r.amb.events}`);
+    if (r.bed) console.log(`bed alone at the app's master (both channels summed, after the 3 s fade-in): ${r.bed.sum.toFixed(1)} dBFS (target about -41: 6 dB under the old talk event at -35.0) · per channel ${r.bed.ch.toFixed(1)} dBFS`);
+    console.log(`background (${r.clips} clips) 60 s at the app's master: average ${r.amb.avg.toFixed(1)} dBFS left channel / ${r.amb.avgSum.toFixed(1)} both summed · slot-machine events ${r.amb.events} (one every 10-25 s) · loudest 50 ms ${r.amb.loud.toFixed(1)} dBFS (events should stay under about -20) · peak ${r.amb.peak.toFixed(1)} dBFS`);
     fs.writeFileSync(path.join(OUT, 'ambience.wav'), Buffer.from(r.amb.wav, 'base64')); console.log('wrote', path.join(OUT, 'ambience.wav'));
   } else console.log('background: no clips found, nothing rendered');
   if (r.nar){

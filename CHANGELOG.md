@@ -6,9 +6,10 @@ development branch.
 ## Not yet live
 
 ### Changed
-- **The casino background is now occasional, not constant.** Instead of a looped recording (too noisy), a
-  random slot-machine sound, a bit of quiet talk or a laugh plays every 7–16 s (recordings in `sounds/amb/`,
-  credits in `sounds/CREDITS.md`).
+- **New casino background: a steady, quiet murmur of people with a slot machine now and then.** A generated
+  murmur (no clear words, about 39 s, looped seamlessly) plays softly all the time, and a random slot-machine
+  sound plays every 10–25 s on top (recordings in `sounds/amb/`, credits in `sounds/CREDITS.md`). The old
+  talk and laugh one-shots are gone.
 - **Dealer narration** (Hebrew, `sounds/voice/`): "bets are locked", "payout", "new hand", flop/turn/river,
   all-in, blackjack, "winner" and "table closed", heard on every phone. Own switch in Settings
   ("קריינות הדילרית"); the speaker button still mutes everything.

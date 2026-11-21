@@ -48,7 +48,23 @@ ElevenLabs on the owner's account (one take each), then trimmed, faded, peak-nor
 | machine-2.mp3 | a slot machine playing a short cheerful electronic win jingle, distant, in a large calm casino room, no music bed, about 3 seconds |
 | machine-3.mp3 | a slot machine jackpot with ringing bells and coins dropping into a metal tray, distant, in a large calm casino room, no music bed, about 5 seconds |
 | machine-4.mp3 | a slot machine idle attract chime, soft electronic arpeggio, distant, in a large calm casino room, no music bed, about 3 seconds |
-| talk-1.mp3 | two people talking quietly at a nearby table in a large calm casino room, indistinct words, no music bed, about 6 seconds |
-| talk-2.mp3 | a man and a woman chatting softly in a large calm casino room, muffled, no clear words, no music bed, about 6 seconds |
-| talk-3.mp3 | a small group murmuring quietly and one soft chuckle, distant, in a large calm casino room, no music bed, about 6 seconds |
-| laugh-1.mp3 | a short soft laugh from a woman across a large calm casino room, distant, no music bed, about 2 seconds |
+| talk-1.mp3 (removed) | two people talking quietly at a nearby table in a large calm casino room, indistinct words, no music bed, about 6 seconds |
+| talk-2.mp3 (removed; its style is what crowd-bed.mp3 imitates) | a man and a woman chatting softly in a large calm casino room, muffled, no clear words, no music bed, about 6 seconds |
+| talk-3.mp3 (removed) | a small group murmuring quietly and one soft chuckle, distant, in a large calm casino room, no music bed, about 6 seconds |
+| laugh-1.mp3 (removed) | a short soft laugh from a woman across a large calm casino room, distant, no music bed, about 2 seconds |
+
+The talk and laugh one-shots (talk-1..3, laugh-1) were replaced by `crowd-bed.mp3` and deleted from the repo.
+
+### sounds/amb/crowd-bed.mp3 (steady background murmur, generated 2026-11-21)
+
+- **Model:** `eleven_text_to_sound_v3`, `duration_seconds` 22, `prompt_influence` 0.3, `loop` off; two separate takes
+  (one generation each, flow `QqUVSYVXnFtuBTlluwBX`).
+- **Prompt (both takes):** a continuous steady murmur of a man and a woman and other people chatting softly in a
+  large calm casino room, muffled, no clear words, no pauses, no music bed, about 22 seconds
+  (the talk-2 prompt, which the owner liked, asked for a steady murmur with no pauses).
+- **How it was made:** take 1 and take 2 joined with a 2 s equal-power crossfade (42 s), high-pass 120 Hz and
+  low-pass 7 kHz, then the last 3 s crossfaded (equal power) into the start so it loops (39 s), normalised to
+  −20 dBFS RMS, mono 44.1 kHz MP3 64 kb/s (312 KB). At the loop point the largest sample step is 0.0056 against a
+  typical (median) step of 0.0068; the app crossfades another 50 ms after decoding (`loopBounds`).
+- **In the app:** played at about −41 dBFS at the master chain (6 dB under the talk-2 event as heard in the
+  earlier preview, −35 dBFS), looped, fading in over 3 s.

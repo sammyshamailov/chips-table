@@ -81,6 +81,11 @@ louder than the crowd and 38 dB louder than the slot machines, so players heard 
 layer offline and measuring it found it in one step. *Rule:* run `node tests/audio.js` after changing any
 sound, and send a rendered preview to listen to before shipping.
 
+**A continuous bed is fine only if it is speech-like and very quiet.** (Update: the owner liked the generated talk
+clips and asked for that style all the way through, quieter, so the background is now a looped generated murmur
+at about −41 dBFS, 6 dB under the talk clip he liked, with a slot machine now and then.) The note below is what
+went wrong with a loud, noisy bed.
+
 **A continuous ambience bed reads as noise on a phone speaker.** Even a real casino recording looped at -32 dBFS
 was called "too noisy". Sparse, quiet, randomly timed events (a machine, a few words, a laugh, with silence between)
 read as a real room. *Rule:* for background atmosphere, schedule short one-shots instead of looping a bed, and
