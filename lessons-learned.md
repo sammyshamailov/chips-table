@@ -81,6 +81,11 @@ louder than the crowd and 38 dB louder than the slot machines, so players heard 
 layer offline and measuring it found it in one step. *Rule:* run `node tests/audio.js` after changing any
 sound, and send a rendered preview to listen to before shipping.
 
+**A continuous ambience bed reads as noise on a phone speaker.** Even a real casino recording looped at -32 dBFS
+was called "too noisy". Sparse, quiet, randomly timed events (a machine, a few words, a laugh, with silence between)
+read as a real room. *Rule:* for background atmosphere, schedule short one-shots instead of looping a bed, and
+measure both the average level and the event peaks.
+
 **Synthesized voices don't sound like people.** The crowd was built from buzzing oscillators shaped by vowel
 formants; players said it sounded like aliens, and that it chattered too often. Nothing short of real speech
 fixes that. *Rule:* realistic ambience comes from a recording (CC0, source in `sounds/CREDITS.md`); synthesis

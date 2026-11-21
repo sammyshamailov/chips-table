@@ -27,7 +27,7 @@ table) runs the round. Hebrew, right-to-left, phone first.
 | `config.example.js` | Template for local testing with a real Firebase project |
 | `firestore.rules` | Security rules. Only `rooms/{CODE}` and `rooms/{CODE}/players/{pid}` are reachable. Changing them means the owner pastes them in the Firebase console, so avoid it |
 | `netlify.toml` | Build command, cache headers, and redirects that keep dev files off the site |
-| `sounds/` | The casino background recording (CC0) and `CREDITS.md` with its source and how the loop was made |
+| `sounds/` | `amb/` (random casino one-shots: machines, quiet talk, a laugh), `voice/` (Hebrew dealer narration) and `CREDITS.md` with the source of each |
 | `tests/` | Browser tests with Playwright (see `docs/TESTING.md`) |
 | `docs/ARCHITECTURE.md` | How `index.html` is organised, the stored data model, flows, effects, sound |
 | `docs/TESTING.md` | How to test, including two phones syncing |
@@ -57,8 +57,11 @@ table) runs the round. Hebrew, right-to-left, phone first.
 5. **Chips only.** No card visuals or card sounds. The cards are physical.
 6. **Sound**: effects (chips, bell, fanfare…) are synthesized with Web Audio. Anything that should sound
    like real people or a real place uses a recording: synthesized voices sounded like aliens. Only CC0 or
-   clearly licensed audio; record the source in `sounds/CREDITS.md`. Measure before shipping
-   (`node tests/audio.js`); keep the background well under the chip sounds (about −32 dBFS now).
+   clearly licensed audio; record the source in `sounds/CREDITS.md`. The background is sparse random
+   one-shots (a machine, quiet talk, a laugh every 7–16 s), never a continuous bed (it reads as noise). The
+   dealer's narration (`SND.say`) is triggered from the change→animation code so every phone says it.
+   Measure before shipping (`node tests/audio.js`): background about −38 dBFS average, narration about
+   −20 dBFS, both under the chip sounds.
 7. **Hebrew copy**: short, plain, gender-neutral where it matters (`את/ה`, `ניצח/ה`).
 8. **Test before pushing**: `node tests/two-phones.test.js`, `node tests/screenshots.js`, and look at the
    screenshots. A single-device test can't catch sync bugs; use the two-phone harness for anything that

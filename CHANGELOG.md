@@ -6,9 +6,12 @@ development branch.
 ## Not yet live
 
 ### Changed
-- **The casino background is now a real recording** of a casino floor (CC0, `sounds/casino-floor.mp3`,
-  credits in `sounds/CREDITS.md`), looped seamlessly, instead of synthesized voices and slot machines that
-  sounded like aliens.
+- **The casino background is now occasional, not constant.** Instead of a looped recording (too noisy), a
+  random slot-machine sound, a bit of quiet talk or a laugh plays every 7–16 s (recordings in `sounds/amb/`,
+  credits in `sounds/CREDITS.md`).
+- **Dealer narration** (Hebrew, `sounds/voice/`): "bets are locked", "payout", "new hand", flop/turn/river,
+  all-in, blackjack, "winner" and "table closed", heard on every phone. Own switch in Settings
+  ("קריינות הדילרית"); the speaker button still mutes everything.
 - Someone at the table plays with their chips less often (every 45–120 s instead of 15–40 s).
 
 ### Fixed

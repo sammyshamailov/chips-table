@@ -7,9 +7,9 @@ The script is one IIFE. Sections are marked with `/* ---------- name ---------- 
 | Section | What it does |
 |---|---|
 | state (`S`) | Everything the UI needs: identity (`myId`, `name`, `avatar`), current table (`code`, `room`, `players`), chips in hand (`pending`, `pendChips`), open sheet |
-| casino background (`Ambience`, `loopBounds`) | Loops `sounds/casino-floor.mp3`, a real casino-floor recording. Works on any AudioContext (also offline for `tests/audio.js`) |
-| sounds (`SND`) | Chip clacks, slides, bell, drumroll, fanfare, applause, results. Unlocked on first touch |
-| ambience control | `ambiSync()`: the background runs only inside an open table, screen on, sound on, setting on |
+| casino background (`Ambience`, `playLine`) | Schedules random one-shots from `sounds/amb/`. Works on any AudioContext (also offline for `tests/audio.js`) |
+| sounds (`SND`) | Chip clacks, slides, bell, drumroll, fanfare, applause, results, and the dealer narration `SND.say`. Unlocked on first touch |
+| ambience control | `ambiSync()`: the background runs only inside an open table, screen on, sound on, setting on; it also starts loading the narration files |
 | effects (`FX`, `fly`, `floatText`, `pulse`) | Flying chips on the `#fx` layer, overrides that hold the old picture until chips land |
 | staying up to date | Compares `APP_BUILD` with the live `config.js` and reloads when idle |
 | avatars | Prepared characters (`AV_SET`, drawn by `avSVG`), photo processing, `avInner()` for every avatar circle |
@@ -104,10 +104,24 @@ never overlap. In landscape (`@media (orientation: landscape)`) the room becomes
 clay-chip clacks are short band-passed noise plus a click; the bell, drumroll, fanfare and applause are
 oscillators and filtered noise.
 
-The background is a recording (`sounds/casino-floor.mp3`, CC0, see `sounds/CREDITS.md`). It is fetched the
-first time the background is wanted, decoded once, and looped at `BG_LEVEL` (about −32 dBFS). `loopBounds`
-trims any decoder silence and crossfades 50 ms at the seam so the loop has no click. Each phone starts at a
-random point. Every 45–120 s a synthesized "someone plays with their chips" sound plays on top.
+**Background.** Not a loop: a continuous bed read as noise on a phone speaker. `AMB_MANIFEST` lists 8 one-shot
+recordings in `sounds/amb/` (`machine-1..4`, `talk-1..3`, `laugh-1`; see `sounds/CREDITS.md`). They are fetched and
+decoded the first time the background is wanted (inside a table, not on the home screen); a missing file is skipped
+and retried at most once a minute. `Ambience(c, dest, level, clips)` returns `{sched(untilTime), stop()}`: an event
+every 7–16 s (the first after 2–5 s), about 55% machine, 35% talk, 10% laugh, never the same clip twice running, one
+at a time, random pan ±0.8, ±3 dB gain jitter, talk and laugh 6 dB under the machines, through a 6 kHz lowpass, a
+light generated reverb (1.2 s, wet 0.25) and a gentle compressor. `SND.ambiStart` calls `sched` every 4 s.
+Measured at the master chain: average about −39 dBFS over 60 s. Every 45–120 s a synthesized "someone plays with
+their chips" sound plays on top.
+
+**Narration.** `SND.say(key)` plays `sounds/voice/<key>.mp3` (`open locked blackjack payout winner newhand flop turn
+river allin closed`), loaded together the first time a table is open. One line at a time: a new one is dropped while
+one plays, except `winner` and `closed`, which wait. The background bus is ducked 6 dB meanwhile. Level about −20
+dBFS RMS (`VOICE_LEVEL`). Settings has a separate switch (`chips.voice`, default on); the header speaker mutes all.
+Triggers run on every phone from the change→animation code, not only the acting one: `fxRoom` (blackjack bets
+locked → `locked`; round paid, not cancelled → `payout`, 2.5 s later `open`; Hold'em new hand → `newhand`; stage
+flop/turn/river), `fxHold` (`allin`, once per hand), `fxBJ` (`bjpay` → `blackjack`), `ceremony` (`winner` at the
+reveal) and the `finclose` action (`closed`). Nothing is stored for this; it is all local.
 
 ## Updates
 
