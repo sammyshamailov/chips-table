@@ -7,7 +7,7 @@ The script is one IIFE. Sections are marked with `/* ---------- name ---------- 
 | Section | What it does |
 |---|---|
 | state (`S`) | Everything the UI needs: identity (`myId`, `name`, `avatar`), current table (`code`, `room`, `players`), chips in hand (`pending`, `pendChips`), open sheet |
-| casino ambience (`Ambience`) | Synthesized background: distant crowd, slot machines, reverb. Works on any AudioContext (also offline for `tests/audio.js`) |
+| casino background (`Ambience`, `loopBounds`) | Loops `sounds/casino-floor.mp3`, a real casino-floor recording. Works on any AudioContext (also offline for `tests/audio.js`) |
 | sounds (`SND`) | Chip clacks, slides, bell, drumroll, fanfare, applause, results. Unlocked on first touch |
 | ambience control | `ambiSync()`: the background runs only inside an open table, screen on, sound on, setting on |
 | effects (`FX`, `fly`, `floatText`, `pulse`) | Flying chips on the `#fx` layer, overrides that hold the old picture until chips land |
@@ -100,10 +100,14 @@ never overlap. In landscape (`@media (orientation: landscape)`) the room becomes
 
 ## Sound
 
-`SND` owns one AudioContext created on the first touch (browsers require it). Everything is synthesized:
-clay-chip clacks are short band-passed noise plus a click; the background (`Ambience`) is formant-shaped
-voices, slot-machine tones and clicks through a generated reverb. The background is scheduled ahead with
-`sched(until)` every second, which also lets `tests/audio.js` render it offline.
+`SND` owns one AudioContext created on the first touch (browsers require it). Effects are synthesized:
+clay-chip clacks are short band-passed noise plus a click; the bell, drumroll, fanfare and applause are
+oscillators and filtered noise.
+
+The background is a recording (`sounds/casino-floor.mp3`, CC0, see `sounds/CREDITS.md`). It is fetched the
+first time the background is wanted, decoded once, and looped at `BG_LEVEL` (about −32 dBFS). `loopBounds`
+trims any decoder silence and crossfades 50 ms at the seam so the loop has no click. Each phone starts at a
+random point. Every 45–120 s a synthesized "someone plays with their chips" sound plays on top.
 
 ## Updates
 

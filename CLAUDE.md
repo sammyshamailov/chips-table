@@ -27,6 +27,7 @@ table) runs the round. Hebrew, right-to-left, phone first.
 | `config.example.js` | Template for local testing with a real Firebase project |
 | `firestore.rules` | Security rules. Only `rooms/{CODE}` and `rooms/{CODE}/players/{pid}` are reachable. Changing them means the owner pastes them in the Firebase console, so avoid it |
 | `netlify.toml` | Build command, cache headers, and redirects that keep dev files off the site |
+| `sounds/` | The casino background recording (CC0) and `CREDITS.md` with its source and how the loop was made |
 | `tests/` | Browser tests with Playwright (see `docs/TESTING.md`) |
 | `docs/ARCHITECTURE.md` | How `index.html` is organised, the stored data model, flows, effects, sound |
 | `docs/TESTING.md` | How to test, including two phones syncing |
@@ -54,8 +55,10 @@ table) runs the round. Hebrew, right-to-left, phone first.
    A new player action must set both, and if chips move, add a handler in `fxBJ`/`fxHold`. Positions
    from before the render are in `FX.rects`; `FX.ov` holds what a spot showed before until chips land.
 5. **Chips only.** No card visuals or card sounds. The cards are physical.
-6. **Sounds are synthesized** (Web Audio, no files). Measure new sounds before shipping
-   (`node tests/audio.js`); keep the background well under the chip sounds (about −35 dBFS now).
+6. **Sound**: effects (chips, bell, fanfare…) are synthesized with Web Audio. Anything that should sound
+   like real people or a real place uses a recording: synthesized voices sounded like aliens. Only CC0 or
+   clearly licensed audio; record the source in `sounds/CREDITS.md`. Measure before shipping
+   (`node tests/audio.js`); keep the background well under the chip sounds (about −32 dBFS now).
 7. **Hebrew copy**: short, plain, gender-neutral where it matters (`את/ה`, `ניצח/ה`).
 8. **Test before pushing**: `node tests/two-phones.test.js`, `node tests/screenshots.js`, and look at the
    screenshots. A single-device test can't catch sync bugs; use the two-phone harness for anything that

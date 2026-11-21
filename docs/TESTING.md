@@ -16,7 +16,7 @@ npx playwright install chromium
 |---|---|
 | `node tests/two-phones.test.js` | A blackjack table on **two separate phones** that sync: avatars (character and photo), exact chip stacks seen by the other phone, deal, paying a blackjack mid-round, the payout not paying it twice, house balance, ending the game, the ceremony on the other phone, and a reloaded phone seeing the closed table. Prints PASS/FAIL per check and exits 1 on any failure |
 | `node tests/screenshots.js` | Seven players, a split and a double, in portrait, landscape and a small phone. Writes `tests/out/table-*.png`. **Look at them**: layout problems don't throw errors |
-| `node tests/audio.js` | Renders the casino background offline, prints the level of each layer (and how much is above 4 kHz, i.e. hiss), and writes `tests/out/ambience.wav` to listen to |
+| `node tests/audio.js` | Renders the casino background offline at the level the app plays it, prints the level and the quietest 50 ms (a loop gap shows up as a deep dip), and writes `tests/out/ambience.wav` to listen to |
 
 `tests/out/` is git-ignored.
 

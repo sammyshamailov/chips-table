@@ -5,6 +5,18 @@ development branch.
 
 ## Not yet live
 
+### Changed
+- **The casino background is now a real recording** of a casino floor (CC0, `sounds/casino-floor.mp3`,
+  credits in `sounds/CREDITS.md`), looped seamlessly, instead of synthesized voices and slot machines that
+  sounded like aliens.
+- Someone at the table plays with their chips less often (every 45–120 s instead of 15–40 s).
+
+### Fixed
+- Input fields stuck out of their cards and the two blind fields overlapped (home screen and forms).
+- The picture circle on the home screen shows your first letter as you type your name.
+
+## 2026-11-21 (5)
+
 ### Added
 - **Avatars**: take a photo with the front camera, pick one from the gallery, or choose one of 16
   illustrated characters. Set it on the home screen, when joining, by tapping your own seat, or from

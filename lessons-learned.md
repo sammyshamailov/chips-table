@@ -81,6 +81,16 @@ louder than the crowd and 38 dB louder than the slot machines, so players heard 
 layer offline and measuring it found it in one step. *Rule:* run `node tests/audio.js` after changing any
 sound, and send a rendered preview to listen to before shipping.
 
+**Synthesized voices don't sound like people.** The crowd was built from buzzing oscillators shaped by vowel
+formants; players said it sounded like aliens, and that it chattered too often. Nothing short of real speech
+fixes that. *Rule:* realistic ambience comes from a recording (CC0, source in `sounds/CREDITS.md`); synthesis
+is for effects. Pick recordings by measuring them (level spread, spikes, rumble, hiss), and still let the user
+listen before shipping.
+
+**An MP3 doesn't loop cleanly on its own.** Even a loop cut with a perfect crossfade gets a small jump at the
+seam after MP3 encoding, because the codec changes the first and last frames. Crossfade the seam again after
+decoding (`loopBounds`), and check it by playing across the loop point (largest sample step vs a typical one).
+
 **Browsers only start audio after a touch.** The AudioContext is created and resumed on the first
 `pointerdown`/`touchend`/`click`; until then sounds are silently skipped. iPhones are silent with the mute
 switch on.
@@ -93,6 +103,10 @@ another player sees.
 
 **Hash-only navigation doesn't reload the app.** Going from `/index.html` to `/index.html#CODE` in a test
 never re-ran the app. Open the invite link directly.
+
+**A scripted find-and-replace that matches nothing fails silently.** A changelog edit looked for text that an
+earlier, blocked commit would have written; it matched nothing, and the changelog stayed wrong for a release.
+*Rule:* every scripted replacement asserts it matched exactly once.
 
 **Background processes don't survive between commands in some environments.** The local test server kept
 disappearing between tool calls. The test scripts now start their own server in-process.
