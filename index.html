@@ -280,6 +280,51 @@ h1,h2,h3{margin:0;text-wrap:balance}
 @keyframes rotarrow{0%,8%{opacity:0}18%,38%{opacity:1}52%,100%{opacity:0}}
 @keyframes rotchip{0%,44%{transform:translateY(-7px);opacity:0}52%,80%{transform:none;opacity:1}92%,100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.phone,.scr-in,.rot-arrow,.mc,.rot-card,.lids ellipse{animation:none}}
+/* ---------- end of the game ---------- */
+.bjt.closed .felt{filter:saturate(.35) brightness(.6)}
+.bjt.closed .spot,.bjt.closed .insk,.bjt.closed .cst,.bjt.closed .print{opacity:.3}
+.bjt.closed .st{opacity:.7}
+.table.closed>:not(.csign){opacity:.35}
+.csign{position:absolute;left:50%;top:29%;z-index:5;transform:translateX(-50%) rotate(-3deg);transform-origin:50% -38px;padding:calc(var(--u)*1.6) calc(var(--u)*5);border-radius:calc(var(--u)*1.6);background:linear-gradient(#8e1f2c,#5d1019);border:calc(var(--u)*.7) solid var(--brass);box-shadow:0 10px 24px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.15);white-space:nowrap}
+.csign span{font-family:var(--f-display);font-weight:700;font-size:calc(var(--u)*8.5);line-height:1;color:#fff4dc;text-shadow:0 2px 0 rgba(0,0,0,.35)}
+.csign::before{content:"";position:absolute;left:50%;bottom:100%;width:62%;height:34px;transform:translateX(-50%);
+  background:linear-gradient(to top right,transparent calc(50% - 1px),#d9c08a calc(50% - 1px) calc(50% + 1px),transparent calc(50% + 1px)) left/50% 100% no-repeat,
+             linear-gradient(to top left,transparent calc(50% - 1px),#d9c08a calc(50% - 1px) calc(50% + 1px),transparent calc(50% + 1px)) right/50% 100% no-repeat}
+.csign::after{content:"";position:absolute;left:50%;bottom:calc(100% + 30px);width:9px;height:9px;margin-left:-4.5px;border-radius:50%;background:#c9a24f;box-shadow:0 1px 2px rgba(0,0,0,.6)}
+.csign.drop{animation:signdrop 1.7s cubic-bezier(.3,1.3,.5,1) both}
+@keyframes signdrop{0%{transform:translateX(-50%) translateY(-180px) rotate(0);opacity:0}35%{transform:translateX(-50%) translateY(0) rotate(9deg);opacity:1}55%{transform:translateX(-50%) rotate(-7deg)}75%{transform:translateX(-50%) rotate(4deg)}100%{transform:translateX(-50%) rotate(-3deg)}}
+#fin{position:fixed;inset:0;z-index:57;overflow:hidden}
+.fin-dim{position:absolute;inset:0;background:radial-gradient(circle at var(--x) var(--y),transparent 0 46px,rgba(2,6,4,.6) 64px,rgba(2,6,4,.9) 160px);animation:findim .6s ease-out both}
+.fin-dim.lit{background:radial-gradient(circle at 50% 42%,rgba(224,183,102,.22),rgba(2,6,4,.9) 62%)}
+@keyframes findim{from{opacity:0}}
+.fin-card{position:absolute;left:50%;top:50%;z-index:2;transform:translate(-50%,-50%);width:min(360px,calc(100% - 32px));max-height:calc(100% - 24px);overflow:auto;box-sizing:border-box;display:grid;justify-items:center;gap:6px;text-align:center;padding:18px 18px 16px;border-radius:26px;background:radial-gradient(120% 80% at 50% 0%,#24604a,var(--felt) 60%);border:1px solid color-mix(in srgb,var(--brass) 55%,transparent);box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 60px rgba(224,183,102,.25);animation:finpop .75s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes finpop{from{opacity:0;transform:translate(-50%,-50%) scale(.3)}}
+.fin-card .crown{width:76px;height:auto;margin-bottom:-24px;position:relative;z-index:2;animation:crownin 1s .35s cubic-bezier(.2,1.5,.4,1) both;filter:drop-shadow(0 3px 6px rgba(0,0,0,.45))}
+@keyframes crownin{from{opacity:0;transform:translateY(-44px) rotate(-22deg)}}
+.fin-avs{display:flex;gap:10px}
+.fin-av{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;font-size:38px;font-weight:700;color:#10130f;border:4px solid var(--brass);box-shadow:0 0 0 6px rgba(224,183,102,.2),0 0 40px rgba(224,183,102,.45)}
+.fin-t{color:var(--brass);font-weight:700;letter-spacing:.12em;font-size:14px;margin-top:4px}
+.fin-name{font-family:var(--f-display);font-size:52px;line-height:.95;font-weight:700}
+.fin-amt{font-size:16px;color:var(--chalk)}
+.fin-amt .num{font-family:var(--f-display);font-size:36px;color:var(--brass);font-weight:700}
+.fin-rest{display:grid;gap:10px;width:100%;max-height:0;overflow:hidden;opacity:0;transition:max-height .8s ease,opacity .5s ease}
+.fin-rest.on{max-height:640px;opacity:1}
+.fin-rest .btns{margin-top:2px}
+.cf{position:absolute;top:0;z-index:3;pointer-events:none;border-radius:50%;background:conic-gradient(var(--e) 0 6%,var(--c) 6% 19%,var(--e) 19% 25%,var(--c) 25% 44%,var(--e) 44% 50%,var(--c) 50% 69%,var(--e) 69% 75%,var(--c) 75% 94%,var(--e) 94%);box-shadow:inset 0 0 0 2px rgba(0,0,0,.2),0 2px 4px rgba(0,0,0,.35)}
+.rank{list-style:none;margin:0;padding:0;display:grid;gap:6px;width:100%}
+.rank li{display:grid;grid-template-columns:26px 30px minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 10px;border-radius:12px;background:var(--bg);text-align:start}
+.rank li.win{background:color-mix(in srgb,var(--brass) 16%,var(--bg));border:1px solid color-mix(in srgb,var(--brass) 45%,transparent)}
+.rank .pl{font-family:var(--f-display);font-size:24px;line-height:1;font-weight:700;color:var(--dim);text-align:center}
+.rank li.win .pl{color:var(--brass)}
+.rank .av{width:30px;height:30px;font-size:14px}
+.rank b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank .num{font-weight:700;direction:ltr}
+.fin-rest.on .rank li{animation:rankin .45s calc(var(--d) * 90ms) ease-out both}
+@keyframes rankin{from{opacity:0;transform:translateY(10px)}}
+.fincard .fc-win{display:grid;justify-items:center;gap:2px;text-align:center}
+.fincard .fc-win .crown{width:46px;height:auto}
+.fincard .fc-win b{font-family:var(--f-display);font-size:36px;line-height:1}
+@media (prefers-reduced-motion:reduce){.csign.drop,.fin-card,.fin-card .crown,.fin-dim,.fin-rest.on .rank li{animation:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 <script src="config.js"></script>
@@ -292,10 +337,11 @@ h1,h2,h3{margin:0;text-wrap:balance}
 <div id="toast" dir="rtl" hidden></div>
 <div id="fx" aria-hidden="true"></div>
 <div id="rot" dir="rtl" hidden></div>
+<div id="fin" dir="rtl" hidden></div>
 
 <script>
 (() => {
-const app = document.getElementById('app'), sheetEl = document.getElementById('sheet'), toastEl = document.getElementById('toast'), rotEl = document.getElementById('rot');
+const app = document.getElementById('app'), sheetEl = document.getElementById('sheet'), toastEl = document.getElementById('toast'), rotEl = document.getElementById('rot'), finEl = document.getElementById('fin');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => Math.round(n || 0).toLocaleString('en-US');
 const ls = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }, del(k){ try { localStorage.removeItem(k); } catch(e){} } };
@@ -475,6 +521,25 @@ const SND = (() => {
     tick(){ if (!ready()) return; tone(ctx.currentTime, 1900, .014, .035, 'triangle'); },
     slide(){ if (!ready()) return; noise(ctx.currentTime, .24, 700, .7, .14, 'lowpass', 2400); },
     whoosh(){ if (!ready()) return; noise(ctx.currentTime, .3, 350, 1.3, .22, 'bandpass', 2800); },
+    drumroll(d = 1.8){
+      if (!ready()) return; const t0 = ctx.currentTime; let t = t0;
+      while (t < t0 + d){ const k = (t - t0) / d, v = .12 + .38 * k * k; tone(t, 95 + Math.random() * 15, .05, v, 'sine', 60); noise(t, .04, 260, .9, v * .8, 'lowpass'); t += .034 + Math.random() * .008; }
+      noise(t, 1.4, 6000, .6, .35, 'highpass'); noise(t, .9, 3200, .5, .2, 'bandpass', 9000);    // cymbal
+    },
+    fanfare(){
+      if (!ready()) return; const t = ctx.currentTime + .03;
+      const brass = (s, f, d, g) => { tone(s, f, d, g, 'sawtooth', null, .03); tone(s, f * 2, d * .8, g * .3, 'triangle', null, .03); };
+      [[0, 392], [.13, 392], [.26, 392], [.4, 523.25]].forEach(([d, f]) => brass(t + d, f, .14, .07));
+      [[.62, 659.25], [.62, 523.25], [.62, 783.99], [.62, 1046.5]].forEach(([d, f]) => brass(t + d, f, 1.3, .05));
+    },
+    applause(d = 3.6){
+      if (!ready()) return; const t0 = ctx.currentTime + .05;
+      for (let i = 0; i < 260; i++){
+        const k = Math.pow(Math.random(), 1.6), t = t0 + k * d, v = (.05 + Math.random() * .11) * (1 - k * .7);
+        let dst = out; try { const p = ctx.createStereoPanner(); p.pan.value = Math.random() * 2 - 1; p.connect(out); dst = p; } catch(e){}
+        noise(t, .02 + Math.random() * .025, 900 + Math.random() * 1800, 1.1, v, 'bandpass', null, dst);
+      }
+    },
     bell(){ if (!ready()) return; const t = ctx.currentTime; [[1318.5, 1], [1975.5, .6]].forEach(([f, g], i) => { tone(t + i * .13, f, .9, .07 * g, 'sine'); tone(t + i * .13, f * 2.76, .3, .018 * g, 'sine'); }); },
     knock(){ if (!ready()) return; const t = ctx.currentTime; [0, .14].forEach(d => { tone(t + d, 150, .09, .45, 'sine', 70); noise(t + d, .05, 450, 1, .28, 'lowpass'); }); },
     fold(){ if (!ready()) return; noise(ctx.currentTime, .2, 2400, .8, .17, 'bandpass', 600); },
@@ -493,7 +558,7 @@ const SND = (() => {
 ['pointerdown', 'touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => SND.init(), { passive: true, capture: true }));
 // The casino in the background runs only inside a table, with the screen on, sound on, and ambience on.
 let AMBI_ON = ls.get('chips.ambi') !== '0';
-function ambiSync(){ const want = SND.on && AMBI_ON && !!(S.code && S.room) && document.visibilityState === 'visible'; if (want) SND.ambiStart(); else SND.ambiStop(); }
+function ambiSync(){ const want = SND.on && AMBI_ON && !!(S.code && S.room && !S.room.closed) && document.visibilityState === 'visible'; if (want) SND.ambiStart(); else SND.ambiStop(); }
 document.addEventListener('visibilitychange', () => ambiSync());
 // Casino vibes: now and then someone at the table plays with their chips. Only inside a table, only when the screen is on.
 (function ambLoop(){ setTimeout(() => { if (S.code && S.room && document.visibilityState === 'visible') SND.ambient(); ambLoop(); }, 15000 + Math.random() * 25000); })();
@@ -503,7 +568,7 @@ document.addEventListener('visibilitychange', () => ambiSync());
    While chips are in the air, FX.ov holds what a player's spot and stack looked like before, and the
    table keeps showing that until the chips land. */
 const RM = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){ return false; } })();
-const FX = { rects: {}, ov: {}, pendFly: 0, n: 0 };      // pendFly: how many of your pending chips are still in the air
+const FX = { rects: {}, ov: {}, pendFly: 0, n: 0, signDrop: 0, cer: false };      // pendFly: how many of your pending chips are still in the air
 const fxLayer = document.getElementById('fx');
 const pageRect = el => { const b = el.getBoundingClientRect(); return (b.width || b.height) ? { x: b.left + scrollX + b.width / 2, y: b.top + scrollY + b.height / 2, w: b.width, h: b.height } : null; };
 function measure(){ const m = {}; document.querySelectorAll('[data-k]').forEach(el => { const r = pageRect(el); if (r) m[el.dataset.k] = r; }); return m; }
@@ -636,7 +701,7 @@ const dbReady = (async () => {
 function subRooms(){
   if (roomsUnsub) roomsUnsub();
   roomsUnsub = S.db.collection('rooms').orderBy('updatedAt','desc').limit(6).onSnapshot(s => {
-    S.rooms = s.docs.filter(d => d.exists).map(d => d.data()).filter(r => now() - (r.updatedAt||0) < 1000*60*60*48);
+    S.rooms = s.docs.filter(d => d.exists).map(d => d.data()).filter(r => !r.closed && now() - (r.updatedAt||0) < 1000*60*60*48);
     if (!S.code) renderRooms();
   }, () => {});
 }
@@ -688,7 +753,7 @@ function enterRoom(code){
   }, onErr));
   wake(); render();
 }
-function goHome(){ leaveSubs(); unlockTurn(); try { history.replaceState(null, '', location.pathname); } catch(e){} S.code = null; S.room = null; S.sheet = null; ls.del('chips.room'); render(); }
+function goHome(){ leaveSubs(); unlockTurn(); finHide(); try { history.replaceState(null, '', location.pathname); } catch(e){} S.code = null; S.room = null; S.sheet = null; ls.del('chips.room'); render(); }
 
 let lock = null;
 async function wake(){ try { if ('wakeLock' in navigator && !lock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => lock = null); } } catch(e){} }
@@ -861,6 +926,7 @@ function fxHold(pid, a, b, r){
 }
 function fxRoom(a, b){
   if (!a || !b || a.code !== b.code) return null;
+  if (!a.closed && b.closed && b.final) return () => ceremony();
   if (b.game === 'blackjack' && a.phase === 'betting' && b.phase === 'playing' && a.roundId === b.roundId) return lockFx;
   if (b.game === 'holdem' && (b.handId || 0) > (a.handId || 0)) return () => { SND.bell(); dealerNod(); };
   return null;
@@ -1048,7 +1114,7 @@ function claimSeat(pid){ S.myId = pid; ls.set('chips.pid', pid); S.pending = 0; 
 let tt;
 function toast(t){ toastEl.textContent = t; toastEl.hidden = false; clearTimeout(tt); tt = setTimeout(() => toastEl.hidden = true, 3200); }
 const hue = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
-const avatar = (p, k) => `<div class="av"${k ? ` data-k="${esc(k)}"` : ''} style=""background:hsl(${hue(p.pid)} 55% 68%)">${esc((p.name || '?').trim().charAt(0) || '?')}</div>`;
+const avatar = (p, k) => `<div class="av"${k ? ` data-k="${esc(k)}"` : ''} style="background:hsl(${hue(p.pid)} 55% 68%)">${esc((p.name || '?').trim().charAt(0) || '?')}</div>`;
 const actText = a => { if (!a) return ''; const x = fmt(a.amt); return ({ fold:'קיפל', check:'צ\'ק', call:`השווה ${x}`, raise:`העלה ל-${x}`, bet:`הימר ${x}`, allin:`אול-אין ${x}`, blind:`בליינד ${x}`, won:`זכה ב-${x}`, refund:`הוחזר ${x}`, clear:'ביטל הימור', double:'דאבל דאון', split:'ספליט', ins:'ביטוח', surrender:'כניעה', bjres: a.amt > 0 ? `הרוויח ${x}` : a.amt < 0 ? `הפסיד ${fmt(-a.amt)}` : 'תיקו' })[a.k] || ''; };
 const RES_HE = { win:'ניצחון', bj:'בלאק ג\'ק', push:'תיקו', lose:'הפסד', surrender:'כניעה' };
 
@@ -1102,6 +1168,75 @@ function dealerSVG(){
   </svg>`;
 }
 function dealerNod(){ if (RM) return; document.querySelectorAll('.dhead').forEach(el => { try { el.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-7deg) translateY(1px)' }, { transform: 'rotate(4deg)' }, { transform: 'rotate(0)' }], { duration: 750, easing: 'ease-in-out' }); } catch(e){} }); }
+
+/* ---------- the end of the game: announce the winner, close the table ---------- */
+const standings = () => players().map(p => ({ pid: p.pid, name: p.name, stack: p.stack || 0 })).sort((a, b) => b.stack - a.stack);
+function rankHTML(list, top = list[0] ? list[0].stack : 0){
+  return `<ol class="rank">${list.map((x, i) => {
+    const place = list.findIndex(y => y.stack === x.stack) + 1;      // equal stacks share a place
+    return `<li class="${x.stack === top ? 'win' : ''}" style="--d:${i}"><span class="pl num">${place}</span>${avatar(x)}<b>${esc(x.name)}</b><span class="num">${fmt(x.stack)}</span></li>`;
+  }).join('')}</ol>`;
+}
+async function endGame(){
+  const list = standings(); if (!list.length){ toast('אין שחקנים בשולחן'); return; }
+  const top = list[0].stack, win = list.filter(x => x.stack === top);
+  const t = win.length > 1 ? `תיקו בצמרת: ${win.map(x => x.name).join(' ו')} עם ${fmt(top)}` : `${win[0].name} ניצח/ה עם ${fmt(top)} צ'יפים`;
+  if (await w(roomPath(), 'update', { closed: true, final: { at: now(), list }, ...setEvent('המשחק הסתיים · ' + t) })){ S.sheet = null; render(); }
+}
+const CROWN = '<svg class="crown" viewBox="0 0 64 40" aria-hidden="true"><path d="M4 34L8 8l14 13L32 3l10 18L56 8l4 26Z" fill="#e0b766" stroke="#8a6420" stroke-width="2" stroke-linejoin="round"/><rect x="4" y="32" width="56" height="6" rx="2" fill="#c99a45"/><circle cx="32" cy="22" r="3.5" fill="#c8372d"/><circle cx="17" cy="25" r="2.6" fill="#2f5fb8"/><circle cx="47" cy="25" r="2.6" fill="#2e8a4f"/></svg>';
+function closedSign(){ const drop = FX.signDrop && now() - FX.signDrop < 1800; return `<div class="csign${drop ? ' drop' : ''}" aria-label="השולחן סגור"><span>השולחן סגור</span></div>`; }
+function finalCard(){
+  const f = S.room.final || {}, list = f.list || [], top = list[0] ? list[0].stack : 0, win = list.filter(x => x.stack === top);
+  return `<section class="host fincard"><h3>המשחק הסתיים</h3>
+    ${win.length ? `<div class="fc-win">${CROWN}<b>${win.map(x => esc(x.name)).join(' ו')}</b><span class="muted">${win.length > 1 ? 'תיקו בצמרת' : 'המנצח/ת'} · <span class="num">${fmt(top)}</span> צ'יפים</span></div>` : ''}
+    ${rankHTML(list)}
+    <div class="btns"><button class="btn" data-a="replay">צפייה בטקס שוב</button>${isHost() ? '<button class="btn ghost" data-a="reopen">פתיחת השולחן מחדש</button>' : ''}<button class="btn ghost" data-a="home">למסך הראשי</button></div>
+  </section>`;
+}
+let finTimers = [];
+function finHide(){ finTimers.forEach(clearTimeout); finTimers = []; finEl.hidden = true; finEl.innerHTML = ''; FX.cer = false; }
+const looksClosed = () => !!(S.room && S.room.closed && !FX.cer);
+function chipRain(n){
+  if (RM) return; const cols = DEN.slice(0, 11);
+  for (let i = 0; i < n; i++){
+    const el = document.createElement('i'), d = cols[Math.floor(Math.random() * cols.length)], sz = 16 + Math.random() * 20;
+    el.className = 'cf'; el.style.cssText = `${chipStyle(d)};left:${Math.random() * 100}%;width:${sz}px;height:${sz}px`;
+    finEl.appendChild(el);
+    const sway = (Math.random() - .5) * 160, spin = 360 + Math.random() * 900;
+    try { el.animate([{ transform: 'translate(0,-12vh) rotateX(0) rotate(0)' }, { transform: `translate(${sway}px,112vh) rotateX(${spin}deg) rotate(${spin / 2}deg)` }], { duration: 2400 + Math.random() * 2400, delay: Math.random() * 1600, easing: 'cubic-bezier(.35,.05,.6,1)', fill: 'both' }).onfinish = () => el.remove(); } catch(e){ el.remove(); }
+  }
+}
+function countUp(el, to, ms){ if (!el) return; const t0 = performance.now(); const step = t => { const k = Math.min(1, (t - t0) / ms); el.textContent = fmt(to * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
+function ceremony(){
+  const r = S.room, f = r && r.final; if (!f || !f.list || !f.list.length) return;
+  finHide(); FX.cer = true; S.sheet = null; render();
+  const list = f.list, top = list[0].stack, win = list.filter(x => x.stack === top), lead = win[0];
+  const T = (ms, fn) => finTimers.push(setTimeout(fn, RM ? Math.min(ms, 200) : ms));
+  // 1. spotlight on the winner's seat, drumroll
+  const tbl = document.querySelector('.bjt, .stage .table'); if (tbl) tbl.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const seat = rectOf('seat:' + lead.pid), x = seat ? seat.x - scrollX : innerWidth / 2, y = seat ? seat.y - scrollY : innerHeight / 2;
+  finEl.innerHTML = `<div class="fin-dim" style="--x:${x}px;--y:${y}px"></div>`;
+  finEl.hidden = false; SND.drumroll(1.9); dealerNod();
+  const throb = setInterval(() => pulse('seat:' + lead.pid, 1.25), 420); finTimers.push(throb);
+  // 2. the reveal: fanfare, applause, the winner's card, raining chips
+  T(1950, () => {
+    clearInterval(throb); SND.fanfare(); SND.applause(); setTimeout(() => SND.chips(6), 300); setTimeout(() => SND.chips(5), 900);
+    finEl.insertAdjacentHTML('beforeend', `<div class="fin-card" role="dialog" aria-modal="true" aria-labelledby="fin-t">
+      ${CROWN}
+      <div class="fin-avs">${win.map(w_ => `<div class="fin-av" style="background:hsl(${hue(w_.pid)} 55% 68%)">${esc((w_.name || '?').trim().charAt(0) || '?')}</div>`).join('')}</div>
+      <div class="fin-t">${win.length > 1 ? 'תיקו בצמרת!' : 'המנצח/ת!'}</div>
+      <h2 id="fin-t" class="fin-name">${win.map(w_ => esc(w_.name)).join(' ו')}</h2>
+      <div class="fin-amt"><span class="num" data-count>0</span> צ'יפים</div>
+      <div class="fin-rest">${list.length > 1 ? rankHTML(list) : ''}
+        <div class="btns"><button class="btn primary" data-a="finclose">לשולחן</button><button class="btn ghost" data-a="home">למסך הראשי</button></div></div>
+    </div>`);
+    finEl.querySelector('.fin-dim').classList.add('lit');
+    countUp(finEl.querySelector('[data-count]'), top, 1400);
+    chipRain(70); T(1500, () => chipRain(40));
+  });
+  // 3. the standings slide in
+  T(3700, () => { const el = finEl.querySelector('.fin-rest'); if (el) el.classList.add('on'); SND.chips(3); });
+}
 
 /* ---------- views ---------- */
 const ICON_SND_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
@@ -1171,7 +1306,8 @@ function roomView(){
   if (!S.room) return `<div class="stack" style="padding-top:40px"><div class="card"><h2 style="font-family:var(--f-display);font-size:36px">החדר ${esc(S.code)} לא נמצא</h2><span class="muted">בדקו את הקוד ונסו שוב.</span><button class="btn primary" data-a="home">חזרה</button></div></div>`;
   const r = S.room, m = me(), hold = r.game === 'holdem';
   const body = hold ? holdemView() : bjView();
-  const dock = m ? (hold ? holdemDock() : bjDock()) : '';
+  const closed = !!r.closed;
+  const dock = m && !closed ? (hold ? holdemDock() : bjDock()) : '';
   app.className = 'in-room' + (dock ? ' has-dock' : '');
   return `<div class="room"><div class="side">
   <div class="top">
@@ -1185,8 +1321,9 @@ function roomView(){
   ${S.mode !== 'cloud' || S.readOnly ? `<div class="mb" style="margin-bottom:12px">${modeBanner()}</div>` : ''}
   ${newBuild ? `<div class="updw"><button class="btn primary wide" data-a="reload">יש גרסה חדשה · לחצו לעדכון</button></div>` : ''}
   <div class="event">${r.lastEvent ? esc(r.lastEvent.t) : ''}</div>
-  ${!m ? `<div class="o-join">${joinCard()}</div>` : ''}
-  ${isHost() ? `<div class="o-host">${hold ? holdemHost() : bjHost()}</div>` : ''}
+  ${!m && !closed ? `<div class="o-join">${joinCard()}</div>` : ''}
+  ${isHost() && !closed ? `<div class="o-host">${hold ? holdemHost() : bjHost()}</div>` : ''}
+  ${looksClosed() ? `<div class="o-host">${finalCard()}</div>` : ''}
   ${dock ? `<div class="dock"><div class="dock-in">${dock}</div></div>` : ''}
   </div><div class="stage${hold ? '' : ' fit'}">${body}</div></div>`;
 }
@@ -1237,7 +1374,8 @@ function holdemView(){
   }).join('');
   return `
   <div class="hdealer">${dealerSVG()}</div>
-  <section class="table">
+  <section class="table${looksClosed() ? ' closed' : ''}">
+    ${looksClosed() ? closedSign() : ''}
     <div class="stage-row"><span class="pill ${r.stage === 'idle' ? 'ok' : ''}">${STAGE_HE[r.stage] || ''}${r.handId ? ` · יד ${r.handId}` : ''}</span><span class="meta num">בליינדים ${fmt(r.sb)}/${fmt(r.bb)}</span></div>
     <div class="board" aria-label="קלפים על השולחן">${[0,1,2,3,4].map(i => `<span class="slot ${i < cards ? 'on' : ''}"></span>`).join('')}</div>
     <div class="pot"><span class="lbl">קופה</span><span class="big num" data-k="pot">${fmt(h.pot)}</span></div>
@@ -1293,6 +1431,7 @@ function holdemHost(){
       ${nextLbl && h.pot >= 0 && r.stage !== 'idle' ? `<button class="btn" data-a="next">${nextLbl}</button>` : ''}
       ${h.pot > 0 ? `<button class="btn ${r.stage === 'showdown' ? 'primary' : ''}" data-a="sheet" data-v="award">חלוקת הקופה</button>` : ''}
       ${r.stage !== 'idle' ? `<button class="btn ghost" data-a="sheet" data-v="cancel">ביטול היד</button>` : ''}
+      <button class="btn ghost" data-a="sheet" data-v="end">סיום המשחק</button>
     </div>
   </section>`;
 }
@@ -1354,7 +1493,8 @@ function bjView(){
   const seats = list.map((p, k) => bjSeat(p, lay.angles[k], lay.size)).join('');
   const print = `<svg class="print" viewBox="0 0 100 98" preserveAspectRatio="none" aria-hidden="true" direction="ltr"><defs>${arc('pa-bj', GEO.bj, 48)}${arc('pa-it', GEO.insText, 40)}${arc('pa-i1', GEO.in1, 42)}${arc('pa-i2', GEO.in2, 42)}</defs><use href="#pa-i1" class="ln"/><use href="#pa-i2" class="ln"/><text class="t1"><textPath href="#pa-bj" startOffset="50%" text-anchor="middle">BLACKJACK PAYS 3 TO 2</textPath></text><text class="t2"><textPath href="#pa-it" startOffset="50%" text-anchor="middle">INSURANCE PAYS 2 TO 1</textPath></text></svg>`;
   return `
-  <section class="bjt${n > 7 ? ' dense' : ''}" aria-label="שולחן בלאק ג'ק">
+  <section class="bjt${n > 7 ? ' dense' : ''}${looksClosed() ? ' closed' : ''}" aria-label="שולחן בלאק ג'ק">
+    ${looksClosed() ? closedSign() : ''}
     <div class="dfig">${dealerSVG()}</div>
     <div class="felt"></div>
     ${print}
@@ -1391,6 +1531,7 @@ function bjHost(){
   const r = S.room, n = players().filter(cur).length;
   return `<section class="host"><h3>בקרת דילר</h3><div class="btns">
     ${r.phase === 'betting' ? `<button class="btn primary" data-a="deal" ${n ? '' : 'disabled'}>חלוקת קלפים (נועל הימורים)</button>` : `<button class="btn primary" data-a="sheet" data-v="settle">סימון זוכים ותשלום</button><button class="btn ghost" data-a="sheet" data-v="cancel">ביטול הסיבוב</button>`}
+    <button class="btn ghost" data-a="sheet" data-v="end">סיום המשחק</button>
   </div>${r.phase === 'betting' && !n ? '<span class="muted">מחכים שמישהו יהמר.</span>' : ''}</section>`;
 }
 
@@ -1421,6 +1562,14 @@ function sheetView(){
       ${anyIns ? `<button class="opt" data-a="dbj" aria-pressed="${S.dealerBJ}"><span class="box"></span><span>לדילר יש בלאק ג'ק (ביטוח משלם 2:1)</span><span></span></button>` : ''}
       <div class="stack" style="gap:8px">${rows}</div>
       <button class="btn primary wide" data-a="payout" ${missing ? 'disabled' : ''}>${missing ? `נשארו ${missing} ידיים לסמן` : 'תשלום וסיבוב חדש'}</button>`;
+  }
+  if (S.sheet === 'end'){
+    const hold = r.game === 'holdem', busy = hold ? H().pot > 0 : players().some(cur), list = standings();
+    return `${head('סיום המשחק')}
+      <span class="muted">מכריזים על המנצח, כולם רואים את הטקס, והשולחן נסגר. אפשר לפתוח אותו מחדש אחר כך.</span>
+      ${busy ? `<div class="banner">יש עדיין צ'יפים על השולחן. ${hold ? 'חלקו את הקופה או בטלו את היד' : 'שלמו או בטלו את הסיבוב'} לפני ההכרזה.</div>` : ''}
+      ${rankHTML(list)}
+      <button class="btn primary wide" data-a="endgame" ${busy || !list.length ? 'disabled' : ''}>הכרזה על המנצח וסגירת השולחן</button>`;
   }
   if (S.sheet === 'cancel'){
     const hold = r.game === 'holdem';
@@ -1493,6 +1642,10 @@ const A = {
   clearp: () => { if (S.pending) SND.slide(); S.pending = 0; FX.pendFly = 0; render(); },
   ambi: () => { AMBI_ON = !AMBI_ON; ls.set('chips.ambi', AMBI_ON ? '1' : '0'); ambiSync(); render(); },
   reload: () => { reloading = true; location.reload(); },
+  endgame: () => endGame(),
+  reopen: async () => { if (await w(roomPath(), 'update', { closed: false, ...setEvent('השולחן נפתח מחדש') })) toast('השולחן פתוח שוב'); },
+  replay: () => ceremony(),
+  finclose: () => { finHide(); FX.signDrop = now(); render(); },
   rotoff: () => { S.rotOff = true; render(); },
   rotlock: async () => {
     try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); await screen.orientation.lock('landscape'); }
