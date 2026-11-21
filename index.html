@@ -99,7 +99,20 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .seat{display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--felt);border:1px solid var(--line)}
 .seat.me{border-color:color-mix(in srgb,var(--brass) 60%,transparent);background:color-mix(in srgb,var(--brass) 7%,var(--felt))}
 .seat.out{opacity:.5}
-.av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#10130f;font-size:17px}
+.av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#10130f;font-size:17px;overflow:hidden;flex:none}
+.av img,.av svg,.fin-av img,.fin-av svg{width:100%;height:100%;display:block;object-fit:cover}
+.vh{position:fixed;left:-9999px;width:1px;height:1px;opacity:0}
+.me-row{display:flex;gap:12px;align-items:flex-end}
+.me-row .field,.me-row input{flex:1}
+.avbtn{display:grid;justify-items:center;gap:3px;font-size:11px;color:var(--dim);font-weight:600}
+.avbtn .av{width:48px;height:48px;font-size:20px;box-shadow:0 0 0 2px var(--brass)}
+.avp{display:grid;justify-items:center;gap:8px;text-align:center}
+.av.big{width:112px;height:112px;font-size:46px;box-shadow:0 0 0 3px var(--brass),0 8px 24px rgba(0,0,0,.4)}
+.avgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:10px}
+.avopt{aspect-ratio:1;border-radius:50%;overflow:hidden;padding:0;box-shadow:0 0 0 2px var(--line)}
+.avopt svg{width:100%;height:100%;display:block}
+.avopt[aria-pressed="true"]{box-shadow:0 0 0 3px var(--brass)}
+.fin-av{overflow:hidden}
 .who{min-width:0;display:grid;gap:2px}
 .who .nm{font-weight:600;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .who .nm b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:14ch}
@@ -339,6 +352,8 @@ h1,h2,h3{margin:0;text-wrap:balance}
 <div id="fx" aria-hidden="true"></div>
 <div id="rot" dir="rtl" hidden></div>
 <div id="fin" dir="rtl" hidden></div>
+<input id="avcam" class="vh" type="file" accept="image/*" capture="user" tabindex="-1" aria-hidden="true">
+<input id="avfile" class="vh" type="file" accept="image/*" tabindex="-1" aria-hidden="true">
 
 <script>
 (() => {
@@ -656,6 +671,93 @@ window.addEventListener('focus', () => checkUpdate());
 window.addEventListener('online', () => checkUpdate());
 setInterval(checkUpdate, 3 * 60 * 1000); setTimeout(checkUpdate, 8000);
 
+/* ---------- avatars: a photo (camera or gallery) or one of the prepared characters ----------
+   Stored on the player document as avatar: { k:'img', v:'data:image/jpeg;base64,...' } or { k:'set', v:'<id>' }.
+   Photos are cropped and shrunk on the phone to about 5-14 KB, so no file storage is needed. */
+const SKIN = ['#f3cfb3', '#e2ab84', '#c68863', '#8d5a3b', '#5e3a26'];
+const AV_SET = {
+  //     background  skin     hair      hair colour  shirt      extras
+  ace:    ['#3d6fb6', SKIN[0], 'short',  '#5a3a24', '#1f2a44', []],
+  rose:   ['#d0558f', SKIN[0], 'long',   '#e9c46a', '#f4f1ea', ['earrings']],
+  bun:    ['#2a9d8f', SKIN[1], 'bun',    '#1d1d1f', '#17171c', ['bowtie']],
+  curls:  ['#e07a26', SKIN[3], 'curly',  '#2a1a12', '#264653', []],
+  sage:   ['#2e8a4f', SKIN[2], 'bald',   '#9a9a9a', '#5c4033', ['beard']],
+  rookie: ['#5fa8d3', SKIN[0], 'cap',    '#c8372d', '#c8372d', []],
+  tex:    ['#b07a2a', SKIN[1], 'cowboy', '#6b4428', '#7a2e1f', ['mustache']],
+  shark:  ['#6b3fa0', SKIN[1], 'short',  '#1d1d1f', '#17171c', ['shades']],
+  ruby:   ['#74cf9f', SKIN[0], 'long',   '#b5452a', '#3d405b', ['glasses']],
+  gent:   ['#e0b766', SKIN[2], 'short',  '#2a1a12', '#17171c', ['bowtie']],
+  diva:   ['#8e1f2c', SKIN[3], 'long',   '#1d1d1f', '#e0b766', ['shades', 'earrings']],
+  sunny:  ['#9bc53d', SKIN[0], 'curly',  '#e9c46a', '#3d6fb6', []],
+  boss:   ['#1c2b4a', SKIN[4], 'bald',   '#1d1d1f', '#f4f1ea', ['mustache', 'bowtie']],
+  nana:   ['#a78bfa', SKIN[0], 'bun',    '#d6d6d6', '#7a4a2a', ['glasses', 'earrings']],
+  chill:  ['#3fa9b5', SKIN[2], 'beanie', '#e07a26', '#2a2a2e', []],
+  red:    ['#7a4a2a', SKIN[0], 'short',  '#c0562d', '#2e8a4f', ['beard']]
+};
+function avSVG(id){
+  const a = AV_SET[id]; if (!a) return '';
+  const [bg, sk, hair, hc, shirt, ex] = a, has = x => ex.includes(x);
+  const back = hair === 'long' ? `<path d="M16 32c0-13 7-20 16-20s16 7 16 20v18H16z" fill="${hc}"/>` : '';
+  const top = {
+    short: `<path d="M18.5 29c-1-11 5.5-16.5 13.5-16.5S46.5 18 45.5 29c-2.5-6-7-8.5-13.5-8.5s-11 2.5-13.5 8.5z" fill="${hc}"/>`,
+    long: `<path d="M18.5 30c-1-12 5.5-17.5 13.5-17.5S46.5 18 45.5 30c-3-7-8-9-13.5-9.5-4 2-9 5-13.5 9.5z" fill="${hc}"/>`,
+    bun: `<circle cx="32" cy="11" r="6" fill="${hc}"/><path d="M18.5 29c-1-11 5.5-16.5 13.5-16.5S46.5 18 45.5 29c-2.5-6-7-8.5-13.5-8.5s-11 2.5-13.5 8.5z" fill="${hc}"/>`,
+    curly: [[21, 21], [26, 16], [32, 14], [38, 16], [43, 21], [45, 27], [19, 27]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="5.2" fill="${hc}"/>`).join(''),
+    bald: `<path d="M19 27c-1.2 2-1.2 5 0 7M45 27c1.2 2 1.2 5 0 7" stroke="${hc}" stroke-width="2.6" stroke-linecap="round" fill="none"/>`,
+    cap: `<path d="M18.5 27c0-9 6-14 13.5-14s13.5 5 13.5 14z" fill="${hc}"/><path d="M30 26.5h20c1.5 0 1.5 3 0 3H30z" fill="${hc}"/><circle cx="32" cy="13.5" r="1.6" fill="#fff"/>`,
+    cowboy: `<ellipse cx="32" cy="22.5" rx="20" ry="4" fill="${hc}"/><path d="M22 22c0-8 3-11 10-11s10 3 10 11z" fill="${hc}"/><path d="M22 20.5h20" stroke="#e0b766" stroke-width="2"/>`,
+    beanie: `<path d="M18.5 26c0-9 6-14.5 13.5-14.5S45.5 17 45.5 26z" fill="${hc}"/><rect x="17.5" y="23.5" width="29" height="5" rx="2.5" fill="${hc}" stroke="rgba(0,0,0,.15)"/><circle cx="32" cy="10.5" r="3" fill="${hc}"/>`
+  }[hair] || '';
+  const extra = [
+    has('beard') ? `<path d="M20.5 33c1 9 6 13 11.5 13s10.5-4 11.5-13c-3 4-7 5.5-11.5 5.5S23.5 37 20.5 33z" fill="${hc}"/>` : '',
+    has('mustache') ? `<path d="M26.5 36.2c2.5-2.2 4-1.6 5.5-.4 1.5-1.2 3-1.8 5.5.4-2.4.4-3.8 1.4-5.5 1.4s-3.1-1-5.5-1.4z" fill="${has('beard') ? '#000' : hc}" opacity=".85"/>` : '',
+    has('shades') ? `<path d="M22.5 27.5h8l-.6 3.6c-.3 1.4-1.4 2.2-2.8 2.2h-1.4c-1.4 0-2.5-.8-2.8-2.2zM33.5 27.5h8l-.6 3.6c-.3 1.4-1.4 2.2-2.8 2.2h-1.4c-1.4 0-2.5-.8-2.8-2.2zM30.5 28.5h3" fill="#111" stroke="#111" stroke-width="1"/>` : '',
+    has('glasses') ? `<circle cx="27" cy="30" r="3.6" fill="none" stroke="#2a1a12" stroke-width="1.3"/><circle cx="37" cy="30" r="3.6" fill="none" stroke="#2a1a12" stroke-width="1.3"/><path d="M30.6 30h2.8" stroke="#2a1a12" stroke-width="1.3"/>` : '',
+    has('earrings') ? `<circle cx="18.6" cy="35" r="1.6" fill="#e0b766"/><circle cx="45.4" cy="35" r="1.6" fill="#e0b766"/>` : '',
+    has('bowtie') ? `<path d="M32 50l-5.5-3v6zM32 50l5.5-3v6z" fill="#b3203c"/><circle cx="32" cy="50" r="1.4" fill="#86152d"/>` : ''
+  ].join('');
+  const eyes = has('shades') ? '' : `<circle cx="27" cy="30" r="1.7" fill="#2a1a12"/><circle cx="37" cy="30" r="1.7" fill="#2a1a12"/>`;
+  return `<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" fill="${bg}"/>${back}
+    <path d="M8 66c2-13 12-19 24-19s22 6 24 19z" fill="${shirt}"/><path d="M27.5 40h9v8.5c-2.8 2-6.2 2-9 0z" fill="${sk}"/>
+    <ellipse cx="18.8" cy="31" rx="2.2" ry="3" fill="${sk}"/><ellipse cx="45.2" cy="31" rx="2.2" ry="3" fill="${sk}"/>
+    <ellipse cx="32" cy="30" rx="13.4" ry="14.5" fill="${sk}"/>${eyes}
+    <path d="M27.5 36.5q4.5 3.6 9 0" stroke="#7a3b2e" stroke-width="1.5" fill="none" stroke-linecap="round"/>${top}${extra}</svg>`;
+}
+const validAv = a => !!a && ((a.k === 'set' && !!AV_SET[a.v]) || (a.k === 'img' && typeof a.v === 'string' && a.v.length < 60000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.v)));
+// What goes inside an avatar circle: the photo, the character, or the first letter of the name.
+function avInner(p){
+  const a = p && p.avatar;
+  if (validAv(a)) return a.k === 'img' ? `<img src="${a.v}" alt="">` : avSVG(a.v);
+  return esc(((p && p.name) || '?').trim().charAt(0) || '?');
+}
+const avBg = p => validAv(p && p.avatar) ? '' : `background:hsl(${hue(p.pid)} 55% 68%)`;
+let avSaved = null; try { avSaved = JSON.parse(ls.get('chips.avatar') || 'null'); } catch(e){}
+S.avatar = validAv(avSaved) ? avSaved : null;
+const myAv = () => ({ pid: S.myId, name: S.name || '?', avatar: S.avatar });
+function setAvatar(a){
+  S.avatar = validAv(a) ? a : null;
+  if (S.avatar) ls.set('chips.avatar', JSON.stringify(S.avatar)); else ls.del('chips.avatar');
+  if (S.code && me()) w(pPath(), 'update', { avatar: S.avatar });         // others see it at once; no lastAction, so no animation
+  SND.chips(2); render();
+}
+// Camera and gallery inputs live outside the re-rendered DOM: a table update while the picker is open would otherwise detach them.
+async function loadAvatarFile(file){
+  if (!file) return;
+  if (!/^image\//.test(file.type || 'image/')){ toast('זה לא קובץ תמונה'); return; }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = url; });
+    const N = 112, c = document.createElement('canvas'); c.width = c.height = N;
+    const w0 = img.naturalWidth, h0 = img.naturalHeight, side = Math.min(w0, h0);
+    const sx = (w0 - side) / 2, sy = Math.max(0, (h0 - side) * .3);       // portrait photos: keep the face, which is usually high up
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, N, N); g.drawImage(img, sx, sy, side, side, 0, 0, N, N);
+    let q = .82, d = c.toDataURL('image/jpeg', q); while (d.length > 14000 && q > .35){ q -= .1; d = c.toDataURL('image/jpeg', q); }
+    setAvatar({ k: 'img', v: d }); toast('התמונה עודכנה');
+  } catch(e){ toast('לא הצלחנו לקרוא את התמונה. נסו תמונה אחרת.'); }
+  finally { URL.revokeObjectURL(url); }
+}
+['avcam', 'avfile'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', () => { const f = el.files && el.files[0]; el.value = ''; loadAvatarFile(f); }); });
+
 /* ---------- local single-device store (same surface as db) ---------- */
 function LocalDB(){
   const KEY = 'chips.localdb'; let docs = {};
@@ -761,7 +863,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 const players = () => Object.entries(S.players).map(([pid, d]) => ({ pid, ...d })).sort((a,b) => (a.joinedAt||0) - (b.joinedAt||0));
 const me = () => S.players[S.myId] ? { pid: S.myId, ...S.players[S.myId] } : null;
 const isHost = () => S.room && S.room.hostId === S.myId;
-const newPlayer = (stack) => ({ name: S.name.trim().slice(0,20) || 'שחקן', joinedAt: now(), stack, handId:0, streetId:0, streetBet:0, committed:0, folded:false, allIn:false, sittingOut:false, bjRound:null, hands:[], insurance:0, surrendered:false, lastAction:null, ts: now() });
+const newPlayer = (stack) => ({ name: S.name.trim().slice(0,20) || 'שחקן', joinedAt: now(), stack, handId:0, streetId:0, streetBet:0, committed:0, folded:false, allIn:false, sittingOut:false, bjRound:null, hands:[], insurance:0, surrendered:false, lastAction:null, ts: now(), avatar: S.avatar || null });
 const nameOf = id => (S.players[id] && S.players[id].name) || (S.room && S.room.hostId === id && S.room.hostName) || 'שחקן';
 
 /* ---------- chip denominations ---------- */
@@ -1135,8 +1237,8 @@ function claimSeat(pid){ S.myId = pid; ls.set('chips.pid', pid); S.pending = 0; 
 /* ---------- UI helpers ---------- */
 let tt;
 function toast(t){ toastEl.textContent = t; toastEl.hidden = false; clearTimeout(tt); tt = setTimeout(() => toastEl.hidden = true, 3200); }
-const hue = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
-const avatar = (p, k) => `<div class="av"${k ? ` data-k="${esc(k)}"` : ''} style="background:hsl(${hue(p.pid)} 55% 68%)">${esc((p.name || '?').trim().charAt(0) || '?')}</div>`;
+function hue(s){ let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; }
+const avatar = (p, k) => `<div class="av"${k ? ` data-k="${esc(k)}"` : ''} style="${avBg(p)}">${avInner(p)}</div>`;
 const actText = a => { if (!a) return ''; const x = fmt(a.amt); return ({ fold:'קיפל', check:'צ\'ק', call:`השווה ${x}`, raise:`העלה ל-${x}`, bet:`הימר ${x}`, allin:`אול-אין ${x}`, blind:`בליינד ${x}`, won:`זכה ב-${x}`, refund:`הוחזר ${x}`, clear:'ביטל הימור', double:'דאבל דאון', split:'ספליט', ins:'ביטוח', surrender:'כניעה', bjres: a.amt > 0 ? `הרוויח ${x}` : a.amt < 0 ? `הפסיד ${fmt(-a.amt)}` : 'תיקו' })[a.k] || ''; };
 const RES_HE = { win:'ניצחון', bj:'בלאק ג\'ק', push:'תיקו', lose:'הפסד', surrender:'כניעה' };
 
@@ -1196,7 +1298,7 @@ const standings = () => players().map(p => ({ pid: p.pid, name: p.name, stack: p
 function rankHTML(list, top = list[0] ? list[0].stack : 0){
   return `<ol class="rank">${list.map((x, i) => {
     const place = list.findIndex(y => y.stack === x.stack) + 1;      // equal stacks share a place
-    return `<li class="${x.stack === top ? 'win' : ''}" style="--d:${i}"><span class="pl num">${place}</span>${avatar(x)}<b>${esc(x.name)}</b><span class="num">${fmt(x.stack)}</span></li>`;
+    return `<li class="${x.stack === top ? 'win' : ''}" style="--d:${i}"><span class="pl num">${place}</span>${avatar(S.players[x.pid] ? { ...x, avatar: S.players[x.pid].avatar } : x)}<b>${esc(x.name)}</b><span class="num">${fmt(x.stack)}</span></li>`;
   }).join('')}</ol>`;
 }
 async function endGame(){
@@ -1245,7 +1347,7 @@ function ceremony(){
     clearInterval(throb); SND.fanfare(); SND.applause(); setTimeout(() => SND.chips(6), 300); setTimeout(() => SND.chips(5), 900);
     finEl.insertAdjacentHTML('beforeend', `<div class="fin-card" role="dialog" aria-modal="true" aria-labelledby="fin-t">
       ${CROWN}
-      <div class="fin-avs">${win.map(w_ => `<div class="fin-av" style="background:hsl(${hue(w_.pid)} 55% 68%)">${esc((w_.name || '?').trim().charAt(0) || '?')}</div>`).join('')}</div>
+      <div class="fin-avs">${win.map(w_ => `<div class="fin-av" style="${avBg(S.players[w_.pid] || w_)}">${avInner(S.players[w_.pid] || w_)}</div>`).join('')}</div>
       <div class="fin-t">${win.length > 1 ? 'תיקו בצמרת!' : 'המנצח/ת!'}</div>
       <h2 id="fin-t" class="fin-name">${win.map(w_ => esc(w_.name)).join(' ו')}</h2>
       <div class="fin-amt"><span class="num" data-count>0</span> צ'יפים</div>
@@ -1271,7 +1373,7 @@ function render(){
   else { app.innerHTML = roomView(); const sd = app.querySelector('.side'); if (sd && sideTop) sd.scrollTop = sideTop; }
   setU(); renderRot(); ambiSync();
   if (newBuild) setTimeout(maybeReload, 0);
-  if (S.sheet && S.room){ sheetEl.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${sheetView()}</div>`; sheetEl.hidden = false; }
+  if (S.sheet && (S.room || S.sheet === 'avatar')){ sheetEl.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${sheetView()}</div>`; sheetEl.hidden = false; }
   else { sheetEl.hidden = true; sheetEl.innerHTML = ''; }
   if (id){ const el = document.getElementById(id); if (el && el !== document.activeElement){ el.focus({ preventScroll:true }); try { if (s1 != null) el.setSelectionRange(s1, s2); } catch(e){} } }
 }
@@ -1291,7 +1393,8 @@ function homeView(){
     ${installEvt ? '<button class="btn ghost wide" data-a="install">התקנת האפליקציה בטלפון</button>' : ''}
     ${modeBanner()}
     <div class="card">
-      <label class="field"><span class="label">השם שלך</span><input id="name" data-bind="name" value="${esc(S.name)}" maxlength="20" placeholder="למשל: סמי" autocomplete="nickname"></label>
+      <div class="me-row"><button class="avbtn" data-a="sheet" data-v="avatar" aria-label="בחירת תמונה"><span class="av" style="${avBg(myAv())}">${avInner(myAv())}</span><span>תמונה</span></button>
+      <label class="field"><span class="label">השם שלך</span><input id="name" data-bind="name" value="${esc(S.name)}" maxlength="20" placeholder="למשל: סמי" autocomplete="nickname"></label></div>
     </div>
     <div class="card">
       <span class="label">הצטרפות לשולחן</span>
@@ -1355,7 +1458,8 @@ function joinCard(){
   if (isHost() && S.room.game === 'blackjack') return `<div class="card" style="margin-top:14px"><span class="muted">אתה הדילר. אם תרצה גם להמר:</span><button class="btn ghost" data-a="sit">הצטרפות כמהמר</button></div>`;
   return `<div class="card" style="margin-top:14px">
     <span class="label">הצטרפות לשולחן</span>
-    <input id="jname" data-bind="name" value="${esc(S.name)}" maxlength="20" placeholder="השם שלך">
+    <div class="me-row"><button class="avbtn" data-a="sheet" data-v="avatar" aria-label="בחירת תמונה"><span class="av" style="${avBg(myAv())}">${avInner(myAv())}</span><span>תמונה</span></button>
+    <input id="jname" data-bind="name" value="${esc(S.name)}" maxlength="20" placeholder="השם שלך"></div>
     <button class="btn primary" data-a="sit">שבו לשולחן עם ${fmt(S.room.startStack)} צ'יפים</button>
     ${list.length ? `<span class="muted">כבר ישבתם מטלפון אחר? בחרו את עצמכם:</span><div class="btns">${list.map(p => `<button class="btn small ghost" data-a="claim" data-v="${esc(p.pid)}">${esc(p.name)}</button>`).join('')}</div>` : ''}
   </div>`;
@@ -1502,10 +1606,10 @@ function bjSeat(p, phi, base){
   }).join('');
   const ins = `<div class="insk" data-k="ins:${pid}" style="left:${ix.toFixed(2)}%;top:${iy.toFixed(2)}%">${vis.ins ? stackHTML(vis.ins) + `<span class="bl num">ביטוח ${fmt(vis.ins)}</span>` : ''}</div>`;
   const res = !(o && o.hideRes) && !c && p.bjRound === r.roundId - 1 && p.lastAction && (p.lastAction.k === 'bjres' || p.lastAction.k === 'bjpay') ? (p.lastAction.amt || 0) : null;
-  const claim = S.mode === 'local' && !mine ? ` data-a="claim" data-v="${pid}" role="button" title="שחק בתור ${esc(p.name)}"` : '';
+  const claim = S.mode === 'local' && !mine ? ` data-a="claim" data-v="${pid}" role="button" title="שחק בתור ${esc(p.name)}"` : mine ? ` data-a="sheet" data-v="avatar" role="button" title="החלפת התמונה שלך"` : '';
   return spots + ins + `<div class="st${mine ? ' me' : ''}${r.phase === 'playing' && !c ? ' out' : ''}"${claim} style="left:${sx.toFixed(2)}%;top:${sy.toFixed(2)}%">
     ${res != null ? `<span class="rb ${res > 0 ? 'w' : res < 0 ? 'l' : 'p'} num">${res > 0 ? '+' + fmt(res) : res < 0 ? '−' + fmt(-res) : 'תיקו'}</span>` : ''}
-    <div class="av" data-k="seat:${pid}" style="background:hsl(${hue(p.pid)} 55% 68%)">${esc((p.name || '?').trim().charAt(0) || '?')}</div>
+    ${avatar(p, 'seat:' + p.pid)}
     <b class="sn">${esc(p.name)}</b><span class="ss num">${fmt(shownStack(p))}</span></div>`;
 }
 function bjView(){
@@ -1560,7 +1664,7 @@ function bjHost(){
 /* ---------- sheets ---------- */
 function sheetView(){
   const head = t => `<div class="sheet-head"><h2>${t}</h2><button class="btn small ghost" data-a="close">סגירה</button></div>`;
-  const r = S.room;
+  const r = S.room || {};
   if (S.sheet === 'award'){
     const h = H(); const cands = h.list.filter(p => h.inHand(p) && h.com(p) > h.lvl);
     const prev = computeAward(S.sel);
@@ -1584,6 +1688,14 @@ function sheetView(){
       ${anyIns ? `<button class="opt" data-a="dbj" aria-pressed="${S.dealerBJ}"><span class="box"></span><span>לדילר יש בלאק ג'ק (ביטוח משלם 2:1)</span><span></span></button>` : ''}
       <div class="stack" style="gap:8px">${rows}</div>
       <button class="btn primary wide" data-a="payout" ${missing ? 'disabled' : ''}>${missing ? `נשארו ${missing} ידיים לסמן` : 'תשלום וסיבוב חדש'}</button>`;
+  }
+  if (S.sheet === 'avatar'){
+    return `${head('התמונה שלך')}
+      <div class="avp"><div class="av big" style="${avBg(myAv())}">${avInner(myAv())}</div><span class="muted">כולם בשולחן רואים אותה ליד השם שלך.</span></div>
+      <div class="grid2"><button class="btn" data-a="avcam">צילום עכשיו</button><button class="btn" data-a="avfile">תמונה מהגלריה</button></div>
+      <span class="label">או בחרו דמות</span>
+      <div class="avgrid">${Object.keys(AV_SET).map(id => `<button class="avopt" data-a="avset" data-v="${id}" aria-pressed="${!!(S.avatar && S.avatar.k === 'set' && S.avatar.v === id)}" aria-label="דמות ${id}">${avSVG(id)}</button>`).join('')}</div>
+      ${S.avatar ? '<button class="btn ghost" data-a="avclear">בלי תמונה (האות הראשונה של השם)</button>' : ''}`;
   }
   if (S.sheet === 'bjnow'){
     const list = players().filter(bjEligible);
@@ -1610,6 +1722,7 @@ function sheetView(){
   if (S.sheet === 'players'){
     const host = isHost(); const list = players();
     return `${head('שחקנים')}
+      ${me() ? '<button class="btn ghost" data-a="sheet" data-v="avatar">החלפת התמונה שלי</button>' : ''}
       ${host ? '<span class="muted">כאן מוסיפים צ\'יפים (ריביי), מורידים, ומעבירים את תפקיד הדילר. אפשר גם להוסיף שחקן בלי טלפון, ואז מנהלים אותו מכאן.</span><div class="row"><input id="newp" data-bind="newName" value="' + esc(S.newName) + '" maxlength="20" placeholder="שם שחקן חדש"><button class="btn small" data-a="addp">הוספה</button></div>' : ''}
       <div class="stack" style="gap:8px">${list.map(p => `<div class="mgr">
         <div class="row" style="justify-content:space-between"><b>${esc(p.name)}${r.hostId === p.pid ? ' · דילר' : ''}</b><span class="num">${fmt(p.stack)}</span></div>
@@ -1646,7 +1759,7 @@ window.addEventListener('appinstalled', () => { installEvt = null; toast('האפ
 const A = {
   install: async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch(e){} installEvt = null; render(); },
   local: () => useLocal(),
-  addp: async () => { const n = S.newName.trim(); if (!n){ toast('כתבו שם'); return; } const pid = 'p_' + rid(10); const d = newPlayer(S.room.startStack || 0); d.name = n.slice(0,20); if (await w(pPath(pid), 'set', d)) { S.newName = ''; toast(n + ' נוסף לשולחן'); render(); } },
+  addp: async () => { const n = S.newName.trim(); if (!n){ toast('כתבו שם'); return; } const pid = 'p_' + rid(10); const d = newPlayer(S.room.startStack || 0); d.name = n.slice(0,20); d.avatar = null; if (await w(pPath(pid), 'set', d)) { S.newName = ''; toast(n + ' נוסף לשולחן'); render(); } },
   retry: () => { try { location.reload(); } catch(e){} },
   cgame: v => { S.create.game = v; S.create.play = v === 'holdem'; render(); },
   create: () => createRoom(),
@@ -1673,6 +1786,10 @@ const A = {
   ambi: () => { AMBI_ON = !AMBI_ON; ls.set('chips.ambi', AMBI_ON ? '1' : '0'); ambiSync(); render(); },
   reload: () => { reloading = true; location.reload(); },
   endgame: () => endGame(),
+  avcam: () => document.getElementById('avcam').click(),
+  avfile: () => document.getElementById('avfile').click(),
+  avset: v => { setAvatar({ k: 'set', v }); },
+  avclear: () => setAvatar(null),
   bjnow: v => { if (S.confirm !== 'bj:' + v){ S.confirm = 'bj:' + v; render(); return; } bjNow(v); },
   reopen: async () => { if (await w(roomPath(), 'update', { closed: false, ...setEvent('השולחן נפתח מחדש') })) toast('השולחן פתוח שוב'); },
   replay: () => ceremony(),
