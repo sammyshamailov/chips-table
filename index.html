@@ -308,7 +308,7 @@ const S = {
   myId: ls.get('chips.pid') || ('p_' + rid(10)),
   name: ls.get('chips.name') || '',
   code: null, room: null, roomLoaded: false, players: {}, unsubs: [],
-  pending: 0, sheet: null, sel: [], settle: {}, dealerBJ: false, confirm: null, adj: {},
+  pending: 0, pendChips: [], sheet: null, sel: [], settle: {}, dealerBJ: false, confirm: null, adj: {},
   rooms: [], joinCode: '', newName: '',
   create: { game: 'holdem', stack: '1000', sb: '5', bb: '10', minBet: '10', maxBet: '500', play: true },
   edit: null
@@ -503,7 +503,7 @@ document.addEventListener('visibilitychange', () => ambiSync());
    While chips are in the air, FX.ov holds what a player's spot and stack looked like before, and the
    table keeps showing that until the chips land. */
 const RM = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){ return false; } })();
-const FX = { rects: {}, ov: {}, pendFly: 0, n: 0 };
+const FX = { rects: {}, ov: {}, pendFly: 0, n: 0 };      // pendFly: how many of your pending chips are still in the air
 const fxLayer = document.getElementById('fx');
 const pageRect = el => { const b = el.getBoundingClientRect(); return (b.width || b.height) ? { x: b.left + scrollX + b.width / 2, y: b.top + scrollY + b.height / 2, w: b.width, h: b.height } : null; };
 function measure(){ const m = {}; document.querySelectorAll('[data-k]').forEach(el => { const r = pageRect(el); if (r) m[el.dataset.k] = r; }); return m; }
@@ -551,7 +551,8 @@ function floatText(at, text, cls = ''){
   setTimeout(() => el.remove(), 1700);
 }
 function pulse(k, s = 1.14){ const el = document.querySelector('[data-k="' + k + '"]'); if (!el || RM) return; try { el.animate([{ scale: '1' }, { scale: String(s) }, { scale: '1' }], { duration: 300, easing: 'ease-out' }); } catch(e){} }
-function paintGhost(){ const el = document.querySelector('[data-k="ghost"]'); if (el){ const g = Math.max(0, S.pending - FX.pendFly); el.innerHTML = g ? stackHTML(g) : ''; } }
+const ghostChips = () => { const c = pendChips(); return c.slice(0, Math.max(0, c.length - FX.pendFly)); };
+function paintGhost(){ const el = document.querySelector('[data-k="ghost"]'); if (el){ const g = ghostChips(); el.innerHTML = g.length ? stackHTML(g) : ''; } }
 const LAND = matchMedia('(orientation: landscape)');
 const PORTRAIT_PHONE = matchMedia('(orientation: portrait) and (max-width: 700px) and (pointer: coarse)');
 const landRoom = () => LAND.matches && !!S.code;
@@ -692,13 +693,27 @@ function denoms(){
 const chipStyle = d => { const dark = [5,10,25,100,250,500,2500,5000,10000].includes(d); return `--c:var(--c${d});--e:${d===1||d===2||d===1000?'var(--c5)':'var(--chalk)'};--t:${dark?'#fff':'#1a1a1a'}`; };
 const chipLabel = d => d >= 1000 ? (d/1000) + 'K' : d;
 function chipsOf(amt){ const out = []; let left = Math.floor(amt || 0); for (let k = DEN.length - 1; k >= 0 && left > 0; k--) while (left >= DEN[k] && out.length < 36){ out.push(DEN[k]); left -= DEN[k]; } return out; }
+// A stack can be drawn from an amount (made up from the biggest chips) or from the exact chips a player put down.
 function stackHTML(amt, per = 8){
-  const c = chipsOf(amt); if (!c.length) return '';
-  const p = c.length > per * 3 ? Math.ceil(c.length / 3) : per, cols = [];
+  const c = Array.isArray(amt) ? amt : chipsOf(amt); if (!c.length) return '';
+  const p = c.length > per * 4 ? Math.ceil(c.length / 4) : c.length > per * 3 ? Math.ceil(c.length / 3) : per, cols = [];
   for (let i = 0; i < c.length; i += p) cols.push(c.slice(i, i + p));
   return `<div class="stk">${cols.map(col => `<div class="col" style="--n:${col.length}">${col.map((d, i) => `<i class="cd" style="${chipStyle(d)};--i:${i}"></i>`).join('')}</div>`).join('')}</div>`;
 }
 const dispAmt = h => h.result === 'surrender' ? h.bet - Math.floor(h.bet / 2) : h.bet;
+/* The exact chips of a bet are saved with it (hands[i].chips, lastAction.chips) so everyone sees the same stack.
+   Optional: when missing or not adding up (an older version wrote the bet), we fall back to the amount. */
+const MAX_CHIPS = 40;
+const sumOf = a => a.reduce((x, y) => x + y, 0);
+const okChips = (c, amt) => Array.isArray(c) && c.length > 0 && c.length <= MAX_CHIPS && c.every(d => DEN.includes(d)) && sumOf(c) === amt;
+const handStack = h => h.result === 'surrender' ? dispAmt(h) : (okChips(h.chips, h.bet) ? h.chips : h.bet);
+function handHalves(h){
+  const c = h.chips, k = c ? c.length / 2 : 0;
+  if (okChips(c, h.bet) && k === Math.floor(k) && sumOf(c.slice(0, k)) === h.bet / 2) return [c.slice(0, k), c.slice(k)];
+  return [h.bet / 2, h.bet / 2];
+}
+// The chips in your hand right now. Anything that changed the pending amount without chips (presets, clearing) resets it.
+function pendChips(){ if (sumOf(S.pendChips) !== S.pending) S.pendChips = chipsOf(S.pending); return S.pendChips; }
 
 /* ---------- turning document changes into animations ----------
    Every player write sets lastAction and ts, so a new ts tells us exactly what just happened.
@@ -721,19 +736,21 @@ function fxBJ(pid, a, b, r){
   if (k === 'bet'){
     const prev = a.bjRound === b.bjRound ? A : [], d = sum(B) - sum(prev); if (d <= 0) return null;
     if (mine) return () => { SND.chips(4); pulse(`spot:${pid}:0`, 1.08); };      // my pending chips were already on the spot
+    const pc = prev[0] ? handStack(prev[0]) : [], nc = B[0] ? handStack(B[0]) : d;      // just the chips added this time
+    const delta = Array.isArray(nc) && Array.isArray(pc) && pc.every((x, n) => nc[n] === x) && sumOf(nc.slice(pc.length)) === d ? nc.slice(pc.length) : d;
     const tok = setOv(pid, { hands: prev }, 700);
-    return () => fly({ from: seat(), to: spot(0), amt: d, sound: SND.slide, land: () => { SND.chips(3); clearOv(pid, tok); } });
+    return () => fly({ from: seat(), to: spot(0), amt: delta, sound: SND.slide, land: () => { SND.chips(3); clearOv(pid, tok); } });
   }
   if (k === 'clear'){
     const amt = sum(A); if (!amt) return null;
     const from = oldRect(`spot:${pid}:0`), tok = setOv(pid, { stack: a.stack }, 700);
-    return () => fly({ from, to: seat(), amt, fadeOut: true, sound: SND.slide, land: () => { SND.chips(2); clearOv(pid, tok); } });
+    return () => fly({ from, to: seat(), amt: A.length === 1 ? handStack(A[0]) : amt, fadeOut: true, sound: SND.slide, land: () => { SND.chips(2); clearOv(pid, tok); } });
   }
   if (k === 'double'){
     const i = B.findIndex((h, j) => h.doubled && !(A[j] && A[j].doubled)); if (i < 0) return null;
-    const half = B[i].bet / 2;
-    const tok = setOv(pid, { hands: B.map((h, j) => j === i ? { ...h, doubled: false, bet: half } : h) }, 800);
-    return () => { SND.whoosh(); const t = spot(i); fly({ from: seat(), to: shift(t, u * 3.8), amt: half, dur: 600, land: () => { SND.chips(4); clearOv(pid, tok); pulse(`spot:${pid}:${i}`); floatText(shift(t, 0, -u * 9), '×2'); } }); };
+    const half = B[i].bet / 2, hv = handHalves(B[i]);
+    const tok = setOv(pid, { hands: B.map((h, j) => j === i ? { ...h, doubled: false, bet: half, chips: Array.isArray(hv[0]) ? hv[0] : undefined } : h) }, 800);
+    return () => { SND.whoosh(); const t = spot(i); fly({ from: seat(), to: shift(t, u * 3.8), amt: hv[1], dur: 600, land: () => { SND.chips(4); clearOv(pid, tok); pulse(`spot:${pid}:${i}`); floatText(shift(t, 0, -u * 9), '×2'); } }); };
   }
   if (k === 'split'){
     if (B.length <= A.length) return null;
@@ -744,8 +761,8 @@ function fxBJ(pid, a, b, r){
     const tok = setOv(pid, { hands: B.map((h, x) => x === i || x === i + 1 ? { ...h, _hide: true } : h) }, 900);
     return () => {
       SND.whoosh();
-      fly({ from, to: spot(i), amt: B[i].bet, dur: 420, lift: 12, land: () => { const o = FX.ov[pid]; if (o && o.tok === tok){ o.hands[i]._hide = false; render(); } } });
-      fly({ from: seat(), to: spot(i + 1), amt: B[i + 1].bet, delay: 140, dur: 580, land: () => { SND.chips(4); clearOv(pid, tok); const t = spot(i + 1); floatText(shift(t, 0, -u * 9), 'ספליט'); } });
+      fly({ from, to: spot(i), amt: handStack(B[i]), dur: 420, lift: 12, land: () => { const o = FX.ov[pid]; if (o && o.tok === tok){ o.hands[i]._hide = false; render(); } } });
+      fly({ from: seat(), to: spot(i + 1), amt: handStack(B[i + 1]), delay: 140, dur: 580, land: () => { SND.chips(4); clearOv(pid, tok); const t = spot(i + 1); floatText(shift(t, 0, -u * 9), 'ספליט'); } });
     };
   }
   if (k === 'ins'){
@@ -765,7 +782,7 @@ function fxBJ(pid, a, b, r){
     return () => {
       const dealer = rectOf('dealer'), st = seat(); let handsNet = 0, anyBJ = false;
       B.forEach((h, j) => {
-        const f = from[j] || spot(j), amt = dispAmt(A[j] || h), res = h.result;
+        const f = from[j] || spot(j), amt = handStack(A[j] || h), res = h.result;
         if (res === 'lose' || res === 'surrender'){
           handsNet -= res === 'lose' ? h.bet : h.bet - Math.floor(h.bet / 2);
           fly({ from: f, to: dealer, amt, delay: 80 * j, dur: 640, fadeOut: true, sound: SND.slide });
@@ -798,7 +815,7 @@ function fxBJ(pid, a, b, r){
     if (A.length && !B.length){        // the dealer cancelled the round: bets go back from the spots
       const fr = A.map((_, j) => oldRect(`spot:${pid}:${j}`)), fi = a.insurance ? oldRect('ins:' + pid) : null;
       const tok = setOv(pid, { hands: A.map(h => ({ ...h, _hide: true })), ins: 0, stack: a.stack }, 800);
-      return () => { const st = seat(); SND.slide(); A.forEach((h, j) => fly({ from: fr[j], to: st, amt: dispAmt(h), delay: 70 * j, fadeOut: true })); if (fi) fly({ from: fi, to: st, amt: a.insurance, fadeOut: true }); setTimeout(() => { SND.chips(3); clearOv(pid, tok); }, 640); };
+      return () => { const st = seat(); SND.slide(); A.forEach((h, j) => fly({ from: fr[j], to: st, amt: handStack(h), delay: 70 * j, fadeOut: true })); if (fi) fly({ from: fi, to: st, amt: a.insurance, fadeOut: true }); setTimeout(() => { SND.chips(3); clearOv(pid, tok); }, 640); };
     }
     if (!amt) return null;
     if (amt > 0){ const tok = setOv(pid, { stack: a.stack }, 700); return () => fly({ from: rectOf('dealer'), to: seat(), amt, fadeOut: true, sound: SND.slide, land: () => { SND.chips(3); clearOv(pid, tok); } }); }
@@ -810,7 +827,8 @@ function fxHold(pid, a, b, r){
   const k = b.lastAction.k;
   if (['blind', 'call', 'bet', 'raise', 'allin'].includes(k)){
     const d = (a.stack || 0) - (b.stack || 0); if (d <= 0) return null;
-    return () => fly({ from: seatTarget(pid), to: rectOf('pot'), amt: d, sound: SND.slide, land: () => { SND.chips(3); pulse('pot', 1.06); } });
+    const c = b.lastAction.chips;
+    return () => fly({ from: seatTarget(pid), to: rectOf('pot'), amt: okChips(c, d) ? c : d, sound: SND.slide, land: () => { SND.chips(3); pulse('pot', 1.06); } });
   }
   if (k === 'won' || k === 'refund'){
     const d = (b.stack || 0) - (a.stack || 0); if (d <= 0) return null;
@@ -856,7 +874,8 @@ async function hAct(add, kind){
   let k = kind;
   if (!k){ if (stack === 0 && add > 0) k = 'allin'; else if (add === 0) k = 'check'; else if (newSt === h.maxSt) k = 'call'; else k = h.maxSt === 0 ? 'bet' : 'raise'; }
   buzz();
-  const ok = await w(pPath(), 'update', { stack, streetBet: newSt, streetId: S.room.streetId, committed: h.com(m) + add, allIn: stack === 0, lastAction: { k, amt: k === 'raise' || k === 'allin' ? newSt : add }, ts: now() });
+  const la = { k, amt: k === 'raise' || k === 'allin' ? newSt : add }; if (add > 0 && okChips(pendChips(), add)) la.chips = pendChips().slice();
+  const ok = await w(pPath(), 'update', { stack, streetBet: newSt, streetId: S.room.streetId, committed: h.com(m) + add, allIn: stack === 0, lastAction: la, ts: now() });
   if (ok) S.pending = 0;
   render();
 }
@@ -932,9 +951,12 @@ async function bjBet(){
   if (r.maxBet && total > r.maxBet){ toast(`ההימור המקסימלי הוא ${fmt(r.maxBet)}`); return; }
   if (total < (r.minBet || 0)){ toast(`ההימור המינימלי הוא ${fmt(r.minBet)}`); return; }
   buzz();
-  const pend = S.pending; S.pending = 0; FX.pendFly = 0;
-  const ok = await w(pPath(), 'update', { stack: m.stack - add, bjRound: r.roundId, hands: [{ bet: total }], insurance:0, surrendered:false, lastAction:{ k:'bet', amt: total }, ts: now() });
-  if (!ok) S.pending = pend; render();
+  const prev = cur(m) ? m.hands[0] : null, now_ = okChips(pendChips(), add) ? pendChips().slice() : chipsOf(add);
+  const chips = (prev ? (okChips(prev.chips, prev.bet) ? prev.chips : chipsOf(prev.bet)) : []).concat(now_);
+  const hand = { bet: total }; if (okChips(chips, total)) hand.chips = chips;
+  const pend = S.pending, pc = S.pendChips; S.pending = 0; S.pendChips = []; FX.pendFly = 0;
+  const ok = await w(pPath(), 'update', { stack: m.stack - add, bjRound: r.roundId, hands: [hand], insurance:0, surrendered:false, lastAction:{ k:'bet', amt: total }, ts: now() });
+  if (!ok){ S.pending = pend; S.pendChips = pc; } render();
 }
 async function bjClear(){
   const m = me(); if (!cur(m) || S.room.phase !== 'betting') return;
@@ -943,8 +965,9 @@ async function bjClear(){
 async function bjDo(kind, i){
   const m = me(), r = S.room; if (!cur(m) || r.phase !== 'playing') return;
   const hands = m.hands.map(x => ({...x})); const hnd = hands[i] || hands[0]; let stack = m.stack; const patch = {};
-  if (kind === 'double'){ if (hnd.doubled || hnd.result || stack < hnd.bet) return; stack -= hnd.bet; hnd.bet *= 2; hnd.doubled = true; }
-  else if (kind === 'split'){ if (hands.length >= 4 || hnd.doubled || hnd.result || stack < hnd.bet) return; stack -= hnd.bet; hnd.split = true; hands.splice(i + 1, 0, { bet: hnd.bet, split: true }); }
+  const same = okChips(hnd.chips, hnd.bet) ? hnd.chips.slice() : null;
+  if (kind === 'double'){ if (hnd.doubled || hnd.result || stack < hnd.bet) return; stack -= hnd.bet; hnd.bet *= 2; hnd.doubled = true; if (same && same.length * 2 <= MAX_CHIPS) hnd.chips = same.concat(same); else delete hnd.chips; }
+  else if (kind === 'split'){ if (hands.length >= 4 || hnd.doubled || hnd.result || stack < hnd.bet) return; stack -= hnd.bet; hnd.split = true; const nh = { bet: hnd.bet, split: true }; if (same) nh.chips = same; hands.splice(i + 1, 0, nh); }
   else if (kind === 'ins'){ const amt = Math.floor(hands[0].bet / 2); if (m.insurance || hands.length > 1 || stack < amt || !amt) return; stack -= amt; patch.insurance = amt; }
   else if (kind === 'surrender'){ if (hands.length > 1 || hnd.doubled || hnd.result) return; stack += Math.floor(hnd.bet / 2); hnd.result = 'surrender'; patch.surrendered = true; }
   buzz();
@@ -1284,12 +1307,12 @@ function bjSeat(p, phi, base){
   const r = S.room, o = ov(p.pid), mine = p.pid === S.myId, vis = bjVis(p), c = cur(p), pid = esc(p.pid);
   const [sx, sy] = ept(phi, GEO.seat), [bx, by] = ept(phi, GEO.spot), [ix, iy] = ept(phi * .78, GEO.ins);
   const hs = vis.hands.length ? vis.hands : [null], m = hs.length, size = m === 1 ? base : Math.min(base * (m === 2 ? .8 : .66), 15 / m + 3);
-  const ghost = mine && r.phase === 'betting' ? Math.max(0, S.pending - FX.pendFly) : -1;
+  const gc = mine && r.phase === 'betting' ? ghostChips() : null, ghost = gc ? gc.length : -1;
   const spots = hs.map((h, j) => {
     const x = Math.max(size / 2 + .5, Math.min(99.5 - size / 2, bx + (j - (m - 1) / 2) * size * 1.04));
     const show = h && !h._hide;
-    let inner = show ? (h.doubled ? `<div class="duo">${stackHTML(h.bet / 2)}${stackHTML(h.bet / 2)}</div>` : stackHTML(dispAmt(h))) : '';
-    if (j === 0 && ghost >= 0) inner += `<div class="ghost" data-k="ghost">${ghost ? stackHTML(ghost) : ''}</div>`;
+    let inner = show ? (h.doubled ? `<div class="duo">${handHalves(h).map(x => stackHTML(x)).join('')}</div>` : stackHTML(handStack(h))) : '';
+    if (j === 0 && gc) inner += `<div class="ghost" data-k="ghost">${ghost ? stackHTML(gc) : ''}</div>`;
     const lbl = show ? `<span class="bl num">${fmt(h.bet)}${h.doubled ? (m > 1 ? '×2' : ' · ×2') : ''}${h.result === 'surrender' ? ' · ½' : ''}</span>` : '';
     const glow = mine && j === 0 && r.phase === 'betting' && !show && !ghost;
     return `<div class="spot${m > 1 ? ' sm' : ''}${mine ? ' mine' : ''}${show ? ' has' : ''}${glow ? ' glow' : ''}" data-k="spot:${pid}:${j}" style="left:${x.toFixed(2)}%;top:${by.toFixed(2)}%;width:${size.toFixed(2)}%;--chip:calc(var(--u)*${(size * .53).toFixed(2)})">${inner}${lbl}</div>`;
@@ -1434,13 +1457,14 @@ const A = {
   sheet: v => { S.sheet = v; S.confirm = null; if (v === 'award'){ const h = H(); S.sel = h.live.length === 1 ? [h.live[0].pid] : []; } if (v === 'settle'){ S.settle = {}; S.dealerBJ = false; } if (v === 'settings'){ const r = S.room; S.edit = { sb: String(r.sb), bb: String(r.bb), minBet: String(r.minBet), maxBet: String(r.maxBet || 0), startStack: String(r.startStack) }; } render(); },
   close: () => { S.sheet = null; render(); },
   add: (v, t) => {
-    const m = me(), before = S.pending; S.pending = Math.min((m?.stack || 0), S.pending + Number(v)); const added = S.pending - before;
+    const m = me(), before = S.pending, held = pendChips().slice(); S.pending = Math.min((m?.stack || 0), S.pending + Number(v)); const added = S.pending - before;
+    const got = added === Number(v) ? [added] : chipsOf(added); S.pendChips = held.concat(added ? got : []);
     buzz(); SND.tap();
     const from = t && pageRect(t);
     if (!added || !from || RM){ render(); return; }
-    FX.pendFly += added; render();                       // the chip flies from the tray onto your betting spot
+    FX.pendFly += got.length; render();                       // the chip flies from the tray onto your betting spot
     const spot = S.room.game === 'blackjack' && rectOf('spot:' + S.myId + ':0');
-    fly({ from, to: onScreen(spot) ? spot : rectOf('pend'), amt: added, dur: 380, lift: 34, land: () => { FX.pendFly = Math.max(0, FX.pendFly - added); paintGhost(); SND.chips(1, .8); } });
+    fly({ from, to: onScreen(spot) ? spot : rectOf('pend'), amt: got, dur: 380, lift: 34, land: () => { FX.pendFly = Math.max(0, FX.pendFly - got.length); paintGhost(); SND.chips(1, .8); } });
   },
   setp: v => { S.pending = Math.max(0, Math.min(me()?.stack || 0, Number(v))); FX.pendFly = 0; SND.chips(3); render(); },
   clearp: () => { if (S.pending) SND.slide(); S.pending = 0; FX.pendFly = 0; render(); },
