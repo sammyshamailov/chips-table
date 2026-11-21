@@ -1063,7 +1063,7 @@ function fxRoom(a, b){
   if (!a.closed && b.closed && b.final) runs.push(() => ceremony());              // the ceremony says 'winner' at the reveal
   if (b.game === 'blackjack' && a.phase === 'betting' && b.phase === 'playing' && a.roundId === b.roundId) runs.push(() => { lockFx(); SND.say('locked'); });
   // a round that was paid (not cancelled): the payout line, then the dealer opens the next round
-  if (a.game === 'blackjack' && b.game === 'blackjack' && a.phase === 'playing' && b.phase === 'betting' && (b.roundId || 0) > (a.roundId || 0) && /שולם/.test((b.lastEvent && b.lastEvent.t) || ''))
+  if (a.game === 'blackjack' && b.game === 'blackjack' && a.phase === 'playing' && b.phase === 'betting' && (b.roundId || 0) > (a.roundId || 0) && (b.roundEnd ? b.roundEnd === 'paid' : /שולם/.test((b.lastEvent && b.lastEvent.t) || '')))   // roundEnd is missing when an older phone did the payout
     runs.push(() => { SND.say('payout'); setTimeout(() => SND.say('open'), 2500); });
   if (b.game === 'holdem' && (b.handId || 0) > (a.handId || 0)) runs.push(() => { SND.bell(); dealerNod(); SND.say('newhand'); });
   else if (b.game === 'holdem' && a.stage !== b.stage && ['flop', 'turn', 'river'].includes(b.stage)) runs.push(() => SND.say(b.stage));
@@ -1212,7 +1212,7 @@ async function bjPayout(){
     writes.push([p.pid, { stack: (p.stack || 0) + pay + insPay, hands, lastAction: { k:'bjres', amt: net }, ts: now() }]);
   }
   buzz();
-  const ok = await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, dealerBJ: false, house: (r.house || 0) + houseIn - houseOut, ...setEvent(`סיבוב ${r.roundId} שולם · הבית \u2066${houseIn - houseOut >= 0 ? '+' : '−'}${fmt(Math.abs(houseIn - houseOut))}\u2069`) });
+  const ok = await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, dealerBJ: false, roundEnd: 'paid', house: (r.house || 0) + houseIn - houseOut, ...setEvent(`סיבוב ${r.roundId} שולם · הבית \u2066${houseIn - houseOut >= 0 ? '+' : '−'}${fmt(Math.abs(houseIn - houseOut))}\u2069`) });
   if (!ok) return;
   await Promise.all(writes.map(([id, d]) => w(pPath(id), 'update', d)));
   S.sheet = null; S.settle = {}; S.dealerBJ = false; render();
@@ -1230,7 +1230,7 @@ async function bjNow(pid){
 }
 async function bjCancelRound(){
   const r = S.room; const list = players().filter(cur).filter(p => p.hands.some(h => !h.paid) || p.insurance);
-  await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, ...setEvent('הסיבוב בוטל וההימורים הוחזרו') });
+  await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, roundEnd: 'cancelled', ...setEvent('הסיבוב בוטל וההימורים הוחזרו') });
   await Promise.all(list.map(p => { const back = p.hands.reduce((a,x) => a + (x.paid ? 0 : x.result === 'surrender' ? Math.ceil(x.bet/2) : x.bet), 0) + (p.insurance || 0); return w(pPath(p.pid), 'update', { stack: p.stack + back, hands: [], bjRound: null, lastAction:{ k:'refund', amt: back }, ts: now() }); }));
   S.sheet = null; S.confirm = null; render();
 }
