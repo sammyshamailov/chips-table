@@ -16,5 +16,7 @@ const cfg = {
   messagingSenderId: env.FIREBASE_MESSAGING_SENDER_ID,
   appId: env.FIREBASE_APP_ID
 };
-fs.writeFileSync('config.js', 'window.FIREBASE_CONFIG = ' + JSON.stringify(cfg, null, 2) + ';\n');
-console.log('config.js written for project ' + cfg.projectId);
+// APP_BUILD changes on every deploy; open apps compare it with the live one and update themselves.
+const build = (env.COMMIT_REF || String(Date.now())).slice(0, 12);
+fs.writeFileSync('config.js', 'window.FIREBASE_CONFIG = ' + JSON.stringify(cfg, null, 2) + ';\nwindow.APP_BUILD = ' + JSON.stringify(build) + ';\n');
+console.log('config.js written for project ' + cfg.projectId + ', build ' + build);

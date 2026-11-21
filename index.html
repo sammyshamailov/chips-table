@@ -243,14 +243,14 @@ h1,h2,h3{margin:0;text-wrap:balance}
 /* ---------- room layout: portrait stacks everything; landscape puts the table beside a control panel ---------- */
 .room{display:flex;flex-direction:column}
 .side{display:contents}
-.room .top{order:1}.room .mb{order:2}.room .event{order:3}.stage{order:4}.o-join{order:5}.o-host{order:6}.room .dock{order:7}
+.room .top{order:1}.room .updw,.room .mb{order:2}.updw{margin-bottom:12px}.room .event{order:3}.stage{order:4}.o-join{order:5}.o-host{order:6}.room .dock{order:7}
 @media (orientation:landscape){
   #app.in-room{max-width:1200px;padding-block:10px}
   #app.in-room.has-dock{padding-bottom:10px}
   .room{display:grid;grid-template-columns:minmax(0,1fr) var(--tw);gap:18px;align-items:start}
   .side{display:flex;flex-direction:column;min-width:0;position:sticky;top:10px;max-height:calc(100vh - 20px);max-height:calc(100dvh - 20px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
   .stage.fit{position:sticky;top:10px}
-  .room .top{order:1}.room .event{order:2}.room .dock{order:3}.o-host{order:4}.o-join{order:5}.room .mb{order:6;margin-top:10px}
+  .room .top{order:1}.room .updw{order:1;margin:0 0 8px}.room .event{order:2}.room .dock{order:3}.o-host{order:4}.o-join{order:5}.room .mb{order:6;margin-top:10px}
   .bjt{--dtop:18.5}
   .room .dock{position:static;z-index:auto;background:none;border:0;padding:12px 0 2px;backdrop-filter:none;-webkit-backdrop-filter:none}
   .room .dock-in{max-width:none}
@@ -571,6 +571,26 @@ function onScreen(r){
   if (dock && getComputedStyle(dock).position === 'fixed') bottom = dock.getBoundingClientRect().top + scrollY;
   return r.y > scrollY && r.y < bottom - 8;
 }
+
+/* ---------- staying up to date ----------
+   A phone that keeps the app open (or resumes it from the background) would otherwise keep running old code.
+   Each deploy writes a new APP_BUILD into config.js; when the live one differs, reload as soon as the player is idle. */
+const BUILD = window.APP_BUILD || null; let newBuild = false, checking = false;
+async function checkUpdate(){
+  if (!BUILD || newBuild || checking || !navigator.onLine) return; checking = true;
+  try {
+    const t = await (await fetch('config.js', { cache: 'no-store' })).text();
+    const m = t.match(/APP_BUILD\s*=\s*"([^"]+)"/);
+    if (m && m[1] !== BUILD){ newBuild = true; render(); }
+  } catch(e){} finally { checking = false; }
+}
+const idle = () => !S.pending && !S.sheet && !Object.keys(FX.ov).length && !(document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName));
+let reloading = false;
+function maybeReload(){ if (!newBuild || reloading || !idle()) return; reloading = true; toast('מעדכן לגרסה החדשה…'); setTimeout(() => location.reload(), 900); }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+window.addEventListener('focus', () => checkUpdate());
+window.addEventListener('online', () => checkUpdate());
+setInterval(checkUpdate, 3 * 60 * 1000); setTimeout(checkUpdate, 8000);
 
 /* ---------- local single-device store (same surface as db) ---------- */
 function LocalDB(){
@@ -1093,6 +1113,7 @@ function render(){
   if (!S.code){ app.innerHTML = homeView(); app.className = ''; renderRooms(); }
   else { app.innerHTML = roomView(); const sd = app.querySelector('.side'); if (sd && sideTop) sd.scrollTop = sideTop; }
   setU(); renderRot(); ambiSync();
+  if (newBuild) setTimeout(maybeReload, 0);
   if (S.sheet && S.room){ sheetEl.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${sheetView()}</div>`; sheetEl.hidden = false; }
   else { sheetEl.hidden = true; sheetEl.innerHTML = ''; }
   if (id){ const el = document.getElementById(id); if (el && el !== document.activeElement){ el.focus({ preventScroll:true }); try { if (s1 != null) el.setSelectionRange(s1, s2); } catch(e){} } }
@@ -1162,6 +1183,7 @@ function roomView(){
     </div>
   </div>
   ${S.mode !== 'cloud' || S.readOnly ? `<div class="mb" style="margin-bottom:12px">${modeBanner()}</div>` : ''}
+  ${newBuild ? `<div class="updw"><button class="btn primary wide" data-a="reload">יש גרסה חדשה · לחצו לעדכון</button></div>` : ''}
   <div class="event">${r.lastEvent ? esc(r.lastEvent.t) : ''}</div>
   ${!m ? `<div class="o-join">${joinCard()}</div>` : ''}
   ${isHost() ? `<div class="o-host">${hold ? holdemHost() : bjHost()}</div>` : ''}
@@ -1433,7 +1455,8 @@ function sheetView(){
         <label class="field"><span class="label">צ'יפים למצטרפים חדשים</span><input id="estack" data-bind="edit.startStack" inputmode="numeric" value="${esc(e.startStack)}" style="direction:ltr"></label>
         <button class="btn primary" data-a="saveset">שמירה</button>` :
         `<span class="muted">${esc(nameOf(r.hostId))} הוא הדילר. אם הוא עזב, אפשר לקחת את התפקיד.</span><button class="btn ghost" data-a="mkhost" data-v="${esc(S.myId)}">אני הדילר עכשיו</button>`}
-      <button class="btn ghost" data-a="home">יציאה למסך הראשי</button>`;
+      <button class="btn ghost" data-a="home">יציאה למסך הראשי</button>
+      <span class="muted num" style="text-align:center">גרסה ${esc(BUILD ? BUILD.slice(0, 7) : 'מקומית')}</span>`;
   }
   return '';
 }
@@ -1469,6 +1492,7 @@ const A = {
   setp: v => { S.pending = Math.max(0, Math.min(me()?.stack || 0, Number(v))); FX.pendFly = 0; SND.chips(3); render(); },
   clearp: () => { if (S.pending) SND.slide(); S.pending = 0; FX.pendFly = 0; render(); },
   ambi: () => { AMBI_ON = !AMBI_ON; ls.set('chips.ambi', AMBI_ON ? '1' : '0'); ambiSync(); render(); },
+  reload: () => { reloading = true; location.reload(); },
   rotoff: () => { S.rotOff = true; render(); },
   rotlock: async () => {
     try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); await screen.orientation.lock('landscape'); }
