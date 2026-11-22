@@ -135,19 +135,22 @@ follows.
 | 4 | [R-005](#r-005-code-foundations-modules-layers-tooling) Code foundations | 7 | Q2 | Everything below builds on it; doing it later means writing each feature twice |
 | 5 | [R-006](#r-006-english-and-hebrew) English and Hebrew | 1 | Q4, Q10 | Every later feature then adds its text in both languages once, instead of being translated afterwards |
 | 6 | [R-007](#r-007-holdem-table-on-par-with-blackjack) Hold'em on par with Blackjack | 3 | — | Improves the game you already play, and its table, turn logic and pot animations are what card Hold'em reuses |
-| 7 | [R-010](#r-010-card-mode-core-the-app-deals) Card mode core | 2 | Q1, Q3 | The engine both card games stand on: dealing, hidden cards, the host running the game |
-| 8 | [R-011](#r-011-blackjack-with-cards) Blackjack with cards | 2 | Q7 | The simpler card game first: few hidden cards, no hand ranking. Proves the engine at a real table |
-| 9 | [R-013](#r-013-card-animations-and-sounds) Card animations and sounds | 4 | Q9 | Built together with R-011 (the card mode feels flat without them); the Hold'em motions are added in R-012 |
-| 10 | [R-012](#r-012-holdem-with-cards) Hold'em with cards | 2, 3 | Q8 | The hardest game logic (best hand, side pots, turns), on a proven engine and the R-007 table |
-| 11 | [R-008](#r-008-table-statistics) Table statistics | 6 | Q6 | After both modes exist, so every number is designed once for chips and cards instead of retrofitted |
-| 12 | [R-014](#r-014-voice-messages) Voice messages | 5 | Q1, Q5 | Voice messages: independent of the rest, and useful for remote players (Q1) |
-| 13 | [R-015](#r-015-live-voice-chat) Live voice chat | 5 | Q1, Q5 | Later, as decided; builds on R-014's microphone and playback |
+| 7 | [R-016](#r-016-tapping-on-the-table) Tapping on the table | (new) | Q11, Q12 | Small and fun, works in today's chips mode; needs the seats R-007 adds to the Hold'em table. The card-mode trigger is added with R-011 / R-013
+| 8 | [R-010](#r-010-card-mode-core-the-app-deals) Card mode core | 2 | Q1, Q3 | The engine both card games stand on: dealing, hidden cards, the host running the game |
+| 9 | [R-011](#r-011-blackjack-with-cards) Blackjack with cards | 2 | Q7 | The simpler card game first: few hidden cards, no hand ranking. Proves the engine at a real table |
+| 10 | [R-013](#r-013-card-animations-and-sounds) Card animations and sounds | 4 | Q9 | Built together with R-011 (the card mode feels flat without them); the Hold'em motions are added in R-012 |
+| 11 | [R-012](#r-012-holdem-with-cards) Hold'em with cards | 2, 3 | Q8 | The hardest game logic (best hand, side pots, turns), on a proven engine and the R-007 table |
+| 12 | [R-008](#r-008-table-statistics) Table statistics | 6 | Q6 | After both modes exist, so every number is designed once for chips and cards instead of retrofitted |
+| 13 | [R-014](#r-014-voice-messages) Voice messages | 5 | Q1, Q5 | Voice messages: independent of the rest, and useful for remote players (Q1) |
+| 14 | [R-015](#r-015-live-voice-chat) Live voice chat | 5 | Q1, Q5 | Later, as decided; builds on R-014's microphone and playback |
+| ? | [R-017](#r-017-lock-down-who-can-change-the-table) Lock down who can change the table | (fix) | Q13 | Proposed. If wanted, it goes before the card mode (step 8)
 
 The reasoning in short: **fix what's broken for players today** (1), **put the safety nets in place**
 (2, 3), **rebuild the foundations once** (4), then **improve what players already use** (5, 6),
-then **the big new mode** (7–10), then what builds on everything (11) and what stands alone (12).
+then a small fun addition (7), then **the big new mode** (8–11), then what builds on everything (12)
+and voice (13, 14).
 
-Rough size: steps 1–3 are a few evenings together; 4 is the longest single step; 7–10 together are the
+Rough size: steps 1–3 are a few evenings together; 4 is the longest single step; 8–11 together are the
 largest part of the whole plan.
 
 ### Constraints every v2 entry keeps
@@ -184,7 +187,12 @@ The owner's answers of 2026-11-22. The entries below follow them.
 
 ### Still open
 
-Nothing at the moment.
+- **Q11. Tapping in Hold'em with cards.** Your hole cards are secret, so the table can't tap when *you* get
+  an ace without giving it away. *Default:* in Hold'em the table taps when the first card of the flop is
+  an ace; in Blackjack when any player's first card is an ace.
+- **Q12. The tap button in the card mode too?** *Default:* yes, the button is in both modes; the card
+  mode also taps by itself on an ace.
+- **Q13. Lock down who can change the table** (R-017)? *Default:* not now; decide before the card mode.
 
 ---
 
@@ -630,6 +638,72 @@ arrived (test with the relay delayed in the harness). Ten seats on a small phone
 **Done when.** A Hold'em hand looks and feels like a Blackjack round: a table, chips on the felt, and
 an animation for every move.
 
+### R-016 Tapping on the table
+
+| | |
+|---|---|
+| Type | Feature |
+| Status | Planned |
+| Priority | P2 |
+| Size | M |
+| Games | Both |
+| Branch | — |
+| Added | 2026-11-22 |
+| Done | — |
+
+**Problem / goal.** At a real table, players drum on the felt when something exciting happens. Show it:
+hands tapping on the table, with the sound, on every phone.
+- **Chips mode:** a tap button in each player's dock. Pressing it makes *your* hand tap on the table at
+  your seat, on every phone. If several players press at once, several hands drum together.
+- **Card mode:** the table taps by itself when a first card is an ace (Q11: in Blackjack any player's
+  first card; in Hold'em the first card of the flop), and the button is there too (Q12).
+
+**Plan.**
+1. **Hands art**: an original SVG of a hand (a loose fist knocking, and a flat palm slapping), drawn in the
+   app's style, sized by the table unit `--u`, in a neutral tone. Two or three variants so a crowd doesn't
+   look copied.
+2. **Animation** on the `#fx` layer (outside `#app`, rule 3), WAAPI: the hand slides in from the rail at
+   the seat, taps three or four times (down fast, up slower, slight random timing and angle), the chips
+   on the felt near it jump 1–2 px on each hit, then the hand slides back. About 1.5 s. Several hands at
+   once start a few tens of milliseconds apart. `prefers-reduced-motion`: a small shake of the seat only.
+3. **Sound**: a wooden-table knock is an effect, so synthesized first (the existing `SND.knock` used for
+   check, made fuller and varied per hit). If it doesn't sound like hands on a table, one ElevenLabs sound
+   effect or a CC0 recording, previewed by the owner, credited in `sounds/CREDITS.md`. Kept under the chip
+   sounds; measured with `node tests/audio.js`.
+4. **Button**: a hand icon in the dock (both games), with a short label ("Tap" / "דפיקה"), in the catalog
+   from R-006. One press = one tapping burst. Limited to one burst every 2 seconds per player (the button
+   dims meanwhile), so it can't flood the table or the free quota.
+5. **Syncing the button**: pressing writes `tap: <time>` to the player's own document. Every phone sees the
+   new value in the snapshot diff and plays the hand at that player's seat. It deliberately does **not**
+   use `lastAction`: that field also feeds the "raised 200" text under a seat and the chip animations,
+   and a tap must not replace it. Phones on an older version ignore `tap`.
+6. **Card mode trigger**: the diff that turns new cards into deal animations (R-013) raises a `TableTap`
+   event when a first card is an ace; every other seated player's hand taps (not the lucky player's). No
+   write needed: every phone sees the same cards.
+7. **Seat positions**: Blackjack seats exist now; Hold'em gets seats in R-007, so this comes after it.
+   A player not seated at the table (the dealer who only deals) taps from the dealer's side.
+
+**Stored data.** Optional player `tap` (number, time of the last press). Fallback: missing = never tapped.
+Document in `docs/ARCHITECTURE.md`.
+
+**Effects and sound.** New `tap` handler next to `fxBJ` / `fxHold` (diff on `tap`, not `lastAction`);
+the card-mode trigger lives in the card diff (R-013).
+
+**Risks.** A slow phone that receives many taps at once: cap at 4 hands on screen, skip the rest. A phone
+that opens the table later must not replay old taps: only taps newer than the moment it joined play.
+
+**Tests.**
+- [ ] Two-phone test: phone A presses the button; phone B plays one tap at A's seat; pressing again within
+      2 seconds does nothing
+- [ ] A reloaded phone doesn't replay old taps
+- [ ] Screenshots mid-tap, portrait and landscape; `node tests/audio.js` for the knock
+- [ ] Card mode (with R-011/R-012): a dealt first ace makes the other seats tap on every phone
+
+**Docs to update.** `docs/ARCHITECTURE.md`, `README.md` (play), `CHANGELOG.md`.
+
+**Done when.** A press of the button, or an ace in the card mode, makes hands drum on the table on every
+phone.
+
 ### R-010 Card mode core: the app deals
 
 | | |
@@ -719,9 +793,13 @@ talk (R-014, R-015). The plans assume remote players.
    checks the request against the stored game state, answers. Only the Netlify site's origin is allowed
    (CORS); simple per-table rate limit. Secrets in Vercel settings: `DEALER_SECRET`, the service's private
    key, `FIREBASE_PROJECT_ID`. Unit tests for every "is this card due?" rule.
-4. **Vercel set-up** (owner, about 10 minutes, with a step-by-step in `README.md`): import the GitHub
-   repository into Vercel with root folder `dealer/`, add the secrets, and paste the service's address into
-   Netlify as `DEALER_URL` (written into `config.js` by `scripts/build-config.js`).
+4. **Vercel set-up, done by Claude** through the connected Vercel and Netlify tools (the owner approves
+   each step): create the Vercel project linked to this repository with root folder `dealer/`, generate a
+   random `DEALER_SECRET` and the service's key pair and store them as sensitive Vercel variables, then add
+   the service's address to Netlify as `DEALER_URL` (written into `config.js` by
+   `scripts/build-config.js`). The Vercel tools show no team on the owner's account yet, so the owner may
+   first need to finish signing in to Vercel and allow it to read the GitHub repository (a one-time
+   approval only the owner can give). `README.md` records the set-up so it can be redone.
 5. **Crypto** (`data/crypto.ts`): key pair create/store (IndexedDB, non-extractable private key), derive,
    encrypt, decrypt; unit tested in Node (WebCrypto is available there).
 6. **Request protocol** (`sync/requests.ts`): players send requests, the host engine consumes them in
@@ -815,7 +893,7 @@ chooses whether the extra card is dealt face up or face down.
 5. **Showing cards**: each hand's cards on the felt in front of its betting circle, the total next to
    them ("soft 17"); the dealer's cards at the top. Bust, blackjack and 21 badges.
 6. **Host panel** shrinks to: start/close betting, pause, rules, players. The settle sheet is not used.
-7. **Statistics** come later (R-008, step 11): keep each hand's final cards and totals in the stored
+7. **Statistics** come later (R-008, step 12): keep each hand's final cards and totals in the stored
    state so R-008 can count busts, 21s and dealer busts without changing this game.
 
 **Stored data.** `hands[i].cards` (public card codes such as `"AS"`, `"TD"`), room `g.dealer` (public
@@ -883,6 +961,7 @@ dealer's hole card, splits.
    - *Your Hold'em cards*: press-and-hold lifts and flips them in your dock; "Show my cards" flips them
      and leaves them up.
    - *Shuffle*: when the shoe is reshuffled, a short riffle at the shoe.
+   - *Aces*: a first card that is an ace raises the table-tap event from R-016.
 4. **Sounds** (rule 6): card slide (short filtered noise swish), flip (soft snap) and riffle shuffle are
    effects, so synthesized first. If they sound fake, use a CC0 recording or one ElevenLabs sound effect
    (one take, owner previews first), credited in `sounds/CREDITS.md`. Measured with `tests/audio.js`
@@ -947,7 +1026,7 @@ turn and river, showdown with automatic winners, side pots and payouts.
    down, the hand you currently hold is shown under them only while they're visible ("Pair of kings").
 6. **Host panel**: start the next hand (or automatic after N seconds), pause, rules (blinds, timer,
    blind increase schedule optional later).
-7. **Statistics** come later (R-008, step 11): keep each showdown's hand ranks in the stored state so
+7. **Statistics** come later (R-008, step 12): keep each showdown's hand ranks in the stored state so
    R-008 can count showdowns, best hand and wins by rank without changing this game.
 
 **Stored data.** Room `g.board` (public cards), `g.toAct`, `g.minRaise`; player `cardsEnc` (hole cards),
@@ -1144,6 +1223,53 @@ microphone in the background; echo when two players sit in the same room (push-t
 **Docs to update.** `docs/ARCHITECTURE.md`, `README.md`, `CHANGELOG.md`.
 
 **Done when.** Players in different places talk live during a game.
+
+### R-017 Lock down who can change the table
+
+| | |
+|---|---|
+| Type | Fix |
+| Status | Proposed |
+| Priority | P2 (P1 before the card mode, if wanted) |
+| Size | M |
+| Games | Both |
+| Branch | — |
+| Added | 2026-11-22 |
+| Done | — |
+
+**Problem / goal.** Today's Firestore rules let anyone who has the app and a table code write anything
+to that table: there is no sign-in, and the rules only check the code's format. The app itself behaves,
+but someone with technical knowledge could bypass it from a browser console and, for example, give
+themselves chips, change another player's stack, or move a card table to the next street. Any table's code
+can also be listed (`allow list: if true`). Fine among friends; worth closing before a card mode that
+remote players use.
+
+**Plan (outline; full plan if the owner wants it).**
+1. **Anonymous sign-in** with Firebase Auth (free on the Spark plan, no account or password for players):
+   each phone gets a stable user id the first time it opens the app.
+2. **Player documents** store that id (`uid`); new rules: a player document can only be written by its own
+   phone, except by the table's host (who pays out and adds players without phones).
+3. **Room document**: only the host's phone writes it (it already does all room writes today).
+4. **Card tables**: the dealer service writes the revealed cards with its own credentials, and nobody
+   else can change them.
+5. **Listing tables**: limit the home screen's list to open tables (`closed != true`) and drop listing of
+   every player.
+6. **Migration**: the new rules must accept old tables and old app versions until everyone has updated;
+   the owner pastes the rules into the Firebase console once (README steps).
+
+**Stored data.** Optional `uid` on players and `hostUid` on rooms. Old phones without them keep working
+until the rules are switched over.
+
+**Risks.** Rules changes are the one thing the owner must apply by hand, and a mistake locks every table:
+test the rules with the Firebase emulator before pasting. Host handover must move `hostUid`.
+
+**Tests.** Rules unit tests in the emulator (a player can't write another player's stack, a non-host
+can't write the room); the two-phone test passes with the new rules.
+
+**Docs to update.** `firestore.rules`, `README.md` (pasting the rules), `docs/ARCHITECTURE.md`,
+`CLAUDE.md` (the files table), `CHANGELOG.md`.
+
+**Done when.** Only the right phone can change each part of a table.
 
 ---
 
