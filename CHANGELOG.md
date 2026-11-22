@@ -35,7 +35,8 @@ Nothing yet.
 - Documentation: `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/TESTING.md`, `lessons-learned.md`, this file.
 - `ROADMAP.md`: every planned update and fix with a detailed plan, a template for new entries, and the
   first proposed entries; plans for version 2 (code foundations, English, Hold'em table, statistics,
-  card mode with animations, voice chat).
+  card mode with animations, voice messages, live voice), ordered by importance and updated with the
+  owner's decisions.
 - Browser tests in `tests/`: two phones syncing, layout screenshots, audio levels.
 
 ### Fixed

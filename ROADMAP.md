@@ -121,14 +121,13 @@ The v2 plans (R-005 to R-014) were added on the same branch on 2026-11-22.
 ## Version 2
 
 The owner's list from 2026-11-22, turned into entries. Nothing here is built yet. Each entry has a full
-plan. Where a choice belongs to the owner, the plan uses a recommended default, marked **Assumption**,
-and the question is listed under [Open questions](#open-questions).
+plan, written to the owner's [decisions](#decisions).
 
 **Start with #1 and go down.** Each step ends live on `main` (when you say so) before the next one
-starts, so the table keeps working between steps. "Answers needed" refers to the
-[open questions](#open-questions); a step can start once those are answered (or the defaults accepted).
+starts, so the table keeps working between steps. "Decided by" lists the [decisions](#decisions) the step
+follows; [still open](#still-open) are two small points with defaults.
 
-| # | Entry | Owner's item | Answers needed | Why here |
+| # | Entry | Owner's item | Decided by | Why here |
 |---|---|---|---|---|
 | 1 | [R-004](#r-004-dealer-writes-to-a-players-stack-can-overwrite-that-players-own-write) Fix the dealer write race | — | — | Live bug: chips can appear from nowhere at tonight's table. Small, and the players are on `main` now |
 | 2 | [R-003](#r-003-two-phone-test-for-a-holdem-hand) Hold'em two-phone test | 3, 7 | — | The safety net: without it the refactor and the new Hold'em table can break Hold'em unnoticed |
@@ -141,7 +140,8 @@ starts, so the table keeps working between steps. "Answers needed" refers to the
 | 9 | [R-013](#r-013-card-animations-and-sounds) Card animations and sounds | 4 | Q9 | Built together with R-011 (the card mode feels flat without them); the Hold'em motions are added in R-012 |
 | 10 | [R-012](#r-012-holdem-with-cards) Hold'em with cards | 2, 3 | Q8 | The hardest game logic (best hand, side pots, turns), on a proven engine and the R-007 table |
 | 11 | [R-008](#r-008-table-statistics) Table statistics | 6 | Q6 | After both modes exist, so every number is designed once for chips and cards instead of retrofitted |
-| 12 | [R-014](#r-014-voice-chat) Voice chat | 5 | Q1, Q5 | Independent of the rest; matters most if people play from different places. Moves up if that's the case |
+| 12 | [R-014](#r-014-voice-messages) Voice messages | 5 | Q1, Q5 | Voice messages: independent of the rest, and useful for remote players (Q1) |
+| 13 | [R-015](#r-015-live-voice-chat) Live voice chat | 5 | Q1, Q5 | Later, as decided; builds on R-014's microphone and playback |
 
 The reasoning in short: **fix what's broken for players today** (1), **put the safety nets in place**
 (2, 3), **rebuild the foundations once** (4), then **improve what players already use** (5, 6),
@@ -162,38 +162,31 @@ largest part of the whole plan.
   per phone listening. A busy night of the card mode could get near the read limit, so each card-mode
   entry measures writes per hand in the tests (see R-010).
 
-### Open questions
+### Decisions
 
-Answers change the plans; the defaults in the entries are what happens if nothing is said.
+The owner's answers of 2026-11-22. The entries below follow them.
 
-1. **Where are the players?** Today everyone sits at one real table. Is the card mode for the same room,
-   for players in different places, or both? This decides how much voice chat (R-014) and hidden cards
-   (R-010) matter. *Default: both.*
-2. **Build step.** The app has none today. R-005 recommends Vite + TypeScript + Preact (Netlify already
-   runs a build). The alternative is plain ES modules with no build. *Default: Vite + TypeScript + Preact.*
-3. **How hidden must cards be?** With no server, the phone that deals (the host's) knows every card.
-   The plan encrypts each player's cards so other phones can't see them, and lets players check after
-   each hand that the deck wasn't changed. Fully trustless dealing ("mental poker") is possible but slow
-   and complex; a server dealer needs Blaze. *Default: encrypted cards, host phone trusted.*
-4. **"From sounds to text."** The current sounds have no words. Do you want a spoken dealer voice
-   ("Your turn", "Blackjack!", "Place your bets") in both languages? If so: the phone's built-in voice
-   (free, quality varies, Hebrew voices are missing on some Android phones) or recorded clips made once
-   with a text-to-speech service (consistent, but they're files, so rule 6 changes). *Default: no spoken
-   voice; translate all text, including the words that float over the table.*
-5. **Voice chat style.** Live voice (push-to-talk, with an open-mic switch) or recorded voice messages,
-   or recorded first and live later? Live voice needs a relay server for some mobile networks
-   (Cloudflare, free tier; needs an account). *Default: recorded messages first, then live.*
-6. **Statistics scope.** Per table only, or also your own lifetime numbers on your phone across tables?
-   *Default: per table, plus lifetime numbers kept on your own phone.*
-7. **Blackjack rules for the card mode.** Defaults: 6 decks, reshuffle at 75%, dealer stands on soft 17,
-   peeks for blackjack, blackjack pays 3:2, double after split, late surrender, insurance, up to 4 hands,
-   split aces get one card. Which should the host be able to change?
-8. **Hold'em turn timer.** In the card mode, should a player who doesn't act in time be checked/folded
-   automatically? *Default: off; the host can turn on 30 / 60 seconds.*
-9. **Your own cards.** Always face up in your dock, or face down until you press and hold (so a
-   neighbour can't glance at your phone)? *Default: press and hold, with a setting to keep them up.*
-10. **App name in English.** The installed app is called "צ'יפים". An English name for the English
-    version (for example "Chips")? The home-screen name can't change by language after install.
+| # | Question | Decision |
+|---|---|---|
+| Q1 | Where are the players? | **Both**: the same room and different places. Card mode and voice must work for remote players |
+| Q2 | Build step | **Move to Vite + TypeScript + Preact** (R-005) |
+| Q3 | How hidden must cards be? | **The host's phone deals; cards encrypted to each player.** A server dealer would need Firebase's paid Blaze plan (see R-010, "Why not a server"); it stays a later option |
+| Q4 | Spoken voice | **The Hebrew dealer narration already on `main`** (11 recorded lines) gets an English version, and new lines come in both languages (R-006, R-013) |
+| Q5 | Voice chat | **Voice messages now** (R-014); **live voice later** (R-015) |
+| Q6 | Statistics scope | **Per table only** (R-008) |
+| Q7 | Blackjack rules | **The host can change every listed rule** when opening a card table (R-011) |
+| Q8 | Hold'em turn timer | **Off by default; the host can set 30 or 60 seconds** (R-012) |
+| Q9 | Your own cards | **Hold'em: face down, with a "Show my cards" button that keeps them up. Blackjack: always face up** (R-011, R-012) |
+| Q10 | English app name | **Yes: "Chips"** for the English version (R-006). Say if you prefer another |
+| New | Blackjack double down | **The player chooses face up or face down** when doubling, in the card mode (R-011, R-013) |
+
+### Still open
+
+- **Face-down double: who may see the card?** *Default:* nobody, not even the player, until the dealer
+  settles the hand (as at a casino).
+- **English narration voice.** Generating the English lines with ElevenLabs costs your credits (one take
+  per line, about 11 lines now). *Default:* I pick a clear English voice and send you a preview before
+  it ships.
 
 ---
 
@@ -376,7 +369,7 @@ trap (rule 2) has bitten three times. Before adding languages, a second game mod
 app into small modules with clear jobs, so each feature lives in its own place and the game rules can be
 tested without a browser. Players must see no difference.
 
-**Assumption.** Vite + TypeScript + Preact (open question 2). Reasons: types catch the "field is missing
+**Decision (Q2).** Vite + TypeScript + Preact. Reasons: types catch the "field is missing
 or wrong" class of bug that rule 1 guards against; Preact updates the page instead of replacing it, which
 removes the causes behind rule 3 (lost scroll, restarted animations, detached file inputs); Vite gives
 module bundling, hashed file names for caching, and a dev server. Netlify already runs a build command.
@@ -403,7 +396,7 @@ src/
     diff.ts               old/new documents → domain events (BetPlaced, HandPaid, StreetEnded…)
     events.ts             a small typed event bus
   fx/                     chip (and later card) animations, subscribed to domain events; the #fx layer
-  audio/                  sound bank, ambience, (later) voice
+  audio/                  synthesized effects, background player, narration (SND.say), (later) voice messages
   i18n/                   catalogs and t() (R-006)
   ui/
     app.tsx, screens/     Home, Room, Closed
@@ -440,7 +433,8 @@ src/
 **Plan.** Each phase ends with every test green and screenshots unchanged, and can go to `main` alone.
 1. **Tooling, same behaviour.** Add `package.json`, Vite, TypeScript, ESLint, Prettier, Vitest. Move the
    CSS to `src/styles/*.css` and the script into `src/legacy.ts` *unchanged* (typed loosely). Netlify
-   build: `node scripts/build-config.js && vite build`; publish `dist/`. `sw.js` gets its file list from
+   build: `node scripts/build-config.js && vite build`; publish `dist/`. `sounds/` (background and
+   narration MP3s) is copied as-is through Vite's `public/` folder, so its paths don't change. `sw.js` gets its file list from
    the build (hashed names) instead of the hand-written `SHELL`. Keep `config.js` loading as it is so the
    self-update keeps working. Add a screenshot comparison to `tests/screenshots.js` (pixel diff against
    images taken before the change) so "looks the same" is checked, not eyeballed.
@@ -501,8 +495,9 @@ fixed right-to-left, and some text is *stored* in the table (the event line unde
 player should choose English or Hebrew on their own phone, and players with different languages must be
 able to share a table. More languages should only need a new catalog file.
 
-**Assumption.** No spoken voice (open question 4); "sounds" means every word the app shows or floats over
-the table. If a spoken dealer voice is wanted, step 9 adds it.
+**Decisions (Q4, Q10).** Everything with words follows the language: text, the words that float over the
+table, and the dealer's narration (`SND.say`, 11 recorded Hebrew lines in `sounds/voice/` since the
+2026-11-21 release). The English version of the installed app is called "Chips".
 
 **Plan.**
 1. **Catalogs.** `src/i18n/he.ts` and `src/i18n/en.ts`, keys grouped by screen (`home.join`,
@@ -532,16 +527,27 @@ the table. If a spoken dealer voice is wanted, step 9 adds it.
 8. **Copy.** English: short, plain, sentence case, the same tone as the Hebrew. Hebrew stays
    gender-neutral (rule 7). A glossary of game terms in both languages (bet, stand, split, blind, pot,
    side pot…) at the top of `en.ts` so terms stay consistent.
-9. *(Only if open question 4 says yes)* **Spoken dealer voice**: `audio/voice.ts` with a short phrase list
-   per language, played on the same events as the jingles, its own switch in Settings, ducking the
-   ambience while it speaks. Built-in `speechSynthesis` or pre-rendered clips, as decided.
-10. **README** gets an English section (setup and play) after the Hebrew.
+9. **Narration in both languages.** Move the Hebrew lines to `sounds/voice/he/` and add
+   `sounds/voice/en/` with the same 11 keys (`open locked blackjack payout winner newhand flop turn river
+   allin closed`) in English ("Place your bets", "No more bets", "Blackjack!", "Paying the winners", "We
+   have a winner!", "New hand", "Flop", "Turn", "River", "All in!", "The table is closed. Thanks for
+   playing!"). Generated with ElevenLabs in a clear English voice, one take per line, trimmed and
+   normalised the same way as the Hebrew (`sounds/CREDITS.md` lists the steps); **send the owner a preview
+   before shipping**. `SND.say(key)` loads the phone's language and falls back to the Hebrew file if an
+   English one is missing. Measure with `node tests/audio.js` (about −20 dBFS, as now). Every later
+   narration line is made in both languages at once.
+10. **Installed app name.** Two manifests (`manifest.he.webmanifest` "צ'יפים", `manifest.en.webmanifest`
+    "Chips"); the page points `<link rel="manifest">` and the iPhone's `apple-mobile-web-app-title` at the
+    phone's language at start-up, so the app installs under the name in that language. An app already
+    installed keeps its name.
+11. **README** gets an English section (setup and play) after the Hebrew.
 
 **Stored data.** Adds optional `lastEvent.key` (string) and `lastEvent.p` (object). Fallback: show
 `lastEvent.t`. Document in `docs/ARCHITECTURE.md`. The language choice itself is per phone, not stored
 in the table.
 
-**Effects and sound.** Floating texts come from the catalog. No sound changes (unless step 9).
+**Effects and sound.** Floating texts come from the catalog. Narration follows the language (step 9);
+the background and effects have no words and don't change.
 
 **Risks.** Missed strings (the CI check covers Hebrew left in code; review English screens by eye).
 Physical CSS that should stay physical (the table geometry) must not be converted: convert rule by
@@ -554,8 +560,11 @@ both directions.
 - [ ] Screenshots of every screen in both languages, portrait, landscape and small phone
 - [ ] Catalog check: same keys in both files, no unused keys, no Hebrew outside `he.ts`
 - [ ] A phone on the old version at the same table still shows a Hebrew event line
+- [ ] `node tests/audio.js` measures the English narration at the same level as the Hebrew; the owner
+      has listened to the preview
 
-**Docs to update.** `CLAUDE.md` (rule 7 becomes "copy in both catalogs"; new rule: no text in code),
+**Docs to update.** `CLAUDE.md` (rule 7 becomes "copy in both catalogs"; new rule: no text in code;
+rule 6: narration in both languages), `sounds/CREDITS.md` (the English lines and voice),
 `docs/ARCHITECTURE.md` (i18n, new `lastEvent` fields), `README.md`, `CHANGELOG.md`.
 
 **Done when.** Every word in the app follows the phone's chosen language, and mixed-language tables work.
@@ -641,8 +650,23 @@ an animation for every move.
 enforces turns, decides results and pays. This entry is the shared engine; R-011 and R-012 are the two
 games on top of it.
 
-**Assumption.** No server (Spark plan), so one phone runs the game: the host's. Each player's cards are
-encrypted so only that player's phone can read them (open question 3).
+**Decisions (Q1, Q3).** Players may be in the same room or in different places. One phone runs the game:
+the host's. Each player's cards are encrypted so only that player's phone can read them.
+
+**Why not a server.** Hidden cards need somewhere to keep the deck that no player can look into: a
+server. Firebase's servers (Cloud Functions) only run on the paid Blaze plan. Blaze has a free monthly
+allowance that a home game would stay inside (so in practice $0), but it needs a credit card and has no
+hard spending cap (budget alerts only warn). Netlify Functions are on the current plan, but on Netlify's
+free plan they share the monthly credits that keep the site itself online: when the credits run out, the
+site pauses until the next month, which would take the whole table down. So the host's phone deals. If
+the owner later moves to Blaze, the dealer engine (pure code, R-005) can move to a Cloud Function with no
+change to the games, and then no phone knows the deck.
+
+**Why "both places" matters.** In the same room, people see each other and talk, so hidden cards only need
+to stop a glance at the database, and voice chat adds little. With remote players, the app is the only
+table: everything a player would see across a real table (who's thinking, cards shown at showdown,
+chips moving) must be on screen, the game must not stall when one phone sleeps, and they need a way to
+talk (R-014, R-015). The plans assume remote players.
 
 **How it works.**
 - **The host phone is the dealer engine.** It holds the shuffled shoe, deals, applies every action and
@@ -735,7 +759,12 @@ over safely; the two games (R-011, R-012) plug into it.
 **Problem / goal.** The whole Blackjack round inside the app: bets, the deal, hit/stand/double/split/
 surrender/insurance, the dealer's play, results and payouts, with no one marking results by hand.
 
-**Assumption.** House rules from open question 7, set by the host when opening the table.
+**Decisions (Q7, Q9, double down).** The host sets every house rule when opening the table: number of decks
+(1–8, default 6), reshuffle point (default 75%), dealer stands or hits on soft 17 (default stands),
+dealer peeks for blackjack (default yes), blackjack pays 3:2 or 6:5 (default 3:2), double after split
+(default yes), surrender (default late), insurance (default on), most hands per player (2–4, default 4),
+split aces get one card (default yes). Players' cards are always face up. When doubling, the player
+chooses whether the extra card is dealt face up or face down.
 
 **Plan.**
 1. **Rules engine** (`domain/blackjack/cards.ts`): hand totals (soft/hard), blackjack detection, legal
@@ -747,24 +776,32 @@ surrender/insurance, the dealer's play, results and payouts, with no one marking
    payout → cards collected → next round. Reshuffle when the cut card comes out.
 3. **Player moves**: buttons for the legal moves only (Hit, Stand, Double, Split, Surrender, Insurance),
    sent as requests. Automatic stand on 21. Optional turn timer → stand.
-4. **Showing cards**: each hand's cards on the felt in front of its betting circle, the total next to
+4. **Double down face up or face down.** Pressing Double opens a two-button choice, "Face up" / "Face
+   down", with "Remember my choice" (saved on the phone; changeable in Settings). Face up: the card is
+   dealt open as usual. Face down: the card is dealt sideways and closed, the hand's total shows as
+   "?", and the card stays encrypted to the host until the dealer has played; then it is turned over and
+   the hand is settled. *Default (still open):* nobody sees it before then, not even the player. A
+   face-down card can't make the player bust before the dealer plays, so the dealer always plays out.
+5. **Showing cards**: each hand's cards on the felt in front of its betting circle, the total next to
    them ("soft 17"); the dealer's cards at the top. Bust, blackjack and 21 badges.
-5. **Host panel** shrinks to: start/close betting, pause, rules, players. The settle sheet is not used.
-6. **Statistics** come later (R-008, step 11): keep each hand's final cards and totals in the stored
+6. **Host panel** shrinks to: start/close betting, pause, rules, players. The settle sheet is not used.
+7. **Statistics** come later (R-008, step 11): keep each hand's final cards and totals in the stored
    state so R-008 can count busts, 21s and dealer busts without changing this game.
 
 **Stored data.** `hands[i].cards` (public card codes such as `"AS"`, `"TD"`), room `g.dealer` (public
-dealer cards), the hole card encrypted to the host until revealed. Existing `bet`, `doubled`, `split`,
-`result`, `paid` keep their meaning.
+dealer cards), the hole card encrypted to the host until revealed. Face-down double: `hands[i].down: true`
+and a `"??"` placeholder in `cards` until it is turned over (the real card encrypted to the host in
+`g.hidden`). Existing `bet`, `doubled`, `split`, `result`, `paid` keep their meaning.
 
-**Effects and sound.** R-013 (deal, hit, flip, collect); the chip payouts reuse `bjres`.
+**Effects and sound.** R-013 (deal, hit, face-down double, flip, collect); the chip payouts reuse
+`bjres`.
 
 **Risks.** Split edge cases (split aces, re-splits, 21 after split is not blackjack): unit tests first.
 A player leaving mid-round: their hands stand automatically.
 
 **Tests.**
-- [ ] Unit: every rule above, including dealer soft 17 both ways and insurance with and without a dealer
-      blackjack
+- [ ] Unit: every rule above, including dealer soft 17 both ways, insurance with and without a dealer
+      blackjack, each host rule switched on and off, and a face-down double that would have won and lost
 - [ ] Harness: a full scripted round with a fixed shuffle (test hook), three phones; payouts and house
       balance exact on all phones
 - [ ] Screenshots: 1, 4 and 7 players with splits, portrait and landscape
@@ -808,15 +845,26 @@ dealer's hole card, splits.
    - *Showdown*: the remaining players' cards flip in showdown order; the winning five cards lift
      slightly and glow, the rest dim.
    - *Fold / muck*: the cards slide face down to the muck in the centre.
-   - *Blackjack*: hit cards fly to the hand and fan; the dealer's hole card flips when the dealer plays;
-     split: the second card slides to the new betting circle and each gets a new card; round end: all
-     cards sweep to the discard tray.
+   - *Blackjack*: player cards always land face up; hit cards fly to the hand and fan; the dealer's hole
+     card flips when the dealer plays; split: the second card slides to the new betting circle and each
+     gets a new card; round end: all cards sweep to the discard tray.
+   - *Double down*: the doubling chips fly next to the bet (as today), then one card arrives sideways
+     across the hand: face up, or **face down** if the player chose it. A face-down card flips over
+     after the dealer has played, just before that hand is paid.
+   - *Your Hold'em cards*: press-and-hold lifts and flips them in your dock; "Show my cards" flips them
+     and leaves them up.
    - *Shuffle*: when the shoe is reshuffled, a short riffle at the shoe.
-4. **Sounds**, synthesized like the rest: card slide (short filtered noise swish), flip (soft snap),
-   riffle shuffle, all measured with `tests/audio.js` and kept below the chip sounds.
-5. **Driven by state** (rule 4): new cards in the state → the matching animation. A phone that joins
+4. **Sounds** (rule 6): card slide (short filtered noise swish), flip (soft snap) and riffle shuffle are
+   effects, so synthesized first. If they sound fake, use a CC0 recording or one ElevenLabs sound effect
+   (one take, owner previews first), credited in `sounds/CREDITS.md`. Measured with `tests/audio.js`
+   and kept below the chip sounds.
+5. **New narration lines**, recorded in Hebrew and English together (R-006), same voice as the existing
+   lines, owner previews first: "Dealer has {n}" is too many files, so short fixed lines only:
+   "Dealer busts", "Dealer has blackjack", "Insurance?", "Shuffling", "Showdown", "Split pot". Triggered
+   from the change→animation code like the existing ones.
+6. **Driven by state** (rule 4): new cards in the state → the matching animation. A phone that joins
    mid-hand shows the table as it is, without replaying history.
-6. **Reduced motion**: respect `prefers-reduced-motion` (fades instead of flights).
+7. **Reduced motion**: respect `prefers-reduced-motion` (fades instead of flights).
 
 **Stored data.** None beyond R-011 / R-012.
 
@@ -859,13 +907,15 @@ turn and river, showdown with automatic winners, side pots and payouts.
    → betting rounds with enforced turn order (from R-007's turn logic, now enforced) → burn and deal
    flop (3), turn, river → showdown. If everyone but one folds, that player wins without showing.
    If all remaining players are all-in, the remaining board is dealt with no more betting.
-3. **Actions** as requests: fold, check, call, bet/raise (min raise enforced), all-in. Optional turn
-   timer: check if possible, otherwise fold.
+3. **Actions** as requests: fold, check, call, bet/raise (min raise enforced), all-in. Turn timer
+   (decision Q8): off by default; the host can set 30 or 60 seconds. When it runs out: check if
+   possible, otherwise fold. The last 10 seconds show as a ring round the seat on every phone.
 4. **Showdown**: the last aggressor shows first, then clockwise; losing hands may be mucked (setting:
    auto-muck losers). Winners per pot level from the evaluator, then today's `computeAward` side-pot
    logic pays each pot; odd chips to the first winner after the button.
-5. **Your cards**: in your dock, large; face down until you press and hold (open question 9). The hand
-   rank you currently hold is shown under them ("Pair of kings").
+5. **Your cards** (decision Q9): in your dock, large, **face down**. Press and hold to look; a "Show my
+   cards" button keeps them face up until pressed again (remembered on the phone). Whether face up or
+   down, the hand you currently hold is shown under them only while they're visible ("Pair of kings").
 6. **Host panel**: start the next hand (or automatic after N seconds), pause, rules (blinds, timer,
    blind increase schedule optional later).
 7. **Statistics** come later (R-008, step 11): keep each showdown's hand ranks in the stored state so
@@ -906,7 +956,7 @@ nothing.
 **Problem / goal.** A statistics board for the table: per player and for the whole table, with numbers
 that fit the game and the mode (the chips mode doesn't know cards, so it can't count busts).
 
-**Assumption.** Per table, plus each player's lifetime numbers on their own phone (open question 6).
+**Decision (Q6).** Per table only.
 
 **What is counted.**
 
@@ -930,13 +980,11 @@ that fit the game and the mode (the chips mode doesn't know cards, so it can't c
    host at each payout; when full, every second point is dropped, so the chart always spans the whole
    game at lower detail. About 8 KB.
 4. **Board.** A Statistics sheet (button in the room header) with three tabs: Table, Players (sortable
-   table), Me. Leaders get a small badge ("most blackjacks"). A stack-over-time line chart (inline SVG,
+   table), Me (your own numbers at this table). Leaders get a small badge ("most blackjacks"). A stack-over-time line chart (inline SVG,
    one line per player, tap to highlight).
 5. **End of game.** The ceremony and the final card show 3–4 awards (biggest pot, most blackjacks, best
    streak). Closed tables keep their statistics.
-6. **Lifetime (on the phone).** When a table closes, each phone adds its own player's numbers to a
-   lifetime record in localStorage, shown in the Me tab. Nothing new stored in Firestore.
-7. **Host controls.** Reset statistics (writes `statsFrom` = current round and clears the counters).
+6. **Host controls.** Reset statistics (writes `statsFrom` = current round and clears the counters).
 
 **Stored data.** Optional `stats` (map of counters) on players and room; optional room `hist` (array) and
 `statsFrom` (round or hand number). Fallbacks: missing `stats` shows "—"; missing `statsFrom` means "since
@@ -960,7 +1008,7 @@ statistics too. Write size: the counters add a few hundred bytes per player docu
 **Done when.** At any point, and at the end of the game, every phone shows the same statistics, and they
 match a hand-counted session.
 
-### R-014 Voice chat
+### R-014 Voice messages
 
 | | |
 |---|---|
@@ -973,24 +1021,14 @@ match a hand-counted session.
 | Added | 2026-11-22 |
 | Done | — |
 
-**Problem / goal.** Players talk to each other through the app, by recorded messages or live voice.
+**Problem / goal.** Players send each other short voice messages at the table (decision Q5: messages now,
+live voice later as R-015). Useful most for players in different places (Q1).
 
-**Recommendation.** Two phases (open questions 1 and 5):
-- **Phase A: voice messages (walkie-talkie).** Hold the microphone button, speak (up to 15 seconds),
-  release; every phone at the table plays it with the speaker's seat glowing. Works on any network, needs
-  no new service, stays inside the free plan, and suits banter at a game ("nice hand"). Not a
-  conversation, though.
-- **Phase B: live voice.** Real-time audio between phones (WebRTC), push-to-talk by default with an
-  open-mic switch. The right choice for players in different places. Phones connect directly to each
-  other (fine up to about 8 players); the table's documents carry the connection set-up, so no new
-  Firestore collection is needed. Some mobile networks block direct connections; those need a relay
-  (TURN) server. Cloudflare's is free at this scale but needs an account and a tiny Netlify Function to
-  hand out short-lived passwords. Hosted voice services (LiveKit, Daily) are the alternative: less code,
-  another account and key.
+**How it works.** Hold the microphone button, speak (up to 15 seconds), release; every phone at the table
+plays it with the speaker's seat glowing. Works on any network, needs no new service, and stays inside
+the free plan.
 
-If players are always in the same room, voice chat adds little; then Phase A alone, or nothing.
-
-**Plan, Phase A.**
+**Plan.**
 1. **Record** with `MediaRecorder`: Opus in WebM where supported (Chrome, Android), AAC in MP4 on
    iPhones; mono, ~16 kbit/s, so 15 seconds ≈ 30 KB.
 2. **Send**: write to the sender's own player document as `vmsg: {id, mime, data (base64), dur, at}`.
@@ -1003,7 +1041,53 @@ If players are always in the same room, voice chat adds little; then Phase A alo
 5. **Permissions**: microphone is asked on the first press, with a one-line explanation; a refusal
    hides the button.
 
-**Plan, Phase B.**
+**Stored data.** Optional player `vmsg` (`{id, mime, data, dur, at}`). Fallback: missing means no
+message. Old phones ignore it.
+
+**Effects and sound.** The background and narration duck while a message plays (the same 6 dB ducking
+the narration uses); the speaker's seat glows. A message never interrupts the narration: it waits. No
+`lastAction` (voice doesn't move chips).
+
+**Risks.** iPhones change the audio route when the microphone is on (sound may move to the earpiece and
+the other sounds get quieter): test recording on a real iPhone first, before building the UI. The clip
+travels with the player document until cleared after 30 seconds; measure the extra traffic. Privacy: say
+in the README that messages pass through the table's database and are deleted after 30 seconds.
+
+**Tests.**
+- [ ] Unit: message queue (order, skipping old messages, waiting for narration)
+- [ ] Harness: phone A sends a generated audio clip (Playwright fake microphone), phone B receives and
+      plays it once
+- [ ] By hand: iPhone → Android and Android → iPhone
+
+**Docs to update.** `docs/ARCHITECTURE.md`, `README.md` (voice messages and privacy), `CHANGELOG.md`.
+
+**Done when.** A held button sends a message that every phone at the table hears once.
+
+### R-015 Live voice chat
+
+| | |
+|---|---|
+| Type | Feature |
+| Status | Proposed |
+| Priority | P2 |
+| Size | L |
+| Games | Both |
+| Branch | — |
+| Added | 2026-11-22 |
+| Done | — |
+
+**Problem / goal.** Players in different places talk live, as if at one table (decision Q5: after R-014).
+
+**How it works.** Real-time audio between phones (WebRTC), push-to-talk by default with an open-mic switch.
+Phones connect directly to each other (fine up to about 8 players); the table's documents carry the
+connection set-up, so no new Firestore collection is needed. Some mobile networks block direct
+connections; those need a relay (TURN) server. Cloudflare's is free at this scale but needs an account,
+plus a tiny Netlify Function that hands out short-lived passwords (one call per player per table, far too
+few to matter for the Netlify credits that R-010 worries about). A hosted voice service (LiveKit, Daily)
+is the alternative: less code, another account and key. Decide between them when this entry is planned
+in full.
+
+**Plan.**
 1. **Connections**: one `RTCPeerConnection` per other player, set up with the "perfect negotiation"
    pattern; offers, answers and network candidates go in the sender's own player document
    (`rtc: {[peerPid]: {sdp, ice[]}}`), which every phone already listens to.
@@ -1016,29 +1100,21 @@ If players are always in the same room, voice chat adds little; then Phase A alo
 5. **Lifecycle**: join voice on entering the table (only after a tap, for permissions), leave on going
    home or when the screen locks; reconnect on network change.
 
-**Stored data.** Phase A: optional player `vmsg`. Phase B: optional player `rtc`, `voice` (on/off,
-for the seat icon). Fallback: missing means no voice for that player. Old phones ignore them.
+**Stored data.** Optional player `rtc` (connection set-up) and `voice` (on/off, for the seat icon).
+Fallback: missing means that player isn't in voice. Old phones ignore them.
 
-**Effects and sound.** Ambience ducking while someone talks; seat glow. No `lastAction` (voice doesn't
-move chips).
+**Effects and sound.** Background and narration duck while someone talks; a speaking ring on the seat.
 
-**Risks.** iPhones change the audio route when the microphone is on (sound may move to the earpiece and
-the Web Audio sounds get quieter); test on a real iPhone first, before building the UI. Browsers stop
-the microphone in the background. Firestore traffic: the voice clip travels with the player document
-until cleared; measure. Privacy: say in the README that messages pass through the table's database and
-are deleted after 30 seconds.
+**Risks.** The same iPhone audio-route problem as R-014, more so with an open microphone; browsers stop the
+microphone in the background; echo when two players sit in the same room (push-to-talk default helps).
 
 **Tests.**
-- [ ] Unit: message queue (order, skipping old messages)
-- [ ] Harness: phone A sends a generated audio clip (Playwright fake microphone), phone B receives and
-      plays it once
-- [ ] Phase B: two browser contexts with fake media connect and exchange audio; by hand on two real
-      phones on different networks (Wi-Fi and cellular)
+- [ ] Two browser contexts with fake media connect and exchange audio
+- [ ] By hand on two real phones on different networks (Wi-Fi and cellular)
 
-**Docs to update.** `docs/ARCHITECTURE.md`, `README.md` (voice and privacy), `CHANGELOG.md`.
+**Docs to update.** `docs/ARCHITECTURE.md`, `README.md`, `CHANGELOG.md`.
 
-**Done when.** Phase A: a held button sends a message every phone at the table hears. Phase B: players in
-different places talk live.
+**Done when.** Players in different places talk live during a game.
 
 ---
 
