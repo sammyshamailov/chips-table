@@ -125,7 +125,7 @@ plan, written to the owner's [decisions](#decisions).
 
 **Start with #1 and go down.** Each step ends live on `main` (when you say so) before the next one
 starts, so the table keeps working between steps. "Decided by" lists the [decisions](#decisions) the step
-follows; [still open](#still-open) are two small points with defaults.
+follows.
 
 | # | Entry | Owner's item | Decided by | Why here |
 |---|---|---|---|---|
@@ -152,9 +152,10 @@ largest part of the whole plan.
 
 ### Constraints every v2 entry keeps
 
-- **Firebase stays on the free Spark plan** unless the owner decides otherwise. That rules out Cloud
-  Functions (a server that could deal cards) and Cloud Storage (files such as voice clips): both need the
-  paid Blaze plan. Everything below works without them, and says so where Blaze would make it simpler.
+- **Everything stays free.** Firebase stays on the free Spark plan, which has no server code (Cloud
+  Functions) and no file storage (Cloud Storage): both need the paid Blaze plan. The one piece that needs
+  a server, the card dealer (R-010), runs on Vercel's free Hobby plan, separate from the Netlify site so
+  it can never take the site down.
 - **No new Firestore collections** (`firestore.rules` would have to be pasted again). New data goes into
   `rooms/{CODE}` and `rooms/{CODE}/players/{pid}` as optional fields.
 - **The chips-only mode stays exactly as it is** for players, and its stored data keeps its meaning.
@@ -170,7 +171,7 @@ The owner's answers of 2026-11-22. The entries below follow them.
 |---|---|---|
 | Q1 | Where are the players? | **Both**: the same room and different places. Card mode and voice must work for remote players |
 | Q2 | Build step | **Move to Vite + TypeScript + Preact** (R-005) |
-| Q3 | How hidden must cards be? | **The host's phone deals; cards encrypted to each player.** A server dealer would need Firebase's paid Blaze plan (see R-010, "Why not a server"); it stays a later option |
+| Q3 | How hidden must cards be? | **A small free dealer service on Vercel holds the deck**, so no phone knows a card before it is dealt; Firebase stays for syncing the table (R-010, "Where the deck lives") |
 | Q4 | Spoken voice | **The Hebrew dealer narration already on `main`** (11 recorded lines) gets an English version, and new lines come in both languages (R-006, R-013) |
 | Q5 | Voice chat | **Voice messages now** (R-014); **live voice later** (R-015) |
 | Q6 | Statistics scope | **Per table only** (R-008) |
@@ -178,15 +179,12 @@ The owner's answers of 2026-11-22. The entries below follow them.
 | Q8 | Hold'em turn timer | **Off by default; the host can set 30 or 60 seconds** (R-012) |
 | Q9 | Your own cards | **Hold'em: face down, with a "Show my cards" button that keeps them up. Blackjack: always face up** (R-011, R-012) |
 | Q10 | English app name | **Yes: "Chips"** for the English version (R-006). Say if you prefer another |
-| New | Blackjack double down | **The player chooses face up or face down** when doubling, in the card mode (R-011, R-013) |
+| New | Blackjack double down | **The player chooses face up or face down** when doubling, in the card mode. Face down means nobody looks, the player included, until the dealer settles (R-011, R-013) |
+| New | English narration voice | **Claude picks a clear English voice and sends the owner a preview** before it ships (R-006) |
 
 ### Still open
 
-- **Face-down double: who may see the card?** *Default:* nobody, not even the player, until the dealer
-  settles the hand (as at a casino).
-- **English narration voice.** Generating the English lines with ElevenLabs costs your credits (one take
-  per line, about 11 lines now). *Default:* I pick a clear English voice and send you a preview before
-  it ships.
+Nothing at the moment.
 
 ---
 
@@ -531,7 +529,7 @@ table, and the dealer's narration (`SND.say`, 11 recorded Hebrew lines in `sound
    `sounds/voice/en/` with the same 11 keys (`open locked blackjack payout winner newhand flop turn river
    allin closed`) in English ("Place your bets", "No more bets", "Blackjack!", "Paying the winners", "We
    have a winner!", "New hand", "Flop", "Turn", "River", "All in!", "The table is closed. Thanks for
-   playing!"). Generated with ElevenLabs in a clear English voice, one take per line, trimmed and
+   playing!"). Generated with ElevenLabs in a clear English voice Claude picks (decided), one take per line, trimmed and
    normalised the same way as the Hebrew (`sounds/CREDITS.md` lists the steps); **send the owner a preview
    before shipping**. `SND.say(key)` loads the phone's language and falls back to the Hebrew file if an
    English one is missing. Measure with `node tests/audio.js` (about −20 dBFS, as now). Every later
@@ -650,17 +648,39 @@ an animation for every move.
 enforces turns, decides results and pays. This entry is the shared engine; R-011 and R-012 are the two
 games on top of it.
 
-**Decisions (Q1, Q3).** Players may be in the same room or in different places. One phone runs the game:
-the host's. Each player's cards are encrypted so only that player's phone can read them.
+**Decisions (Q1, Q3).** Players may be in the same room or in different places. The deck lives in a small
+dealer service on Vercel (free), so no phone knows a card before it is dealt. The host's phone runs the
+turn order. Each player's private cards are encrypted so only that player's phone can read them.
 
-**Why not a server.** Hidden cards need somewhere to keep the deck that no player can look into: a
-server. Firebase's servers (Cloud Functions) only run on the paid Blaze plan. Blaze has a free monthly
-allowance that a home game would stay inside (so in practice $0), but it needs a credit card and has no
-hard spending cap (budget alerts only warn). Netlify Functions are on the current plan, but on Netlify's
-free plan they share the monthly credits that keep the site itself online: when the credits run out, the
-site pauses until the next month, which would take the whole table down. So the host's phone deals. If
-the owner later moves to Blaze, the dealer engine (pure code, R-005) can move to a Cloud Function with no
-change to the games, and then no phone knows the deck.
+**Where the deck lives.** Hidden cards need somewhere to keep the deck that no player can look into, and
+that place has to run code (shuffle, decide what may be shown). Firebase's free plan stores and syncs
+data but runs no code: its security rules can only allow or refuse a read or write; they can't shuffle or
+keep a secret. Firebase's code (Cloud Functions) needs the paid Blaze plan. The other options:
+
+| | Verdict |
+|---|---|
+| **Vercel** (free Hobby plan) | **Chosen.** Free serverless functions, far more than a game night uses (about 1,500–3,000 calls). Separate from the Netlify site: if a limit were ever hit, Vercel pauses only the dealer, so chips tables keep working. Already connected here |
+| Netlify Functions | Same account as the site. On Netlify's free plan, functions draw on the same monthly credits that keep the site online; running out pauses the whole site until next month |
+| Supabase Edge Functions | Free, but a free Supabase project is paused after a week without database activity: with weekly game nights it could be asleep when the table opens |
+| Firebase Blaze | Works well and would stay inside the free allowance, but needs a credit card and has no hard spending cap |
+
+**The dealer service** (`dealer/`, a separate Vercel project from the same repository):
+- **Holds no data.** Each deck is derived from a secret kept in Vercel's settings: the shuffle for a hand is
+  driven by HMAC-SHA256(secret, table code + hand or shoe number + a random salt the host writes when the
+  hand starts). Same inputs, same deck, so nothing is stored on the server and any call can recompute it.
+- **Reads the table, never trusts the caller.** For every call it reads the room and player documents from
+  Firestore over its public REST interface (the rules already allow reading) and only reveals what the
+  game state says is due: the flop once the table is on the flop, the next Blackjack card when a hit is
+  pending, the dealer's hole card when the dealer plays, a face-down double when the hand is settled,
+  showdown cards at showdown.
+- **Private cards are encrypted to their owner.** Every phone publishes a public key on its player
+  document; the service encrypts that player's hole cards to the key *it reads from Firestore* (not one
+  sent in the call), so anyone may ask, but only that phone can read the answer.
+- **Proves it played fair.** At the start of each hand it gives a hash of the deck order; after the hand
+  it reveals the order and salt, and every phone checks the hash.
+- **The honest limit.** The table documents are writable by anyone with the app (today's rules). Someone
+  who forged the table state to reveal a card early would make the table jump on every phone, so it can't
+  be done quietly. The owner, who holds the secret, could compute decks.
 
 **Why "both places" matters.** In the same room, people see each other and talk, so hidden cards only need
 to stop a glance at the database, and voice chat adds little. With remote players, the app is the only
@@ -669,51 +689,56 @@ chips moving) must be on screen, the game must not stall when one phone sleeps, 
 talk (R-014, R-015). The plans assume remote players.
 
 **How it works.**
-- **The host phone is the dealer engine.** It holds the shuffled shoe, deals, applies every action and
-  writes the results. Players never change shared game state directly: they write a request to their own
+- **The host phone runs the game.** It asks the dealer service for cards, applies every action and
+  writes the results. It never sees a card before everyone else does. Players never change shared game state directly: they write a request to their own
   player document (`req: {id, k, amt}`); the host validates it against the rules (turn, amount, legal
   move), applies it, and acknowledges (`ack: id`). One writer for game state means no write races (the
   R-004 class of bug can't happen in this mode).
-- **Shuffle**: Fisher–Yates with `crypto.getRandomValues` and rejection sampling (no modulo bias).
+- **Shuffle** (in the service): Fisher–Yates driven by the HMAC stream, with rejection sampling (no
+  modulo bias).
 - **Hidden cards**: every phone creates a key pair (WebCrypto ECDH P-256) once and publishes the public
-  key on its player document (`pub`); the private key never leaves the phone. The host encrypts each
-  player's private cards (Hold'em hole cards, the Blackjack dealer's hole card for itself) with AES-GCM
-  using a key derived from its own private key and the player's public key, and writes the ciphertext to
-  that player's document (`cardsEnc`). Only that player's phone (and the host's) can decrypt.
-  Public cards (the board, Blackjack player cards, cards shown at showdown) are written in plain text.
-- **The shoe** is stored encrypted to the host itself (`shoeEnc`), so a host phone that reloads can carry
-  on. At the start of each hand the host publishes a hash of the shuffled deck plus a random salt
-  (`commit`); at the end it reveals the salt and order, and every phone checks the hash. A host phone
-  that changed the deck mid-hand gets caught. The honest limit: the host's phone *can* read every card;
-  the app never shows them, but someone with developer tools on the host phone could.
-- **Host handover**: `mkhost` hands over the shoe key (re-encrypted to the new host). If the host phone
-  disappears mid-hand (closed, out of battery), after 20 seconds of silence any player can take over:
-  the current hand is cancelled and every bet refunded (chip state is public), and the new host
-  shuffles a new shoe. Hosting keeps the screen on (Screen Wake Lock).
-- **Single-device mode**: all seats on one phone, so hidden cards need a "pass the phone" curtain:
-  "Pass to Dana – tap to see your cards".
+  key on its player document (`pub`); the private key never leaves the phone. The service encrypts each
+  player's private cards with AES-GCM using a key derived from the service's own key pair and the
+  player's public key; the host writes the ciphertext to that player's document (`cardsEnc`). Public
+  cards (the board, Blackjack player cards, cards shown at showdown) are written in plain text.
+- **Host handover**: the host holds no secret, so handing over is just `mkhost`. If the host phone
+  disappears mid-hand (closed, out of battery), after 20 seconds of silence any player can take over and
+  **the hand carries on** from the stored state. Hosting keeps the screen on (Screen Wake Lock).
+- **Single-device mode** (no Firebase config): no service; the phone shuffles locally, and hidden cards
+  need a "pass the phone" curtain: "Pass to Dana – tap to see your cards".
+- **If the service can't be reached** (no network, Vercel down): the table shows "The dealer isn't
+  answering" and retries; nothing is dealt and no chips move until it answers.
 
 **Plan.**
 1. **Create screen**: a "With cards / Without cards" choice under the game choice, with one line
    explaining each. Card tables get their rule settings (R-011, R-012).
-2. **Domain** (`domain/cards/`): card type, deck/shoe, shuffle, commit/verify; pure and unit tested.
-3. **Crypto** (`data/crypto.ts`): key pair create/store (IndexedDB, non-extractable private key), derive,
+2. **Domain** (`domain/cards/`): card type, deck/shoe, shuffle from a byte stream, commit/verify; pure,
+   unit tested, and shared by the app (single-device mode) and the service.
+3. **Dealer service** (`dealer/api/cards.ts`, TypeScript, Vercel): one endpoint, `POST {room, hand,
+   want: 'commit' | 'hole' | 'board' | 'next' | 'dealer' | 'reveal', pid?}`. Reads Firestore over REST,
+   checks the request against the stored game state, answers. Only the Netlify site's origin is allowed
+   (CORS); simple per-table rate limit. Secrets in Vercel settings: `DEALER_SECRET`, the service's private
+   key, `FIREBASE_PROJECT_ID`. Unit tests for every "is this card due?" rule.
+4. **Vercel set-up** (owner, about 10 minutes, with a step-by-step in `README.md`): import the GitHub
+   repository into Vercel with root folder `dealer/`, add the secrets, and paste the service's address into
+   Netlify as `DEALER_URL` (written into `config.js` by `scripts/build-config.js`).
+5. **Crypto** (`data/crypto.ts`): key pair create/store (IndexedDB, non-extractable private key), derive,
    encrypt, decrypt; unit tested in Node (WebCrypto is available there).
-4. **Request protocol** (`sync/requests.ts`): players send requests, the host engine consumes them in
+6. **Request protocol** (`sync/requests.ts`): players send requests, the host engine consumes them in
    order of arrival, applies the pure game function, writes results, acknowledges. Duplicate request ids
    are ignored. The player's UI shows the action as pending until acknowledged (with a spinner after
    1 s and an error after 10 s).
-5. **Host engine loop**: runs only on the host phone; timers for turn timeouts (if on) and automatic
+7. **Host engine loop**: runs only on the host phone; asks the service for cards; timers for turn timeouts (if on) and automatic
    steps (dealer plays in Blackjack, next street in Hold'em).
-6. **Waiting-for-host banner** and take-over flow.
-7. **Reuse chip state**: card tables keep `stack`, `hands[]`, `committed`, `streetBet` with the same
+8. **Waiting-for-host banner** and take-over flow (the hand continues).
+9. **Reuse chip state**: card tables keep `stack`, `hands[]`, `committed`, `streetBet` with the same
    meaning, so chip animations, the ceremony, statistics and the end of game work unchanged.
-8. **Quota check**: count writes and reads per hand in the harness; target under 120 reads per hand per
-   player. If over, batch the host's writes for one action into one write where possible.
-9. **CLAUDE.md rule 5** becomes: "Chips mode: chips only, no card visuals or sounds. Card mode: cards are
+10. **Quota check**: count writes, reads and service calls per hand in the harness; target under 120 reads per hand per
+    player. If over, batch the host's writes for one action into one write where possible.
+11. **CLAUDE.md rule 5** becomes: "Chips mode: chips only, no card visuals or sounds. Card mode: cards are
    drawn and animated by the app."
 
-**Stored data.** Room: `mode: 'cards'`, `appMin` (R-009), `rules` (map), `hostPub`, `shoeEnc`,
+**Stored data.** Room: `mode: 'cards'`, `appMin` (R-009), `rules` (map), `salt` (per hand or shoe),
 `commit`, `reveal`, `g` (game state: whose turn, what's public on the table), legacy `phase`/`stage` set
 to `'cards'` (R-009). Player: `pub`, `cardsEnc`, `req`, `ack`, `shown` (cards turned up). All optional;
 chips tables never have them. Document each in `docs/ARCHITECTURE.md`.
@@ -723,9 +748,12 @@ chip fields keep their meaning.
 
 **Risks.**
 - The host phone goes to sleep (iPhones stop JavaScript in the background): the game pauses. Wake Lock,
-  a clear banner, and take-over are the mitigation; tell players in the README.
-- Latency: every action is a round trip through the host (typically 200–600 ms). Show the action at once
-  as pending on the player's phone.
+  a clear banner, and take-over (the hand continues) are the mitigation; tell players in the README.
+- Latency: every action is a round trip through the host, and dealing adds a call to the service
+  (typically 200–600 ms, up to ~1 s when the service has been idle). Show the action at once as pending
+  on the player's phone; the deal animation covers the wait.
+- Vercel's free plan pauses a project that goes over its free usage (until the next month). A night uses
+  a small fraction; the tests count calls per hand to keep it that way.
 - Crypto mistakes: use only WebCrypto primitives, a fresh random IV per message, no home-made ciphers.
 - Quota (see constraints).
 
@@ -733,12 +761,15 @@ chip fields keep their meaning.
 - [ ] Unit: shuffle distribution (chi-square over many shuffles), commit/verify, encrypt/decrypt between
       two key pairs, a third key can't decrypt
 - [ ] Harness: three phones; a player's phone shows its own cards, the others' phones hold only ciphertext
-- [ ] Harness: host disappears mid-hand → take-over → refund is exact
+- [ ] Harness: host disappears mid-hand → take-over → the hand continues with the same cards
+- [ ] Service: refuses to reveal the flop before the table is on the flop, a hit card when no hit is
+      pending, a face-down double before settlement; the same inputs always give the same deck
+- [ ] Harness with the service unreachable: no cards, no chips moved, a clear message
 - [ ] Harness: duplicate and out-of-turn requests are refused without changing state
 
 **Docs to update.** `CLAUDE.md` (rule 5, a rule on the host-only writer for card tables),
 `docs/ARCHITECTURE.md` (card mode section, request protocol, new fields), `README.md` (choosing a mode,
-keeping the host phone awake, what "hidden" means), `CHANGELOG.md`.
+keeping the host phone awake, what "hidden" means, Vercel set-up), `CHANGELOG.md`.
 
 **Done when.** A card table can be opened, players join, and the engine deals, takes requests and hands
 over safely; the two games (R-011, R-012) plug into it.
@@ -779,9 +810,8 @@ chooses whether the extra card is dealt face up or face down.
 4. **Double down face up or face down.** Pressing Double opens a two-button choice, "Face up" / "Face
    down", with "Remember my choice" (saved on the phone; changeable in Settings). Face up: the card is
    dealt open as usual. Face down: the card is dealt sideways and closed, the hand's total shows as
-   "?", and the card stays encrypted to the host until the dealer has played; then it is turned over and
-   the hand is settled. *Default (still open):* nobody sees it before then, not even the player. A
-   face-down card can't make the player bust before the dealer plays, so the dealer always plays out.
+   "?", and the card stays with the dealer service until the dealer has played; then it is turned over and
+   the hand is settled. Nobody sees it before then, the player included (decided). A face-down card can't make the player bust before the dealer plays, so the dealer always plays out.
 5. **Showing cards**: each hand's cards on the felt in front of its betting circle, the total next to
    them ("soft 17"); the dealer's cards at the top. Bust, blackjack and 21 badges.
 6. **Host panel** shrinks to: start/close betting, pause, rules, players. The settle sheet is not used.
@@ -789,9 +819,8 @@ chooses whether the extra card is dealt face up or face down.
    state so R-008 can count busts, 21s and dealer busts without changing this game.
 
 **Stored data.** `hands[i].cards` (public card codes such as `"AS"`, `"TD"`), room `g.dealer` (public
-dealer cards), the hole card encrypted to the host until revealed. Face-down double: `hands[i].down: true`
-and a `"??"` placeholder in `cards` until it is turned over (the real card encrypted to the host in
-`g.hidden`). Existing `bet`, `doubled`, `split`, `result`, `paid` keep their meaning.
+dealer cards); the dealer's hole card stays with the service until the dealer plays. Face-down double: `hands[i].down: true`
+and a `"??"` placeholder in `cards` until it is turned over (the service reveals it only at settlement). Existing `bet`, `doubled`, `split`, `result`, `paid` keep their meaning.
 
 **Effects and sound.** R-013 (deal, hit, face-down double, flip, collect); the chip payouts reuse
 `bjres`.
