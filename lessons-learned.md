@@ -56,6 +56,13 @@ or refund it again: the end-of-round payout, a cancelled round, and the payout a
 `paid: true` and all three skip it. *Rule:* when adding a way to move chips, search every function that sums
 `hands` or refunds bets.
 
+**A dealer write must not assume the player's document is unchanged.** The dealer wrote each player's stack
+as `p.stack + pay` from its own copy, and opened the next round before the players were paid. A player who bet
+in that gap had the bet erased and the old hand left in the new round: chips from nowhere. *Rule:* dealer
+changes to a player's chips are increments (`inc(n)`); settle the players first and open the next round last;
+mark a settled player (`bjPaidRound`) so a retry doesn't pay twice. The test harness had to relay single
+writes (not whole copies of the database) with a delay hook to reproduce it (`tests/race.test.js`).
+
 **Keep new data inside the documents the rules already allow.** `firestore.rules` only opens `rooms` and
 their `players`. A new collection would need the owner to paste new rules into the Firebase console, and
 writes would fail until then. Avatars are stored on the player document instead (kept small on purpose).

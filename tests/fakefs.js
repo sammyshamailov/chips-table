@@ -9,17 +9,30 @@
   const clone = o => JSON.parse(JSON.stringify(o));
   const notify = () => setTimeout(() => listeners.forEach(l => l()), 0);
   window.__apply = json => { docs = JSON.parse(json); meta.fromCache = false; notify(); };
-  const commit = () => { notify(); if (window.__push) window.__push(JSON.stringify(docs)); };
+  // Field increments travel as the plain marker {__inc: n} (it must survive JSON on its way between phones).
+  const isInc = v => v && typeof v === 'object' && typeof v.__inc === 'number';
+  const resolve = (cur, d) => { const o = {}; for (const k in d) o[k] = isInc(d[k]) ? (Number(cur && cur[k]) || 0) + d[k].__inc : d[k]; return o; };
+  const hasInc = d => !!d && Object.values(d).some(isInc);
+  // The write is applied here at once (like Firestore's local cache) and sent to the hub, which applies it to
+  // the server copy (increments against the server value) and relays the resulting document to the other phones.
+  // The returned promise resolves when the hub has it, like a server acknowledgement.
+  const commit = async (path, op, data) => {
+    notify();
+    if (!window.__push) return;
+    const res = await window.__push(JSON.stringify({ path, op, data: data || null }));
+    if (res && res.doc && hasInc(data)){ docs[path] = res.doc; notify(); }     // pick up the server's result of an increment
+  };
+  window.__applyDoc = (path, doc) => { if (doc === null) delete docs[path]; else docs[path] = doc; meta.fromCache = false; notify(); };
   if (window.__pull) window.__pull().then(json => window.__apply(json));
   else meta.fromCache = false;
   const snap = p => ({ id: p.split('/').pop(), exists: p in docs, data: () => docs[p] ? clone(docs[p]) : undefined, metadata: meta });
   function docRef(p){
     return { id: p.split('/').pop(), path: p,
       get: async () => snap(p),
-      set: async d => { docs[p] = clone(d); commit(); },
+      set: async d => { docs[p] = resolve(null, clone(d)); await commit(p, 'set', clone(d)); },
       // Like Firestore: update replaces each top-level field it names (no deep merge).
-      update: async d => { if (!(p in docs)) throw { code: 'not-found' }; Object.assign(docs[p], clone(d)); commit(); },
-      delete: async () => { delete docs[p]; commit(); },
+      update: async d => { if (!(p in docs)) throw { code: 'not-found' }; Object.assign(docs[p], resolve(docs[p], clone(d))); await commit(p, 'update', clone(d)); },
+      delete: async () => { delete docs[p]; await commit(p, 'delete'); },
       onSnapshot(next){ const l = () => next(snap(p)); listeners.add(l); setTimeout(l, 0); return () => listeners.delete(l); } };
   }
   function colRef(p, o = {}){
@@ -35,5 +48,7 @@
       get: async () => run(),
       onSnapshot(next){ const l = () => next(run()); listeners.add(l); setTimeout(l, 0); return () => listeners.delete(l); } };
   }
-  window.firebase = { initializeApp(){}, firestore(){ return { settings(){}, doc: docRef, collection: colRef }; } };
+  const firestore = () => ({ settings(){}, doc: docRef, collection: colRef });
+  firestore.FieldValue = { increment: n => ({ __inc: n }) };
+  window.firebase = { initializeApp(){}, firestore };
 })();

@@ -205,11 +205,11 @@ found by reading the code.
 | | |
 |---|---|
 | Type | Fix |
-| Status | Proposed |
+| Status | In progress |
 | Priority | P0 |
 | Size | M |
 | Games | Both |
-| Branch | — |
+| Branch | `ccr-74add77c-f7qmcg` |
 | Added | 2026-11-21 |
 | Done | — |
 
@@ -240,7 +240,7 @@ nowhere. The window is the time between the two writes: small on good Wi-Fi, rea
    dealer, and the dealer no longer overwrites them.
 6. Re-run the check from step 1; it should now pass.
 
-**Stored data.** None: `stack` stays a plain number in the document. Increments are a write-time
+**Stored data.** One optional player field, `bjPaidRound` (number; the round the dealer last paid or refunded the player in, so a retry doesn't pay twice). `stack` stays a plain number in the document. Increments are a write-time
 operation, so phones on an older version read the same field.
 
 **Effects and sound.** Unchanged: the writes keep the same `lastAction` and `ts`. Check that the payout
@@ -252,9 +252,9 @@ both. The compat SDK loaded from gstatic (10.12.2) has `firebase.firestore.Field
 on failure, show the error and do not advance the round.
 
 **Tests.**
-- [ ] New money-conservation check in `tests/two-phones.test.js` fails before, passes after
-- [ ] Single-device mode by hand: payout, cancel, mid-round blackjack, Hold'em award with a side pot
-- [ ] `node tests/screenshots.js`
+- [x] New money-conservation check (`tests/race.test.js`, paid and cancelled round) fails before, passes after
+- [x] Single-device mode by script: payout, cancel, mid-round blackjack, Hold'em award with a side pot and cancel
+- [x] `node tests/screenshots.js`
 
 **Docs to update.** `CHANGELOG.md` (Fixed), `lessons-learned.md` (Stored data and sync: dealer writes
 must not assume the player's document is unchanged), `docs/ARCHITECTURE.md` (writes section).

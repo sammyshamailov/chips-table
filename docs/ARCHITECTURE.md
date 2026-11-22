@@ -15,7 +15,7 @@ The script is one IIFE. Sections are marked with `/* ---------- name ---------- 
 | avatars | Prepared characters (`AV_SET`, drawn by `avSVG`), photo processing, `avInner()` for every avatar circle |
 | local single-device store | `LocalDB`, same surface as Firestore, in localStorage |
 | connect | Picks Firestore or `LocalDB`, opens the last table |
-| writes | `w(path, op, data)`: one write at a time per document, errors shown as toasts |
+| writes | `w(path, op, data)`: one write at a time per document, errors shown as toasts. `inc(n)` (hoisted function) is the increment marker for the dealer's stack changes: `FieldValue.increment(n)` on Firestore, `{__inc: n}` in `LocalDB` |
 | room session | Snapshot listeners for the room and its players; this is where effects are triggered |
 | chips | Denominations, `chipsOf`, `stackHTML`, exact-chip helpers |
 | change → animation | `fxPlayers`, `fxBJ`, `fxHold`, `fxRoom`, `lockFx` |
@@ -56,6 +56,7 @@ them missing.
 | `hands[i]`: `bet`, `doubled`, `split`, `result` (`win`, `bj`, `push`, `lose`, `surrender`) | One betting spot |
 | `hands[i].chips` *added* | The exact chips placed, bottom to top. Used only when they add up to `bet` |
 | `hands[i].paid` *added* | A blackjack the dealer paid mid-round. The payout and a cancelled round skip it |
+| `bjPaidRound` *added* | Number: the round the dealer last paid or refunded this player in. `bjPayout`/`bjCancelRound` skip a player whose value equals the current `roundId`, so a retry after a failed room write doesn't pay twice. Missing means not settled |
 | `lastAction {k, amt, chips?}`, `ts` | The last thing that happened to this player; drives the animations |
 | `avatar` *added* | `{k:'set', v:'<id from AV_SET>'}` or `{k:'img', v:'data:image/jpeg;base64,…'}` (about 5–14 KB), or `null` |
 
@@ -63,6 +64,14 @@ them missing.
 Blackjack `bet`, `clear`, `double`, `split`, `ins`, `surrender`, `bjpay` *added*, `bjres`, `refund`.
 
 Writes that don't set `lastAction`/`ts` (avatar changes, sitting out) don't animate.
+
+**Dealer writes to a player's stack are increments** (`stack: inc(n)`): `bjPayout`, `bjCancelRound`, `bjNow`,
+`award`, `cancelHand`. They add to whatever the server holds, so they cannot overwrite a bet the player placed
+in the meantime. A player's own writes (`bjBet`, `bjDo`, `hAct`, `bjClear`) still set absolute values. In
+`bjPayout` and `bjCancelRound` the player documents are written first and the room document last (so nobody can
+bet in the next round while payouts are in flight); the players' `bjres`/`refund` changes therefore reach the
+phones just before the room's phase change, and the felt keeps showing the hands (behind the animation's
+overrides) until the room flips. Tests: `tests/race.test.js`.
 
 ## Flows
 

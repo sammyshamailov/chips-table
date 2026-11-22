@@ -5,7 +5,13 @@ development branch.
 
 ## Not yet live
 
-Nothing yet.
+### Fixed
+- **Chips could appear from nowhere if a player bet the moment a new Blackjack round opened.** The dealer's
+  phone wrote each player's new chip count as a fixed number worked out from its own (possibly old) copy,
+  and could overwrite a bet placed a moment earlier. Now the dealer adds to the player's chips instead of
+  replacing them, and players are paid (or refunded) before the next round opens. Same for a mid-round
+  blackjack, a cancelled hand and Hold'em payouts. If the connection drops half way, pressing pay again
+  doesn't pay anyone twice.
 
 ## 2026-11-22
 

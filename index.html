@@ -809,11 +809,13 @@ function LocalDB(){
   const clone = o => JSON.parse(JSON.stringify(o));
   const snap = p => ({ id: p.split('/').pop(), exists: p in docs, data: () => docs[p] ? clone(docs[p]) : undefined, metadata: meta });
   const notify = () => { ls.set(KEY, JSON.stringify(docs)); setTimeout(() => listeners.forEach(l => l()), 0); };
+  const isInc = v => v && typeof v === 'object' && typeof v.__inc === 'number';
+  const resolve = (cur, d) => { const o = {}; for (const k in d) o[k] = isInc(d[k]) ? (Number(cur && cur[k]) || 0) + d[k].__inc : d[k]; return o; };
   const merge = (a,b) => { for (const k in b){ const v=b[k]; if (v && typeof v==='object' && !Array.isArray(v) && a[k] && typeof a[k]==='object' && !Array.isArray(a[k])) merge(a[k], v); else a[k]=v; } return a; };
   function docRef(p){ return { id:p.split('/').pop(), path:p,
     get: async () => snap(p),
-    set: async d => { docs[p] = clone(d); notify(); },
-    update: async d => { if (!(p in docs)) throw { code:'invalid_argument', message:'missing' }; merge(docs[p], clone(d)); notify(); },
+    set: async d => { docs[p] = resolve(null, clone(d)); notify(); },
+    update: async d => { if (!(p in docs)) throw { code:'invalid_argument', message:'missing' }; merge(docs[p], resolve(docs[p], clone(d))); notify(); },
     delete: async () => { delete docs[p]; notify(); },
     onSnapshot(next){ const l = () => next(snap(p)); listeners.add(l); setTimeout(l,0); return () => listeners.delete(l); },
     collection: s => colRef(p + '/' + s) }; }
@@ -868,6 +870,9 @@ function handleErr(e){
   else if (code === 'not-found') toast('השולחן או השחקן כבר לא קיימים.');
   else toast('העדכון לא נשמר. בדקו חיבור ונסו שוב.');
 }
+// A stack change made by the dealer is an increment, so it adds to whatever the player's document holds on the
+// server instead of overwriting it with a number worked out from a possibly stale copy.
+function inc(n){ return S.mode === 'cloud' ? firebase.firestore.FieldValue.increment(n) : { __inc: n }; }
 const roomPath = () => 'rooms/' + S.code;
 const pPath = (id = S.myId) => 'rooms/' + S.code + '/players/' + id;
 const setEvent = t => ({ lastEvent: { t, ts: now() }, updatedAt: now() });
@@ -1178,7 +1183,7 @@ async function award(win){
   const ok = await w(roomPath(), 'update', { potLevel: newL, stage: left === 0 ? 'idle' : S.room.stage, ...setEvent(names) });
   if (!ok) return;
   buzz();
-  await Promise.all(Object.entries(pay).filter(([,a]) => a > 0).map(([id,a]) => w(pPath(id), 'update', { stack: (S.players[id].stack || 0) + a, lastAction: { k:'won', amt:a }, ts: now() })));
+  await Promise.all(Object.entries(pay).filter(([,a]) => a > 0).map(([id,a]) => w(pPath(id), 'update', { stack: inc(a), lastAction: { k:'won', amt:a }, ts: now() })));
   S.sel = [];
   if (left === 0) S.sheet = null; else toast(`נשארה קופה צדדית של ${fmt(left)} – בחרו את הזוכה בה`);
   render();
@@ -1186,7 +1191,7 @@ async function award(win){
 async function cancelHand(){
   const h = H(); const max = Math.max(h.lvl, ...h.list.map(h.com));
   await w(roomPath(), 'update', { potLevel: max, stage:'idle', ...setEvent('היד בוטלה והצ\'יפים הוחזרו') });
-  await Promise.all(h.list.map(p => { const back = Math.max(0, h.com(p) - h.lvl); return back ? w(pPath(p.pid), 'update', { stack: (p.stack||0) + back, lastAction:{ k:'refund', amt: back }, ts: now() }) : null; }));
+  await Promise.all(h.list.map(p => { const back = Math.max(0, h.com(p) - h.lvl); return back ? w(pPath(p.pid), 'update', { stack: inc(back), lastAction:{ k:'refund', amt: back }, ts: now() }) : null; }));
   S.sheet = null; S.confirm = null; render();
 }
 
@@ -1234,12 +1239,15 @@ async function bjPayout(){
     const ins = p.insurance || 0, insPay = ins && S.dealerBJ ? ins * 3 : 0;
     houseIn += stake + ins; houseOut += pay + back + insPay;
     const net = pay + back + insPay - stake - ins;
-    writes.push([p.pid, { stack: (p.stack || 0) + pay + insPay, hands, lastAction: { k:'bjres', amt: net }, ts: now() }]);
+    if (p.bjPaidRound === r.roundId) continue;       // settled by an earlier press whose room write failed: house totals above still count it
+    writes.push([p.pid, { stack: inc(pay + insPay), bjPaidRound: r.roundId, hands, lastAction: { k:'bjres', amt: net }, ts: now() }]);
   }
   buzz();
+  // Players first, then the room: nobody can open the next round while a payout is still on its way.
+  const results = await Promise.all(writes.map(([id, d]) => w(pPath(id), 'update', d)));
+  if (results.some(ok => !ok)) return;      // the toast is up; pressing again pays only the players not yet settled
   const ok = await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, dealerBJ: false, roundEnd: 'paid', house: (r.house || 0) + houseIn - houseOut, ...setEvent(`סיבוב ${r.roundId} שולם · הבית \u2066${houseIn - houseOut >= 0 ? '+' : '−'}${fmt(Math.abs(houseIn - houseOut))}\u2069`) });
   if (!ok) return;
-  await Promise.all(writes.map(([id, d]) => w(pPath(id), 'update', d)));
   S.sheet = null; S.settle = {}; S.dealerBJ = false; render();
 }
 // The dealer declares a player's blackjack mid-round: paid 3:2 at once, and the hand is marked paid
@@ -1249,14 +1257,16 @@ async function bjNow(pid){
   const r = S.room, p = S.players[pid]; if (!p || r.phase !== 'playing' || !bjEligible(p)) return;
   const h = p.hands[0], win = Math.floor(h.bet * 1.5);
   buzz();
-  if (!await w(pPath(pid), 'update', { stack: (p.stack || 0) + h.bet + win, hands: [{ ...h, result: 'bj', paid: true }], lastAction: { k:'bjpay', amt: win }, ts: now() })) return;
+  if (!await w(pPath(pid), 'update', { stack: inc(h.bet + win), hands: [{ ...h, result: 'bj', paid: true }], lastAction: { k:'bjpay', amt: win }, ts: now() })) return;
   await w(roomPath(), 'update', { house: (r.house || 0) - win, ...setEvent(`${p.name}: בלאק ג'ק! +${fmt(win)}`) });
   S.confirm = null; if (!players().some(bjEligible)) S.sheet = null; render();
 }
 async function bjCancelRound(){
   const r = S.room; const list = players().filter(cur).filter(p => p.hands.some(h => !h.paid) || p.insurance);
-  await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, roundEnd: 'cancelled', ...setEvent('הסיבוב בוטל וההימורים הוחזרו') });
-  await Promise.all(list.map(p => { const back = p.hands.reduce((a,x) => a + (x.paid ? 0 : x.result === 'surrender' ? Math.ceil(x.bet/2) : x.bet), 0) + (p.insurance || 0); return w(pPath(p.pid), 'update', { stack: p.stack + back, hands: [], bjRound: null, lastAction:{ k:'refund', amt: back }, ts: now() }); }));
+  // Players first, then the room (see bjPayout); bjPaidRound keeps a retry from refunding twice.
+  const results = await Promise.all(list.filter(p => p.bjPaidRound !== r.roundId).map(p => { const back = p.hands.reduce((a,x) => a + (x.paid ? 0 : x.result === 'surrender' ? Math.ceil(x.bet/2) : x.bet), 0) + (p.insurance || 0); return w(pPath(p.pid), 'update', { stack: inc(back), bjPaidRound: r.roundId, hands: [], bjRound: null, lastAction:{ k:'refund', amt: back }, ts: now() }); }));
+  if (results.some(ok => !ok)) return;
+  if (!await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, roundEnd: 'cancelled', ...setEvent('הסיבוב בוטל וההימורים הוחזרו') })) return;
   S.sheet = null; S.confirm = null; render();
 }
 
