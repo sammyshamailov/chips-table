@@ -124,26 +124,31 @@ The owner's list from 2026-11-22, turned into entries. Nothing here is built yet
 plan. Where a choice belongs to the owner, the plan uses a recommended default, marked **Assumption**,
 and the question is listed under [Open questions](#open-questions).
 
-| Order | Entry | Owner's item | Needs first |
-|---|---|---|---|
-| 0 | [R-004](#r-004-dealer-writes-to-a-players-stack-can-overwrite-that-players-own-write) Dealer write race (live bug) | — | — |
-| 1 | [R-003](#r-003-two-phone-test-for-a-holdem-hand) Hold'em two-phone test | 3, 7 | — |
-| 2 | [R-005](#r-005-code-foundations-modules-layers-tooling) Code foundations | 7 | R-003 (the safety net) |
-| 3 | [R-006](#r-006-english-and-hebrew) English and Hebrew | 1 | R-005 |
-| 4 | [R-007](#r-007-holdem-table-on-par-with-blackjack) Hold'em on par with Blackjack | 3 | R-005 |
-| 5 | [R-008](#r-008-table-statistics) Table statistics | 6 | R-005, R-007 |
-| 6 | [R-009](#r-009-guard-older-phones-against-new-table-types) Guard older phones against new table types | 2 | — (ship early) |
-| 7 | [R-010](#r-010-card-mode-core-the-app-deals) Card mode core | 2 | R-005, R-009 live on all phones |
-| 8 | [R-011](#r-011-blackjack-with-cards) Blackjack with cards | 2 | R-010 |
-| 9 | [R-012](#r-012-holdem-with-cards) Hold'em with cards | 2, 3 | R-010, R-007 |
-| 10 | [R-013](#r-013-card-animations-and-sounds) Card animations and sounds | 4 | R-011 (grows with R-012) |
-| 11 | [R-014](#r-014-voice-chat) Voice chat | 5 | R-005 |
+**Start with #1 and go down.** Each step ends live on `main` (when you say so) before the next one
+starts, so the table keeps working between steps. "Answers needed" refers to the
+[open questions](#open-questions); a step can start once those are answered (or the defaults accepted).
 
-Why this order: the code foundations come first because every other item would otherwise be written
-twice. The Hold'em test comes before them so the refactor has something to prove it changed nothing.
-Language support comes next because every later feature then adds its text in both languages from the
-start. The card mode is the biggest piece and builds on the cleaned-up Hold'em and the statistics.
-Voice is independent and can move earlier if it matters more.
+| # | Entry | Owner's item | Answers needed | Why here |
+|---|---|---|---|---|
+| 1 | [R-004](#r-004-dealer-writes-to-a-players-stack-can-overwrite-that-players-own-write) Fix the dealer write race | — | — | Live bug: chips can appear from nowhere at tonight's table. Small, and the players are on `main` now |
+| 2 | [R-003](#r-003-two-phone-test-for-a-holdem-hand) Hold'em two-phone test | 3, 7 | — | The safety net: without it the refactor and the new Hold'em table can break Hold'em unnoticed |
+| 3 | [R-009](#r-009-guard-older-phones-against-new-table-types) Guard older phones against new table types | 2 | — | Tiny, but it has to be on every phone well before the first card table, so it goes out early |
+| 4 | [R-005](#r-005-code-foundations-modules-layers-tooling) Code foundations | 7 | Q2 | Everything below builds on it; doing it later means writing each feature twice |
+| 5 | [R-006](#r-006-english-and-hebrew) English and Hebrew | 1 | Q4, Q10 | Every later feature then adds its text in both languages once, instead of being translated afterwards |
+| 6 | [R-007](#r-007-holdem-table-on-par-with-blackjack) Hold'em on par with Blackjack | 3 | — | Improves the game you already play, and its table, turn logic and pot animations are what card Hold'em reuses |
+| 7 | [R-010](#r-010-card-mode-core-the-app-deals) Card mode core | 2 | Q1, Q3 | The engine both card games stand on: dealing, hidden cards, the host running the game |
+| 8 | [R-011](#r-011-blackjack-with-cards) Blackjack with cards | 2 | Q7 | The simpler card game first: few hidden cards, no hand ranking. Proves the engine at a real table |
+| 9 | [R-013](#r-013-card-animations-and-sounds) Card animations and sounds | 4 | Q9 | Built together with R-011 (the card mode feels flat without them); the Hold'em motions are added in R-012 |
+| 10 | [R-012](#r-012-holdem-with-cards) Hold'em with cards | 2, 3 | Q8 | The hardest game logic (best hand, side pots, turns), on a proven engine and the R-007 table |
+| 11 | [R-008](#r-008-table-statistics) Table statistics | 6 | Q6 | After both modes exist, so every number is designed once for chips and cards instead of retrofitted |
+| 12 | [R-014](#r-014-voice-chat) Voice chat | 5 | Q1, Q5 | Independent of the rest; matters most if people play from different places. Moves up if that's the case |
+
+The reasoning in short: **fix what's broken for players today** (1), **put the safety nets in place**
+(2, 3), **rebuild the foundations once** (4), then **improve what players already use** (5, 6),
+then **the big new mode** (7–10), then what builds on everything (11) and what stands alone (12).
+
+Rough size: steps 1–3 are a few evenings together; 4 is the longest single step; 7–10 together are the
+largest part of the whole plan.
 
 ### Constraints every v2 entry keeps
 
@@ -194,7 +199,8 @@ Answers change the plans; the defaults in the entries are what happens if nothin
 
 ## Backlog
 
-In build order (see [Version 2](#version-2) for why). R-003 and R-004 were found by reading the code.
+In the order to build them, most important first (see [Version 2](#version-2)). R-003 and R-004 were
+found by reading the code.
 
 ### R-004 Dealer writes to a player's stack can overwrite that player's own write
 
@@ -257,8 +263,7 @@ must not assume the player's document is unchanged), `docs/ARCHITECTURE.md` (wri
 
 **Done when.** Betting the instant a new round opens never changes the total chips at the table.
 
-*Note:* if R-005 starts right away, do this as part of its phase 3 (data layer), which adds `increment`
-anyway; otherwise ship it alone first, since it is live.
+*Note:* ship this alone, first: it is live. R-005's data layer later keeps the `increment` helper.
 
 ### R-003 Two-phone test for a Hold'em hand
 
@@ -305,6 +310,52 @@ it comes before both.
 **Docs to update.** `docs/TESTING.md`, `CLAUDE.md`, `CHANGELOG.md`.
 
 **Done when.** A broken Hold'em payout or side pot fails a test.
+
+### R-009 Guard older phones against new table types
+
+| | |
+|---|---|
+| Type | Chore |
+| Status | Planned |
+| Priority | P1 |
+| Size | S |
+| Games | Both |
+| Branch | — |
+| Added | 2026-11-22 |
+| Done | — |
+
+**Problem / goal.** A phone on today's version that opens a card-mode table would show it as a chips table
+and could place chip bets into it. Before any card table exists, every phone must know how to refuse a
+table it doesn't understand.
+
+**Plan.**
+1. Add `FEATURE_LEVEL = 1` to the app. New optional room fields: `mode` (`'chips'` or `'cards'`; missing
+   means chips) and `appMin` (the lowest feature level that can play this table; missing means 0).
+2. On opening a table: if `appMin > FEATURE_LEVEL` or `mode` is unknown, show "This table needs a newer
+   version" with an Update button (runs the self-update check and reloads), and never write to it. The
+   home screen's table list marks such tables the same way.
+3. Ship this to `main` right after R-004 and R-003 (it is small and independent) so that by the
+   time card tables exist, every phone has updated past it.
+4. **For phones older than the guard**: card tables also set the old fields to values today's code
+   refuses to act on: Blackjack `phase: 'cards'` (today's bet and play code only act on `betting` and
+   `playing`), Hold'em `stage: 'cards'` (today's code only acts on the four betting streets). Such a phone
+   sees a frozen table instead of making wrong writes.
+
+**Stored data.** Adds optional room `mode` and `appMin`. Fallbacks as above.
+
+**Effects and sound.** None.
+
+**Risks.** Step 4 depends on today's checks; verify by opening a card table with the current `main`
+build in the harness.
+
+**Tests.**
+- [ ] Harness: a table with `appMin: 99` shows the update screen and makes no writes
+- [ ] Harness: today's `main` build on a table with `phase: 'cards'` cannot bet
+
+**Docs to update.** `docs/ARCHITECTURE.md`, `CHANGELOG.md`, `lessons-learned.md` ("new table types need
+a guard shipped first").
+
+**Done when.** No phone, old or new, can write to a table type it doesn't understand.
 
 ### R-005 Code foundations: modules, layers, tooling
 
@@ -572,122 +623,6 @@ arrived (test with the relay delayed in the harness). Ten seats on a small phone
 **Done when.** A Hold'em hand looks and feels like a Blackjack round: a table, chips on the felt, and
 an animation for every move.
 
-### R-008 Table statistics
-
-| | |
-|---|---|
-| Type | Feature |
-| Status | Planned |
-| Priority | P2 |
-| Size | L |
-| Games | Both |
-| Branch | — |
-| Added | 2026-11-22 |
-| Done | — |
-
-**Problem / goal.** A statistics board for the table: per player and for the whole table, with numbers
-that fit the game and the mode (the chips mode doesn't know cards, so it can't count busts).
-
-**Assumption.** Per table, plus each player's lifetime numbers on their own phone (open question 6).
-
-**What is counted.**
-
-| | Chips mode | Card mode adds |
-|---|---|---|
-| Blackjack, per player | rounds played, hands (incl. splits), wins, losses, pushes, blackjacks, doubles (won), splits, surrenders, insurance taken / won, biggest win, biggest bet, net, best winning streak | busts, 21s, dealer busts while playing, average hand total, wins by dealer bust |
-| Blackjack, table | rounds, house balance over time, most blackjacks, biggest single payout | dealer bust rate, shoes played |
-| Hold'em, per player | hands dealt in, hands won, pots won, biggest pot, net, folds by street, VPIP (put chips in voluntarily preflop), PFR (raised preflop), all-ins and all-ins won | showdowns reached / won, best hand made, wins by hand rank |
-| Hold'em, table | hands played, biggest pot, average pot, chip leader over time | most common winning hand |
-
-**Plan.**
-1. **Spec per game and mode** (`domain/stats/`): a list of metrics, each with its key, label key, how it
-   is formatted, and whether it's per player or per table. The board renders from the spec (strategy per
-   `GameMode`), so card-mode metrics appear only on card tables.
-2. **Counting.** Counters live in an optional `stats` map on each player document and on the room, and
-   always change by increment (no lost updates). Each phone counts its **own** actions in the same write
-   as the action (`stats.doubles: +1` in the double write). The host counts **outcomes** in the payout
-   writes (wins, losses, blackjacks, pots won, biggest pot). Pure functions compute the increments from
-   the before/after state, so they're unit tested.
-3. **History for a chart.** Room `hist`: up to 100 points of `[round, {pid: stack}]`, written by the
-   host at each payout; when full, every second point is dropped, so the chart always spans the whole
-   game at lower detail. About 8 KB.
-4. **Board.** A Statistics sheet (button in the room header) with three tabs: Table, Players (sortable
-   table), Me. Leaders get a small badge ("most blackjacks"). A stack-over-time line chart (inline SVG,
-   one line per player, tap to highlight).
-5. **End of game.** The ceremony and the final card show 3–4 awards (biggest pot, most blackjacks, best
-   streak). Closed tables keep their statistics.
-6. **Lifetime (on the phone).** When a table closes, each phone adds its own player's numbers to a
-   lifetime record in localStorage, shown in the Me tab. Nothing new stored in Firestore.
-7. **Host controls.** Reset statistics (writes `statsFrom` = current round and clears the counters).
-
-**Stored data.** Optional `stats` (map of counters) on players and room; optional room `hist` (array) and
-`statsFrom` (round or hand number). Fallbacks: missing `stats` shows "—"; missing `statsFrom` means "since
-statistics were added"; the board says "since round N". A phone on an older version won't count its own
-actions; until it self-updates, those numbers are marked incomplete for that player (`stats.v` missing).
-
-**Effects and sound.** None, apart from the end-of-game awards in the ceremony.
-
-**Risks.** Double counting when money moves in more than one place (lessons-learned "mark money that has
-already moved"): a mid-round blackjack is counted in `bjNow`, and the payout must skip `paid` hands for
-statistics too. Write size: the counters add a few hundred bytes per player document.
-
-**Tests.**
-- [ ] Unit tests: stats increments for every action and outcome, both games, both modes
-- [ ] Two-phone test: after a scripted round both phones show the same numbers; a mid-round blackjack is
-      counted once
-- [ ] Screenshots of the board in both languages
-
-**Docs to update.** `docs/ARCHITECTURE.md` (new fields), `README.md`, `CHANGELOG.md`.
-
-**Done when.** At any point, and at the end of the game, every phone shows the same statistics, and they
-match a hand-counted session.
-
-### R-009 Guard older phones against new table types
-
-| | |
-|---|---|
-| Type | Chore |
-| Status | Planned |
-| Priority | P1 |
-| Size | S |
-| Games | Both |
-| Branch | — |
-| Added | 2026-11-22 |
-| Done | — |
-
-**Problem / goal.** A phone on today's version that opens a card-mode table would show it as a chips table
-and could place chip bets into it. Before any card table exists, every phone must know how to refuse a
-table it doesn't understand.
-
-**Plan.**
-1. Add `FEATURE_LEVEL = 1` to the app. New optional room fields: `mode` (`'chips'` or `'cards'`; missing
-   means chips) and `appMin` (the lowest feature level that can play this table; missing means 0).
-2. On opening a table: if `appMin > FEATURE_LEVEL` or `mode` is unknown, show "This table needs a newer
-   version" with an Update button (runs the self-update check and reloads), and never write to it. The
-   home screen's table list marks such tables the same way.
-3. Ship this to `main` early (it is small and independent) so that by the time card tables exist,
-   every phone has updated past it.
-4. **For phones older than the guard**: card tables also set the old fields to values today's code
-   refuses to act on: Blackjack `phase: 'cards'` (today's bet and play code only act on `betting` and
-   `playing`), Hold'em `stage: 'cards'` (today's code only acts on the four betting streets). Such a phone
-   sees a frozen table instead of making wrong writes.
-
-**Stored data.** Adds optional room `mode` and `appMin`. Fallbacks as above.
-
-**Effects and sound.** None.
-
-**Risks.** Step 4 depends on today's checks; verify by opening a card table with the current `main`
-build in the harness.
-
-**Tests.**
-- [ ] Harness: a table with `appMin: 99` shows the update screen and makes no writes
-- [ ] Harness: today's `main` build on a table with `phase: 'cards'` cannot bet
-
-**Docs to update.** `docs/ARCHITECTURE.md`, `CHANGELOG.md`, `lessons-learned.md` ("new table types need
-a guard shipped first").
-
-**Done when.** No phone, old or new, can write to a table type it doesn't understand.
-
 ### R-010 Card mode core: the app deals
 
 | | |
@@ -815,7 +750,8 @@ surrender/insurance, the dealer's play, results and payouts, with no one marking
 4. **Showing cards**: each hand's cards on the felt in front of its betting circle, the total next to
    them ("soft 17"); the dealer's cards at the top. Bust, blackjack and 21 badges.
 5. **Host panel** shrinks to: start/close betting, pause, rules, players. The settle sheet is not used.
-6. **Statistics** (R-008) card-mode metrics: busts, 21s, dealer busts.
+6. **Statistics** come later (R-008, step 11): keep each hand's final cards and totals in the stored
+   state so R-008 can count busts, 21s and dealer busts without changing this game.
 
 **Stored data.** `hands[i].cards` (public card codes such as `"AS"`, `"TD"`), room `g.dealer` (public
 dealer cards), the hole card encrypted to the host until revealed. Existing `bet`, `doubled`, `split`,
@@ -836,60 +772,6 @@ A player leaving mid-round: their hands stand automatically.
 **Docs to update.** `docs/ARCHITECTURE.md` (card Blackjack flow), `README.md`, `CHANGELOG.md`.
 
 **Done when.** A full evening of card-mode Blackjack runs without the host marking a single result.
-
-### R-012 Hold'em with cards
-
-| | |
-|---|---|
-| Type | Feature |
-| Status | Planned |
-| Priority | P1 |
-| Size | L |
-| Games | Hold'em |
-| Branch | — |
-| Added | 2026-11-22 |
-| Done | — |
-
-**Problem / goal.** The whole Hold'em hand inside the app: blinds, hole cards, enforced turns, the flop,
-turn and river, showdown with automatic winners, side pots and payouts.
-
-**Plan.**
-1. **Hand evaluator** (`domain/holdem/evaluate.ts`): best five of seven, returns rank (high card…royal
-   flush), the five cards, and a comparable score; ties split. Unit tested against a table of known hands
-   and every tie-break rule.
-2. **Hand flow** (host engine): new hand → button moves, blinds posted → two hole cards each (encrypted)
-   → betting rounds with enforced turn order (from R-007's turn logic, now enforced) → burn and deal
-   flop (3), turn, river → showdown. If everyone but one folds, that player wins without showing.
-   If all remaining players are all-in, the remaining board is dealt with no more betting.
-3. **Actions** as requests: fold, check, call, bet/raise (min raise enforced), all-in. Optional turn
-   timer: check if possible, otherwise fold.
-4. **Showdown**: the last aggressor shows first, then clockwise; losing hands may be mucked (setting:
-   auto-muck losers). Winners per pot level from the evaluator, then today's `computeAward` side-pot
-   logic pays each pot; odd chips to the first winner after the button.
-5. **Your cards**: in your dock, large; face down until you press and hold (open question 9). The hand
-   rank you currently hold is shown under them ("Pair of kings").
-6. **Host panel**: start the next hand (or automatic after N seconds), pause, rules (blinds, timer,
-   blind increase schedule optional later).
-7. **Statistics** card-mode metrics: showdowns, best hand, wins by rank.
-
-**Stored data.** Room `g.board` (public cards), `g.toAct`, `g.minRaise`; player `cardsEnc` (hole cards),
-`shown` (cards turned up at showdown). Existing Hold'em fields keep their meaning.
-
-**Effects and sound.** R-013 (deal, flop/turn/river, showdown flip, muck, collect).
-
-**Risks.** Side pots with several all-ins and split winners: unit tests built from real hand histories.
-Players acting before their request is acknowledged: the dock shows "waiting for your turn" and sends
-nothing.
-
-**Tests.**
-- [ ] Unit: evaluator (all ranks, kickers, board plays, wheel straight), side pots with 3 all-ins and a split
-- [ ] Harness: scripted hands with a fixed shuffle, three phones: fold-out win, showdown, split pot, all-in
-      run-out
-- [ ] Screenshots: 2, 6, 10 players, showdown, portrait and landscape
-
-**Docs to update.** `docs/ARCHITECTURE.md`, `README.md`, `CHANGELOG.md`.
-
-**Done when.** A full Hold'em evening runs with the app as dealer and every pot paid automatically.
 
 ### R-013 Card animations and sounds
 
@@ -952,6 +834,131 @@ reuse elements, test on a low-end Android. The deal must finish before the first
 **Docs to update.** `docs/ARCHITECTURE.md` (card effects, `data-k` keys), `CHANGELOG.md`.
 
 **Done when.** Every card on the table arrives, flips and leaves with a motion and a sound.
+
+### R-012 Hold'em with cards
+
+| | |
+|---|---|
+| Type | Feature |
+| Status | Planned |
+| Priority | P1 |
+| Size | L |
+| Games | Hold'em |
+| Branch | — |
+| Added | 2026-11-22 |
+| Done | — |
+
+**Problem / goal.** The whole Hold'em hand inside the app: blinds, hole cards, enforced turns, the flop,
+turn and river, showdown with automatic winners, side pots and payouts.
+
+**Plan.**
+1. **Hand evaluator** (`domain/holdem/evaluate.ts`): best five of seven, returns rank (high card…royal
+   flush), the five cards, and a comparable score; ties split. Unit tested against a table of known hands
+   and every tie-break rule.
+2. **Hand flow** (host engine): new hand → button moves, blinds posted → two hole cards each (encrypted)
+   → betting rounds with enforced turn order (from R-007's turn logic, now enforced) → burn and deal
+   flop (3), turn, river → showdown. If everyone but one folds, that player wins without showing.
+   If all remaining players are all-in, the remaining board is dealt with no more betting.
+3. **Actions** as requests: fold, check, call, bet/raise (min raise enforced), all-in. Optional turn
+   timer: check if possible, otherwise fold.
+4. **Showdown**: the last aggressor shows first, then clockwise; losing hands may be mucked (setting:
+   auto-muck losers). Winners per pot level from the evaluator, then today's `computeAward` side-pot
+   logic pays each pot; odd chips to the first winner after the button.
+5. **Your cards**: in your dock, large; face down until you press and hold (open question 9). The hand
+   rank you currently hold is shown under them ("Pair of kings").
+6. **Host panel**: start the next hand (or automatic after N seconds), pause, rules (blinds, timer,
+   blind increase schedule optional later).
+7. **Statistics** come later (R-008, step 11): keep each showdown's hand ranks in the stored state so
+   R-008 can count showdowns, best hand and wins by rank without changing this game.
+
+**Stored data.** Room `g.board` (public cards), `g.toAct`, `g.minRaise`; player `cardsEnc` (hole cards),
+`shown` (cards turned up at showdown). Existing Hold'em fields keep their meaning.
+
+**Effects and sound.** R-013 (deal, flop/turn/river, showdown flip, muck, collect).
+
+**Risks.** Side pots with several all-ins and split winners: unit tests built from real hand histories.
+Players acting before their request is acknowledged: the dock shows "waiting for your turn" and sends
+nothing.
+
+**Tests.**
+- [ ] Unit: evaluator (all ranks, kickers, board plays, wheel straight), side pots with 3 all-ins and a split
+- [ ] Harness: scripted hands with a fixed shuffle, three phones: fold-out win, showdown, split pot, all-in
+      run-out
+- [ ] Screenshots: 2, 6, 10 players, showdown, portrait and landscape
+
+**Docs to update.** `docs/ARCHITECTURE.md`, `README.md`, `CHANGELOG.md`.
+
+**Done when.** A full Hold'em evening runs with the app as dealer and every pot paid automatically.
+
+### R-008 Table statistics
+
+| | |
+|---|---|
+| Type | Feature |
+| Status | Planned |
+| Priority | P2 |
+| Size | L |
+| Games | Both |
+| Branch | — |
+| Added | 2026-11-22 |
+| Done | — |
+
+**Problem / goal.** A statistics board for the table: per player and for the whole table, with numbers
+that fit the game and the mode (the chips mode doesn't know cards, so it can't count busts).
+
+**Assumption.** Per table, plus each player's lifetime numbers on their own phone (open question 6).
+
+**What is counted.**
+
+| | Chips mode | Card mode adds |
+|---|---|---|
+| Blackjack, per player | rounds played, hands (incl. splits), wins, losses, pushes, blackjacks, doubles (won), splits, surrenders, insurance taken / won, biggest win, biggest bet, net, best winning streak | busts, 21s, dealer busts while playing, average hand total, wins by dealer bust |
+| Blackjack, table | rounds, house balance over time, most blackjacks, biggest single payout | dealer bust rate, shoes played |
+| Hold'em, per player | hands dealt in, hands won, pots won, biggest pot, net, folds by street, VPIP (put chips in voluntarily preflop), PFR (raised preflop), all-ins and all-ins won | showdowns reached / won, best hand made, wins by hand rank |
+| Hold'em, table | hands played, biggest pot, average pot, chip leader over time | most common winning hand |
+
+**Plan.**
+1. **Spec per game and mode** (`domain/stats/`): a list of metrics, each with its key, label key, how it
+   is formatted, and whether it's per player or per table. The board renders from the spec (strategy per
+   `GameMode`), so card-mode metrics appear only on card tables.
+2. **Counting.** Counters live in an optional `stats` map on each player document and on the room, and
+   always change by increment (no lost updates). Each phone counts its **own** actions in the same write
+   as the action (`stats.doubles: +1` in the double write). The host counts **outcomes** in the payout
+   writes (wins, losses, blackjacks, pots won, biggest pot). Pure functions compute the increments from
+   the before/after state, so they're unit tested.
+3. **History for a chart.** Room `hist`: up to 100 points of `[round, {pid: stack}]`, written by the
+   host at each payout; when full, every second point is dropped, so the chart always spans the whole
+   game at lower detail. About 8 KB.
+4. **Board.** A Statistics sheet (button in the room header) with three tabs: Table, Players (sortable
+   table), Me. Leaders get a small badge ("most blackjacks"). A stack-over-time line chart (inline SVG,
+   one line per player, tap to highlight).
+5. **End of game.** The ceremony and the final card show 3–4 awards (biggest pot, most blackjacks, best
+   streak). Closed tables keep their statistics.
+6. **Lifetime (on the phone).** When a table closes, each phone adds its own player's numbers to a
+   lifetime record in localStorage, shown in the Me tab. Nothing new stored in Firestore.
+7. **Host controls.** Reset statistics (writes `statsFrom` = current round and clears the counters).
+
+**Stored data.** Optional `stats` (map of counters) on players and room; optional room `hist` (array) and
+`statsFrom` (round or hand number). Fallbacks: missing `stats` shows "—"; missing `statsFrom` means "since
+statistics were added"; the board says "since round N". A phone on an older version won't count its own
+actions; until it self-updates, those numbers are marked incomplete for that player (`stats.v` missing).
+
+**Effects and sound.** None, apart from the end-of-game awards in the ceremony.
+
+**Risks.** Double counting when money moves in more than one place (lessons-learned "mark money that has
+already moved"): a mid-round blackjack is counted in `bjNow`, and the payout must skip `paid` hands for
+statistics too. Write size: the counters add a few hundred bytes per player document.
+
+**Tests.**
+- [ ] Unit tests: stats increments for every action and outcome, both games, both modes
+- [ ] Two-phone test: after a scripted round both phones show the same numbers; a mid-round blackjack is
+      counted once
+- [ ] Screenshots of the board in both languages
+
+**Docs to update.** `docs/ARCHITECTURE.md` (new fields), `README.md`, `CHANGELOG.md`.
+
+**Done when.** At any point, and at the end of the game, every phone shows the same statistics, and they
+match a hand-counted session.
 
 ### R-014 Voice chat
 
@@ -1032,6 +1039,8 @@ are deleted after 30 seconds.
 
 **Done when.** Phase A: a held button sends a message every phone at the table hears. Phase B: players in
 different places talk live.
+
+---
 
 ## Done
 
