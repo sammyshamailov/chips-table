@@ -14,7 +14,8 @@ development branch.
   animation on every phone. The hand is marked `paid` so the payout and a cancelled round skip it.
 - Documentation: `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/TESTING.md`, `lessons-learned.md`, this file.
 - `ROADMAP.md`: every planned update and fix with a detailed plan, a template for new entries, and the
-  first proposed entries.
+  first proposed entries; plans for version 2 (code foundations, English, Hold'em table, statistics,
+  card mode with animations, voice chat).
 - Browser tests in `tests/`: two phones syncing, layout screenshots, audio levels.
 
 ### Fixed
