@@ -309,6 +309,9 @@ it comes before both.
 
 **Done when.** A broken Hold'em payout or side pot fails a test.
 
+*Follow-up:* the test has no tie with an odd pot, so the odd-chip rule in `computeAward` (the leftover
+chip goes to the first winner) isn't covered; add one before R-005 phase 2 moves that code.
+
 ### R-009 Guard older phones against new table types
 
 | | |
@@ -941,6 +944,12 @@ chip fields keep their meaning.
 - Vercel's free plan pauses a project that goes over its free usage (until the next month). A night uses
   a small fraction; the tests count calls per hand to keep it that way.
 - Crypto mistakes: use only WebCrypto primitives, a fresh random IV per message, no home-made ciphers.
+- A phone older than the R-009 guard acting as **host** of a card table could still press its dealer
+  buttons (e.g. "new hand" writes `stage: 'preflop'` and unfreezes the table; found while testing R-009).
+  Card tables are created by an up-to-date phone, so this only happens if hosting is handed to an old
+  phone. Before the card mode ships: confirm every phone at the game is past R-009 (Settings shows the
+  version), and refuse `mkhost` to a seat whose phone hasn't reported a current version (players write
+  `appLevel` on join; optional field).
 - Quota (see constraints).
 
 **Tests.**
