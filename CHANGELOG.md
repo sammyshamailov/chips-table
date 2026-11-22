@@ -5,6 +5,10 @@ development branch.
 
 ## Not yet live
 
+Nothing yet.
+
+## 2026-11-22
+
 ### Changed
 - **New casino background: a steady, quiet murmur of people with a slot machine now and then.** A generated
   murmur (no clear words, about 39 s, looped seamlessly) plays softly all the time, and a random slot-machine
