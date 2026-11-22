@@ -95,26 +95,7 @@ they change.
 
 ## In progress
 
-### R-001 Planning file
-
-| | |
-|---|---|
-| Type | Chore |
-| Status | In progress |
-| Priority | P2 |
-| Size | S |
-| Games | — |
-| Branch | `ccr-74add77c-f7qmcg` |
-| Added | 2026-11-21 |
-| Done | — |
-
-**Problem / goal.** No single place to plan upcoming updates and fixes.
-
-**Plan.** Add `ROADMAP.md` with the workflow, statuses, an entry template and the first proposed
-entries; point to it from `CLAUDE.md`; keep it off the public site in `netlify.toml`.
-
-**Done when.** New work starts as an entry here. _(Moves to Done once on `main`.)_
-The v2 plans (R-005 to R-014) were added on the same branch on 2026-11-22.
+_Nothing yet._
 
 ---
 
@@ -129,9 +110,9 @@ follows.
 
 | # | Entry | Owner's item | Decided by | Why here |
 |---|---|---|---|---|
-| 1 | [R-004](#r-004-dealer-writes-to-a-players-stack-can-overwrite-that-players-own-write) Fix the dealer write race | — | — | Live bug: chips can appear from nowhere at tonight's table. Small, and the players are on `main` now |
-| 2 | [R-003](#r-003-two-phone-test-for-a-holdem-hand) Hold'em two-phone test | 3, 7 | — | The safety net: without it the refactor and the new Hold'em table can break Hold'em unnoticed |
-| 3 | [R-009](#r-009-guard-older-phones-against-new-table-types) Guard older phones against new table types | 2 | — | Tiny, but it has to be on every phone well before the first card table, so it goes out early |
+| 1 | [R-004](#r-004-dealer-writes-to-a-players-stack-can-overwrite-that-players-own-write) Fix the dealer write race (done 2026-11-22) | — | — | Live bug: chips can appear from nowhere at tonight's table. Small, and the players are on `main` now |
+| 2 | [R-003](#r-003-two-phone-test-for-a-holdem-hand) Hold'em two-phone test (done 2026-11-22) | 3, 7 | — | The safety net: without it the refactor and the new Hold'em table can break Hold'em unnoticed |
+| 3 | [R-009](#r-009-guard-older-phones-against-new-table-types) Guard older phones against new table types (done 2026-11-22) | 2 | — | Tiny, but it has to be on every phone well before the first card table, so it goes out early |
 | 4 | [R-005](#r-005-code-foundations-modules-layers-tooling) Code foundations | 7 | Q2 | Everything below builds on it; doing it later means writing each feature twice |
 | 5 | [R-006](#r-006-english-and-hebrew) English and Hebrew | 1 | Q4, Q10 | Every later feature then adds its text in both languages once, instead of being translated afterwards |
 | 6 | [R-017](#r-017-sign-in-stricter-rules-and-private-tables) Sign-in, stricter rules and private tables | (fix + new) | Q13 | Closes the table to cheating and adds private tables in one rules change. After the foundations (its code lives in the new data layer), before anything that adds new stored data
@@ -199,164 +180,6 @@ Nothing at the moment.
 
 In the order to build them, most important first (see [Version 2](#version-2)). R-003 and R-004 were
 found by reading the code.
-
-### R-004 Dealer writes to a player's stack can overwrite that player's own write
-
-| | |
-|---|---|
-| Type | Fix |
-| Status | In progress |
-| Priority | P0 |
-| Size | M |
-| Games | Both |
-| Branch | `ccr-74add77c-f7qmcg` |
-| Added | 2026-11-21 |
-| Done | — |
-
-**Problem / goal.** When the dealer pays or refunds, the dealer's phone writes each player's new stack
-as an absolute number computed from its own copy: `stack: (p.stack || 0) + pay` in `bjPayout`,
-`bjCancelRound`, `bjNow`, `award` and `cancelHand`. If the player writes in between (the copy is stale),
-one of the two writes is lost.
-
-The clearest case is `bjPayout`: it writes the room first (`phase: 'betting'`, next `roundId`) and only
-then the players. A player whose phone sees the new betting phase first can place a bet (`bjBet` writes
-`stack: m.stack - add`, `hands: [newBet]`, `bjRound: newRound`). The dealer's payout write then lands
-with the old stack plus winnings and the old round's `hands`, keeping the new `bjRound`. Result: the bet
-is never taken from the stack and the old hand appears as a bet in the new round, so chips appear from
-nowhere. The window is the time between the two writes: small on good Wi-Fi, real on a slow connection.
-
-**Plan.**
-1. Reproduce it first in the two-phone harness: on phone B, delay the relay of the dealer's player
-   writes (`tests/lib.js`) and bet as soon as the room shows `betting`. Add a check that the total of all
-   stacks, bets and `house` is unchanged across the round. It should fail before the fix.
-2. In `bjPayout` and `bjCancelRound`, write the player documents **before** the room document, so no
-   player can start the next round while payouts are still in flight.
-3. Change the dealer's stack writes from an absolute value to an increment
-   (`firebase.firestore.FieldValue.increment(n)`): `bjPayout`, `bjCancelRound`, `bjNow`, `award`,
-   `cancelHand`. Add a small helper (`inc(n)`) in the `writes` section so the call sites stay short.
-4. Teach `LocalDB` (single-device store) and `tests/fakefs.js` to apply the increment sentinel, so
-   single-device mode and the tests behave like Firestore.
-5. Leave each player's own writes (`bjBet`, `bjDo`, `hAct`) as they are for now: they only race with the
-   dealer, and the dealer no longer overwrites them.
-6. Re-run the check from step 1; it should now pass.
-
-**Stored data.** One optional player field, `bjPaidRound` (number; the round the dealer last paid or refunded the player in, so a retry doesn't pay twice). `stack` stays a plain number in the document. Increments are a write-time
-operation, so phones on an older version read the same field.
-
-**Effects and sound.** Unchanged: the writes keep the same `lastAction` and `ts`. Check that the payout
-animation still starts from the right stacks, since the stack value the snapshot handler sees is now the
-server's result.
-
-**Risks.** `LocalDB` and `fakefs.js` must understand the sentinel or single-device mode breaks: test
-both. The compat SDK loaded from gstatic (10.12.2) has `firebase.firestore.FieldValue.increment`. Changing write order must not leave a half-paid round if a write fails:
-on failure, show the error and do not advance the round.
-
-**Tests.**
-- [x] New money-conservation check (`tests/race.test.js`, paid and cancelled round) fails before, passes after
-- [x] Single-device mode by script: payout, cancel, mid-round blackjack, Hold'em award with a side pot and cancel
-- [x] `node tests/screenshots.js`
-
-**Docs to update.** `CHANGELOG.md` (Fixed), `lessons-learned.md` (Stored data and sync: dealer writes
-must not assume the player's document is unchanged), `docs/ARCHITECTURE.md` (writes section).
-
-**Done when.** Betting the instant a new round opens never changes the total chips at the table.
-
-*Note:* ship this alone, first: it is live. R-005's data layer later keeps the `increment` helper.
-
-### R-003 Two-phone test for a Hold'em hand
-
-| | |
-|---|---|
-| Type | Chore |
-| Status | In progress |
-| Priority | P1 |
-| Size | M |
-| Games | Hold'em |
-| Branch | `ccr-74add77c-f7qmcg` |
-| Added | 2026-11-21 |
-| Done | — |
-
-**Problem / goal.** `tests/two-phones.test.js` only plays blackjack. Hold'em (blinds, betting rounds,
-side pots, cancelling a hand) has no automated check, so a sync or payout bug there would only show up
-at a game night. It is also the safety net for the refactor (R-005) and the Hold'em table (R-007), so
-it comes before both.
-
-**Plan.**
-1. Split the shared set-up in `tests/two-phones.test.js` (open table, join, seat) into a helper in
-   `tests/lib.js` that takes the game type.
-2. Add `tests/holdem.test.js`, three phones: dealer plus two players with different stacks.
-3. Play one hand: `newHand` posts blinds → check, bet, call on each street (`hAct`, `nextStreet`) →
-   `award`. Check stacks, `committed`, the pot shown on every phone, and that the button and blinds move
-   on the next hand.
-4. Play an all-in hand with unequal stacks so `computeAward` makes a side pot; award the main pot and the
-   side pot to different players and check the amounts.
-5. Cancel a hand mid-street (`cancelHand`) and check every player gets back what they put in.
-6. After each step, check the total of stacks plus pot is unchanged.
-7. Add it to the table in `docs/TESTING.md` and to rule 8 in `CLAUDE.md`.
-
-**Stored data.** None.
-
-**Effects and sound.** None; the test only watches page errors and values.
-
-**Risks.** Timing: give each tap time for the snapshot round trip, and use selectors, not saved handles
-(see `docs/TESTING.md`, Pitfalls).
-
-**Tests.**
-- [x] `node tests/holdem.test.js` passes three runs in a row
-- [x] `node tests/two-phones.test.js` still passes after the helper is moved
-
-**Docs to update.** `docs/TESTING.md`, `CLAUDE.md`, `CHANGELOG.md`.
-
-**Done when.** A broken Hold'em payout or side pot fails a test.
-
-*Follow-up:* the test has no tie with an odd pot, so the odd-chip rule in `computeAward` (the leftover
-chip goes to the first winner) isn't covered; add one before R-005 phase 2 moves that code.
-
-### R-009 Guard older phones against new table types
-
-| | |
-|---|---|
-| Type | Chore |
-| Status | In progress |
-| Priority | P1 |
-| Size | S |
-| Games | Both |
-| Branch | `ccr-74add77c-f7qmcg` |
-| Added | 2026-11-22 |
-| Done | — |
-
-**Problem / goal.** A phone on today's version that opens a card-mode table would show it as a chips table
-and could place chip bets into it. Before any card table exists, every phone must know how to refuse a
-table it doesn't understand.
-
-**Plan.**
-1. Add `FEATURE_LEVEL = 1` to the app. New optional room fields: `mode` (`'chips'` or `'cards'`; missing
-   means chips) and `appMin` (the lowest feature level that can play this table; missing means 0).
-2. On opening a table: if `appMin > FEATURE_LEVEL` or `mode` is unknown, show "This table needs a newer
-   version" with an Update button (runs the self-update check and reloads), and never write to it. The
-   home screen's table list marks such tables the same way.
-3. Ship this to `main` right after R-004 and R-003 (it is small and independent) so that by the
-   time card tables exist, every phone has updated past it.
-4. **For phones older than the guard**: card tables also set the old fields to values today's code
-   refuses to act on: Blackjack `phase: 'cards'` (today's bet and play code only act on `betting` and
-   `playing`), Hold'em `stage: 'cards'` (today's code only acts on the four betting streets). Such a phone
-   sees a frozen table instead of making wrong writes.
-
-**Stored data.** Adds optional room `mode` and `appMin`. Fallbacks as above.
-
-**Effects and sound.** None.
-
-**Risks.** Step 4 depends on today's checks; verify by opening a card table with the current `main`
-build in the harness.
-
-**Tests.**
-- [x] Harness: a table with `appMin: 99` shows the update screen and makes no writes (`tests/guard.test.js`)
-- [x] Harness: today's build on a table with `phase: 'cards'` (and Hold'em `stage: 'cards'`) cannot bet (`tests/guard.test.js`; dealer-side buttons are not covered)
-
-**Docs to update.** `docs/ARCHITECTURE.md`, `CHANGELOG.md`, `lessons-learned.md` ("new table types need
-a guard shipped first").
-
-**Done when.** No phone, old or new, can write to a table type it doesn't understand.
 
 ### R-005 Code foundations: modules, layers, tooling
 
@@ -1346,6 +1169,22 @@ microphone in the background; echo when two players sit in the same room (push-t
 ## Done
 
 Newest first. Short summary, date it reached `main`, commit.
+
+### R-004 Dealer writes to a player's stack can overwrite that player's own write
+
+Fix · **Done 2026-11-22** · commit `98c135f`. Dealer stack changes are increments; Blackjack payouts and cancels settle players before opening the next round; `bjPaidRound` stops a retry paying twice. `tests/race.test.js`.
+
+### R-003 Two-phone test for a Hold'em hand
+
+Chore · **Done 2026-11-22** · commit `91b54ff`. `tests/holdem.test.js`: three phones, every street, side pot, cancels, chip totals after each step; shared `openTable` helper. Follow-up: an odd-pot tie (before R-005 phase 2).
+
+### R-009 Guard older phones against new table types
+
+Chore · **Done 2026-11-22** · commit `b7ec690`. `FEATURE_LEVEL`, room `mode`/`appMin` read only; unsupported tables show an update screen and are never written to. `tests/guard.test.js`.
+
+### R-001 Planning file
+
+Chore · **Done 2026-11-22** · commit `b5fec81`. `ROADMAP.md` with workflow, template and the version 2 plans.
 
 ### R-002 Hold'em: show the dealer which player is to act
 

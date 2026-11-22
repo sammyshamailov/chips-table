@@ -5,6 +5,10 @@ development branch.
 
 ## Not yet live
 
+_Nothing yet._
+
+## 2026-11-22 (2)
+
 ### Added
 - **Phones refuse table types they don't understand.** A table that needs a newer version of the app shows
   "השולחן הזה צריך גרסה חדשה יותר" with an update button instead of the table, the phone never writes to it, and
