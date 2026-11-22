@@ -6,6 +6,10 @@ development branch.
 ## Not yet live
 
 ### Added
+- **Phones refuse table types they don't understand.** A table that needs a newer version of the app shows
+  "השולחן הזה צריך גרסה חדשה יותר" with an update button instead of the table, the phone never writes to it, and
+  the home list marks it "צריך עדכון". Nothing changes for today's tables. This has to reach every phone before
+  the first card table exists (`tests/guard.test.js`).
 - **A Hold'em test on three phones** (`tests/holdem.test.js`): blinds, betting rounds, awarding the pot, an all-in
   with a side pot, and cancelling a hand, checked on every phone with the total chips unchanged. For us, not for
   players; it protects Hold'em during the coming changes.

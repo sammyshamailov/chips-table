@@ -112,6 +112,13 @@ decoding (`loopBounds`), and check it by playing across the loop point (largest 
 `pointerdown`/`touchend`/`click`; until then sounds are silently skipped. iPhones are silent with the mute
 switch on.
 
+## Rolling out new table types
+
+**A new table type needs its guard shipped first.** A phone on an older version shows any room as a chips table and
+will happily bet into it. Before a table type with different rules exists, every phone must already refuse rooms it
+doesn't understand (`mode` / `appMin`, R-009), and the new tables should also set the old fields (`phase` / `stage`
+= `'cards'`) to values the old code won't act on. Ship the guard, wait until phones have updated, then ship the type.
+
 ## Testing
 
 **Single-device mode can't catch sync bugs.** It shares one database between all seats on one phone. The

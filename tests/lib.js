@@ -34,7 +34,7 @@ async function phones(browser, n = 2, { width = 390, height = 844, build = 'test
   // The hub is the "server": it holds the documents, applies each write (increments against its own value) and relays
   // the resulting document to the other phones. hub.delay(phoneIndex, path, op) -> ms holds a write back before the
   // server sees it, to simulate a slow connection (used by tests/race.test.js).
-  const pages = [], errors = [], hub = { docs: {}, delay: () => 0 };
+  const pages = [], errors = [], hub = { docs: {}, delay: () => 0, writes: [] };   // hub.writes: every write the server received, { phone, path, op, data }
   for (let i = 0; i < n; i++){
     const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: scale });
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
@@ -52,6 +52,7 @@ async function phones(browser, n = 2, { width = 390, height = 844, build = 'test
     await pages[i].exposeFunction('__pull', () => JSON.stringify(hub.docs));
     await pages[i].exposeFunction('__push', async json => {
       const { path, op, data } = JSON.parse(json);
+      hub.writes.push({ phone: i, path, op, data });
       const ms = hub.delay(i, path, op); if (ms) await sleep(ms);
       if (op === 'delete') delete hub.docs[path];
       else if (op === 'set') hub.docs[path] = resolve(null, data);

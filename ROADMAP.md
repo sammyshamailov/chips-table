@@ -314,11 +314,11 @@ it comes before both.
 | | |
 |---|---|
 | Type | Chore |
-| Status | Planned |
+| Status | In progress |
 | Priority | P1 |
 | Size | S |
 | Games | Both |
-| Branch | — |
+| Branch | `ccr-74add77c-f7qmcg` |
 | Added | 2026-11-22 |
 | Done | — |
 
@@ -347,8 +347,8 @@ table it doesn't understand.
 build in the harness.
 
 **Tests.**
-- [ ] Harness: a table with `appMin: 99` shows the update screen and makes no writes
-- [ ] Harness: today's `main` build on a table with `phase: 'cards'` cannot bet
+- [x] Harness: a table with `appMin: 99` shows the update screen and makes no writes (`tests/guard.test.js`)
+- [x] Harness: today's build on a table with `phase: 'cards'` (and Hold'em `stage: 'cards'`) cannot bet (`tests/guard.test.js`; dealer-side buttons are not covered)
 
 **Docs to update.** `docs/ARCHITECTURE.md`, `CHANGELOG.md`, `lessons-learned.md` ("new table types need
 a guard shipped first").

@@ -43,8 +43,20 @@ them missing.
 | Hold'em: `handId`, `streetId`, `stage`, `potLevel`, `buttonPid`, `sbPid`, `bbPid` | Hand state. The pot is derived from players' `committed` above `potLevel` |
 | Blackjack: `roundId`, `phase` (`betting` / `playing`), `house`, `dealerBJ` | Round state and the house balance |
 | `roundEnd` *added* | Blackjack: how the last round ended, `'paid'` or `'cancelled'`. Set with the new `roundId`; the dealer narration says "payout" only for `'paid'`. Missing when an older phone ended the round (readers then fall back to the `lastEvent` text) |
+| `mode` *added, read-only for now* | Table type. Missing = `'chips'`. Known to this build: `'chips'`. Nothing writes it yet (card tables will) |
+| `appMin` *added, read-only for now* | Lowest `FEATURE_LEVEL` that can play this table. Missing = 0. Nothing writes it yet |
 | `closed` *added* | The game is over; the table shows the final standings |
 | `final {at, list:[{pid, name, stack}]}` *added* | Standings frozen when the dealer ended the game, highest first |
+
+**Guard for unknown table types.** `tableUnsupported(room)` (index.html, next to `now`) is true when `appMin > FEATURE_LEVEL`
+or `mode` is present and not in `KNOWN_MODES`. For such a room `roomView` shows `updateView()` (title, an "עדכון" button
+that runs `checkUpdate` and reloads, and a way home) instead of the table; the sheet is not shown; the room and
+players listeners keep running (so the table renders once the phone is updated) but skip the effects; `w()` refuses
+every write under `rooms/{CODE}` of that room; and the click dispatcher ignores every action except
+`home`/`upd`/`reload`/`snd`/`retry`. The home list marks such tables "צריך עדכון". `FEATURE_LEVEL` is raised only
+when a build really plays tables with that `appMin`. Card tables will also set the legacy Blackjack
+`phase: 'cards'` / Hold'em `stage: 'cards'`, which make phones older than the guard refuse player actions
+(proved in `tests/guard.test.js`).
 
 ### `rooms/{CODE}/players/{pid}` (`p_` + 6–16 lowercase letters/digits)
 

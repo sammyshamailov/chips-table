@@ -365,6 +365,16 @@ const fmt = n => Math.round(n || 0).toLocaleString('en-US');
 const ls = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }, del(k){ try { localStorage.removeItem(k); } catch(e){} } };
 const rid = (n=8) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
 const now = () => Date.now();
+/* ---------- table types this build understands (guard for newer phones' tables) ----------
+   Room fields `mode` (missing = 'chips') and `appMin` (missing = 0) are only READ for now. A table that needs a
+   newer build is shown as an update screen and is never written to. Raise FEATURE_LEVEL only when this build
+   can really play tables written with that appMin. */
+const FEATURE_LEVEL = 1, KNOWN_MODES = ['chips'];
+function tableUnsupported(r){
+  if (!r) return false;
+  const min = Number(r.appMin); if (r.appMin != null && !(min <= FEATURE_LEVEL)) return true;   // also catches a non-number
+  return r.mode != null && !KNOWN_MODES.includes(r.mode);
+}
 const buzz = () => { try { navigator.vibrate && navigator.vibrate(12); } catch(e){} };
 
 const S = {
@@ -858,6 +868,8 @@ function useLocal(){
 /* ---------- writes, one at a time per document ---------- */
 const queues = {};
 function w(path, op, data){
+  // Never write to a table this build doesn't understand (see tableUnsupported).
+  if (S.code && S.room && tableUnsupported(S.room) && (path === 'rooms/' + S.code || path.startsWith('rooms/' + S.code + '/'))) return Promise.resolve(false);
   const ref = S.db.doc(path); const prev = queues[path] || Promise.resolve();
   const p = prev.catch(() => {}).then(() => op === 'delete' ? ref.delete() : ref[op](data));
   queues[path] = p;
@@ -889,14 +901,14 @@ function enterRoom(code){
   S.unsubs.push(S.db.doc('rooms/' + code).onSnapshot(s => {
     if (S.code !== mine) return;
     if (!s.exists){ if (!s.metadata.fromCache){ S.room = null; S.roomLoaded = true; render(); } return; }
-    const nr = s.data(); let run = null; try { run = fxRoom(S.room, nr); } catch(e){ console.error(e); }
+    const nr = s.data(); let run = null; try { run = tableUnsupported(nr) ? null : fxRoom(S.room, nr); } catch(e){ console.error(e); }
     S.room = nr; S.roomLoaded = true; S.synced = !s.metadata.fromCache; render();
     if (run) try { run(); } catch(e){ console.error(e); }
   }, onErr));
   S.unsubs.push(S.db.collection('rooms/' + code + '/players').onSnapshot(s => {
     if (S.code !== mine) return;
     const m = {}; s.docs.forEach(d => { if (d.exists) m[d.id] = d.data(); });
-    let runs = []; try { runs = fxPlayers(S.players, m); } catch(e){ console.error(e); }
+    let runs = []; try { runs = tableUnsupported(S.room) ? [] : fxPlayers(S.players, m); } catch(e){ console.error(e); }
     S.players = m; S.pSynced = !s.metadata.fromCache; render();
     runs.forEach(f => { try { f(); } catch(e){ console.error(e); } });
   }, onErr));
@@ -1433,7 +1445,7 @@ function render(){
   else { app.innerHTML = roomView(); const sd = app.querySelector('.side'); if (sd && sideTop) sd.scrollTop = sideTop; }
   setU(); renderRot(); ambiSync();
   if (newBuild) setTimeout(maybeReload, 0);
-  if (S.sheet && (S.room || S.sheet === 'avatar')){ sheetEl.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${sheetView()}</div>`; sheetEl.hidden = false; }
+  if (S.sheet && ((S.room && !tableUnsupported(S.room)) || S.sheet === 'avatar')){ sheetEl.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${sheetView()}</div>`; sheetEl.hidden = false; }
   else { sheetEl.hidden = true; sheetEl.innerHTML = ''; }
   if (id){ const el = document.getElementById(id); if (el && el !== document.activeElement){ el.focus({ preventScroll:true }); try { if (s1 != null) el.setSelectionRange(s1, s2); } catch(e){} } }
 }
@@ -1483,12 +1495,13 @@ function homeView(){
 }
 function renderRooms(){
   const el = document.getElementById('roomsList'); if (!el) return;
-  el.innerHTML = S.rooms.length ? `<span class="muted">שולחנות פעילים</span>` + S.rooms.map(r => `<button class="roomrow" data-a="open" data-v="${esc(r.code)}"><span><span class="code">${esc(r.code)}</span></span><span class="muted">${r.game === 'holdem' ? 'הולדם' : 'בלאק ג\'ק'} · ${r.lastEvent ? esc(r.lastEvent.t) : ''}</span></button>`).join('') : '';
+  el.innerHTML = S.rooms.length ? `<span class="muted">שולחנות פעילים</span>` + S.rooms.map(r => tableUnsupported(r) ? `<button class="roomrow" data-a="open" data-v="${esc(r.code)}"><span><span class="code">${esc(r.code)}</span></span><span class="muted">צריך עדכון</span></button>` : `<button class="roomrow" data-a="open" data-v="${esc(r.code)}"><span><span class="code">${esc(r.code)}</span></span><span class="muted">${r.game === 'holdem' ? 'הולדם' : 'בלאק ג\'ק'} · ${r.lastEvent ? esc(r.lastEvent.t) : ''}</span></button>`).join('') : '';
 }
 
 function roomView(){
   if (!S.roomLoaded) return `<div class="spin">טוען את השולחן…</div>`;
   if (!S.room) return `<div class="stack" style="padding-top:40px"><div class="card"><h2 style="font-family:var(--f-display);font-size:36px">החדר ${esc(S.code)} לא נמצא</h2><span class="muted">בדקו את הקוד ונסו שוב.</span><button class="btn primary" data-a="home">חזרה</button></div></div>`;
+  if (tableUnsupported(S.room)){ app.className = ''; return updateView(); }
   const r = S.room, m = me(), hold = r.game === 'holdem';
   const body = hold ? holdemView() : bjView();
   const closed = !!r.closed;
@@ -1513,6 +1526,11 @@ function roomView(){
   </div><div class="stage${hold ? '' : ' fit'}">${body}</div></div>`;
 }
 
+function updateView(){
+  return `<div class="stack" style="padding-top:40px"><div class="card" id="needupd"><h2 style="font-family:var(--f-display);font-size:34px">השולחן הזה צריך גרסה חדשה יותר</h2>
+    <span class="muted">השולחן ${esc(S.code)} נפתח בגרסה חדשה של האפליקציה. כדי להצטרף אליו צריך לעדכן.</span>
+    <button class="btn primary wide" data-a="upd">עדכון</button><button class="btn ghost wide" data-a="home">חזרה למסך הראשי</button></div></div>`;
+}
 function joinCard(){
   const list = players();
   if (isHost() && S.room.game === 'blackjack') return `<div class="card" style="margin-top:14px"><span class="muted">אתה הדילר. אם תרצה גם להמר:</span><button class="btn ghost" data-a="sit">הצטרפות כמהמר</button></div>`;
@@ -1847,6 +1865,7 @@ const A = {
   ambi: () => { AMBI_ON = !AMBI_ON; ls.set('chips.ambi', AMBI_ON ? '1' : '0'); ambiSync(); render(); },
   voice: () => { VOICE_ON = !VOICE_ON; ls.set('chips.voice', VOICE_ON ? '1' : '0'); if (!VOICE_ON) SND.voiceStop(); ambiSync(); render(); },
   reload: () => { reloading = true; location.reload(); },
+  upd: async () => { await checkUpdate(); if (newBuild){ reloading = true; location.reload(); } else toast('זו כבר הגרסה האחרונה. אם השולחן עדיין לא נפתח, נסו שוב עוד רגע.'); },
   endgame: () => endGame(),
   avcam: () => document.getElementById('avcam').click(),
   avfile: () => document.getElementById('avfile').click(),
@@ -1891,6 +1910,7 @@ document.addEventListener('click', e => {
   if (e.target === sheetEl){ S.sheet = null; render(); return; }
   const t = e.target.closest('[data-a]'); if (!t || t.disabled) return;
   if (t.classList.contains('btn') || t.closest('.seg,.res4,.presets')) SND.tick();
+  if (S.code && tableUnsupported(S.room) && !['home', 'upd', 'reload', 'snd', 'retry'].includes(t.dataset.a)) return;   // update screen: nothing else acts
   const f = A[t.dataset.a]; if (f) f(t.dataset.v, t);
 });
 function bind(e){
