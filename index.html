@@ -15,6 +15,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Karantina:wght@400;700&display=swap">
 <style>
+/* Widths include padding and border everywhere; without this, width:100% inputs stuck out of their cards. */
+*,*::before,*::after{box-sizing:border-box}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0;font-size:14px}
 img{max-width:100%}
@@ -378,102 +380,122 @@ const S = {
 ls.set('chips.pid', S.myId);
 let installEvt = null;
 
-/* ---------- casino ambience: a distant crowd talking, slot machines around the room, the hum of the hall ----------
-   All synthesized. Works on any AudioContext (live, or offline for a preview). sched(t) schedules everything up to time t. */
-function Ambience(c, dest, level = 1, mix = {}){
-  const R = Math.random, T0 = c.currentTime, M = { crowd: 1.2, slots: 1.7, wet: .45, dry: .35, ...mix };
-  const bus = c.createGain(); bus.gain.setValueAtTime(.0001, T0); bus.gain.exponentialRampToValueAtTime(level, T0 + 2.5); bus.connect(dest);
-  const pan = v => { try { const p = c.createStereoPanner(); p.pan.value = v; return p; } catch(e){ return c.createGain(); } };
-  // the hall: a long soft reverb so everything sounds far away, plus a little dry signal
-  const len = Math.floor(c.sampleRate * 2.4), ir = c.createBuffer(2, len, c.sampleRate);
-  for (let ch = 0; ch < 2; ch++){ const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (R() * 2 - 1) * Math.pow(1 - i / len, 3.2) * Math.min(1, i / 300); }
-  const verb = c.createConvolver(); verb.buffer = ir; const wet = c.createGain(); wet.gain.value = M.wet; verb.connect(wet); wet.connect(bus);
-  const room = c.createGain(); room.connect(verb); const dry = c.createGain(); dry.gain.value = M.dry; room.connect(dry); dry.connect(bus);
-  // noise for the slot machines' reel clicks (no constant room hum: it came across as white noise)
-  const nb = c.createBuffer(1, c.sampleRate * 3, c.sampleRate); { const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = R() * 2 - 1; }
-
-  // ---- people talking: each voice is a buzz shaped by two vowel formants, syllable by syllable ----
-  const crowd = c.createGain(); crowd.gain.value = M.crowd;
-  const chp = c.createBiquadFilter(); chp.type = 'highpass'; chp.frequency.value = 160;
-  const clp = c.createBiquadFilter(); clp.type = 'lowpass'; clp.frequency.value = 1500;
-  crowd.connect(chp); chp.connect(clp); clp.connect(room);
-  const VOW = [[730, 1090], [530, 1840], [270, 2290], [570, 840], [300, 870], [660, 1720], [490, 1350], [400, 2000]];
-  const voices = Array.from({ length: 7 }, (_, i) => {
-    const female = i % 2 === 1, base = female ? 180 + R() * 50 : 98 + R() * 40;
-    const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = base;
-    const f1 = c.createBiquadFilter(); f1.type = 'bandpass'; f1.Q.value = 5;
-    const f2 = c.createBiquadFilter(); f2.type = 'bandpass'; f2.Q.value = 7; const g2 = c.createGain(); g2.gain.value = .55;
-    const env = c.createGain(); env.gain.value = 0; const p = pan((R() * 2 - 1) * .85);
-    o.connect(f1); f1.connect(env); o.connect(f2); f2.connect(g2); g2.connect(env); env.connect(p); p.connect(crowd); o.start(T0);
-    return { o, f1, f2, env, base, female, vol: .45 + R() * .55, next: T0 + .3 + R() * 3 };
-  });
-  function syl(v, t, f0, w, dur, a){
-    const k = v.female ? 1.16 : 1;
-    v.o.frequency.setTargetAtTime(f0, t, .025); v.f1.frequency.setTargetAtTime(w[0] * k, t, .02); v.f2.frequency.setTargetAtTime(w[1] * k, t, .02);
-    v.env.gain.setTargetAtTime(a, t, .012); v.env.gain.setTargetAtTime(a * .1, t + dur * .72, .018);
+/* ---------- casino background: a quiet steady murmur of people, plus a slot machine now and then ----------
+   The bed (sounds/amb/crowd-bed.mp3, generated speech-like murmur, no clear words) loops quietly under everything;
+   every 10-25 s one slot-machine one-shot plays on top. The owner liked the style of the generated talk clips,
+   so the bed is made in that style, and it sits 6 dB under how loud those clips were.
+   Files: sounds/amb/*.mp3 (see sounds/CREDITS.md). Works on any AudioContext, including an
+   OfflineAudioContext for tests/audio.js. */
+const AMB_BASE = 'sounds/amb/', AMB_LEVEL = .045, AMB_MAKEUP = 1, AMB_BED = .0753;     // machines peak about -20 dBFS at the master; the bed (-20 dBFS file) sits at about -41 dBFS (both channels)
+const AMB_MANIFEST = [{ kind: 'bed', url: `${AMB_BASE}crowd-bed.mp3` }].concat([1, 2, 3, 4].map(i => ({ kind: 'machine', url: `${AMB_BASE}machine-${i}.mp3` })));
+// Make the decoded bed loop cleanly: skip any silence the MP3 decoder leaves at the ends (some browsers do), then
+// crossfade the last 50 ms into the first 50 ms. MP3 changes the edges slightly, so without this there's a faint
+// click every time the loop repeats. Done once per buffer; returns [loopStart, loopEnd] in seconds.
+const LOOPS = new WeakMap();
+function loopBounds(buf){
+  if (LOOPS.has(buf)) return LOOPS.get(buf);
+  const sr = buf.sampleRate, d0 = buf.getChannelData(0), lim = Math.min(d0.length, Math.floor(sr * .3));
+  let a = 0, b = d0.length; while (a < lim && Math.abs(d0[a]) < 1e-4) a++; while (b > d0.length - lim && Math.abs(d0[b - 1]) < 1e-4) b--;
+  const k = Math.min(Math.floor(sr * .05), Math.floor((b - a) / 4));
+  for (let ch = 0; ch < buf.numberOfChannels; ch++){
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < k; i++){ const t = (i / k) * Math.PI / 2; d[a + i] = d[a + i] * Math.sin(t) + d[b - k + i] * Math.cos(t); }
   }
-  function phrase(v, t){
-    const n = 3 + Math.floor(R() * 13);
-    for (let i = 0; i < n; i++){
-      const dur = .085 + R() * .17;
-      syl(v, t, v.base * (1 + (R() - .5) * .3) * (1 - .12 * i / n), VOW[Math.floor(R() * VOW.length)], dur, v.vol * (.55 + R() * .45));
-      t += dur; if (R() < .14) t += .05 + R() * .14;        // a gap between words
-    }
-    v.env.gain.setTargetAtTime(0, t, .04); return t;
+  const r = [a / sr, (b - k) / sr]; LOOPS.set(buf, r); return r;
+}
+// clips: array of { kind, buf, url }, read on every pick, so clips that finish loading later are used too.
+function Ambience(c, dest, level, clips){
+  const T0 = c.currentTime, sr = c.sampleRate, rnd = (a, b) => a + Math.random() * (b - a);
+  // events are peaky (a coin drop, a laugh): a gentle compressor evens them out so they can be heard without a high peak
+  const bus = c.createGain(), cmp = c.createDynamicsCompressor(), mk = c.createGain(); cmp.threshold.value = -42; cmp.knee.value = 12; cmp.ratio.value = 8; cmp.attack.value = .005; cmp.release.value = .25; mk.gain.value = AMB_MAKEUP;
+  bus.connect(cmp); cmp.connect(mk); mk.connect(dest);
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 6000; lp.Q.value = .5;
+  const room = c.createGain(); room.gain.value = 1; const dry = c.createGain(), wet = c.createGain(); dry.gain.value = 1; wet.gain.value = .25;
+  bus.gain.value = 1; room.connect(lp); lp.connect(dry); dry.connect(bus);
+  try {                                                                 // a light generated reverb, about 1.2 s
+    const n = Math.floor(sr * 1.2), ir = c.createBuffer(2, n, sr); let en = 0;
+    for (let ch = 0; ch < 2; ch++){ const d = ir.getChannelData(ch); for (let i = 0; i < n; i++){ d[i] = (Math.random() * 2 - 1) * Math.exp(-5 * i / n); en += d[i] * d[i]; } }
+    const k = 1 / Math.sqrt(en / 2); for (let ch = 0; ch < 2; ch++){ const d = ir.getChannelData(ch); for (let i = 0; i < n; i++) d[i] *= k; }
+    const cv = c.createConvolver(); cv.buffer = ir; lp.connect(cv); cv.connect(wet); wet.connect(bus);
+  } catch(e){}
+  // the bed: one looped source straight to the destination (not through the event compressor), faded in over 3 s
+  let bedG = null, bedSrc = null;
+  function startBed(){
+    const it = clips.find(x => x.kind === 'bed' && x.buf); if (!it || bedSrc || dead) return;
+    const [a, b] = loopBounds(it.buf), t = c.currentTime;
+    bedG = c.createGain(); bedG.gain.setValueAtTime(0, t); bedG.gain.linearRampToValueAtTime(AMB_BED, t + 3); bedG.connect(dest);
+    bedSrc = c.createBufferSource(); bedSrc.buffer = it.buf; bedSrc.loop = true; bedSrc.loopStart = a; bedSrc.loopEnd = b;
+    bedSrc.connect(bedG); bedSrc.start(t, a + Math.random() * Math.max(0, b - a - 1));      // phones at one table don't play in step
   }
-  function laugh(v, t){                                       // "ha-ha-ha", higher and falling
-    const n = 4 + Math.floor(R() * 4);
-    for (let i = 0; i < n; i++){ syl(v, t, v.base * (1.45 - i * .06), [800, 1250], .11, v.vol * (1 - i * .08)); t += .13 + R() * .03; }
-    v.env.gain.setTargetAtTime(0, t, .05); return t;
+  let next = T0 + rnd(4, 8), busyUntil = T0, last = null, live = [], dead = false;
+  function pick(){
+    const list = clips.filter(x => x.buf && x.kind === 'machine' && x !== last);
+    return list.length ? list[Math.floor(Math.random() * list.length)] : null;
   }
-
-  // ---- slot machines scattered around the room ----
-  const slots = c.createGain(); slots.gain.value = M.slots; slots.connect(room);
-  function note(t, f, d, g, type, p){
-    const o = c.createOscillator(); o.type = type; o.frequency.value = f;
-    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3600;
-    const e = c.createGain(); e.gain.setValueAtTime(.0001, t); e.gain.exponentialRampToValueAtTime(g, t + .006); e.gain.exponentialRampToValueAtTime(.0001, t + d);
-    o.connect(lp); lp.connect(e); e.connect(p); o.start(t); o.stop(t + d + .05);
-  }
-  function click(t, f, g, p){
-    const s = c.createBufferSource(); s.buffer = nb; const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 4;
-    const e = c.createGain(); e.gain.setValueAtTime(.0001, t); e.gain.exponentialRampToValueAtTime(g, t + .002); e.gain.exponentialRampToValueAtTime(.0001, t + .014);
-    s.connect(bp); bp.connect(e); e.connect(p); s.start(t, R() * 2); s.stop(t + .03);
-  }
-  const PENTA = [1046.5, 1174.7, 1318.5, 1568, 1760, 2093, 2349.3, 2637];
-  const SLOT = [
-    (t, p) => { const n = 4 + Math.floor(R() * 4), ty = R() < .5 ? 'square' : 'triangle'; let j = Math.floor(R() * 4);         // jingle
-      for (let i = 0; i < n; i++){ j = Math.max(0, Math.min(PENTA.length - 1, j + Math.floor(R() * 3) - 1 + (i % 2))); note(t + i * .085, PENTA[j], .12, ty === 'square' ? .035 : .06, ty, p); } },
-    (t, p) => { let dt = .045, u = t;                                                                                             // reels spin, then stop one by one
-      for (let i = 0; i < 24; i++){ click(u, 2600, .14, p); u += dt; dt *= 1.025; }
-      for (let r = 0; r < 3; r++){ const s = u + r * .24; note(s, 150, .1, .16, 'sine', p); click(s, 1400, .2, p); } },
-    (t, p) => { for (let i = 0; i < 24; i++) note(t + i * .09, i % 2 ? 1975.5 : 1568, .14, .032, 'triangle', p);                 // a win: bells and coins
-      for (let i = 0; i < 26; i++) note(t + .2 + R() * 2, 2600 + R() * 2600, .06, .022, 'sine', p); },
-    (t, p) => { [523.25, 659.25, 783.99, 1046.5, 783.99, 659.25].forEach((f, i) => { note(t + i * .07, f * 2, .16, .028, 'triangle', p); note(t + .5 + i * .07, f * 2.5, .16, .022, 'triangle', p); }); }   // attract tune
-  ];
-  let slotNext = T0 + .8 + R() * 2.5;
-
-  function sched(tEnd){
-    voices.forEach(v => { while (v.next < tEnd){ const end = R() < .05 ? laugh(v, v.next) : phrase(v, v.next); v.next = end + .3 + R() * 2.4; } });
-    while (slotNext < tEnd){
-      const r = R(), p = pan((R() * 2 - 1) * .9); p.connect(slots);
-      SLOT[r < .38 ? 0 : r < .66 ? 1 : r < .78 ? 2 : 3](slotNext, p);
-      slotNext += 2 + R() * 6;
+  function sched(until){
+    if (dead) return;
+    startBed();
+    while (next < until){
+      const clip = pick(); if (!clip) return;                           // nothing loaded yet: try again at the next call
+      const t = Math.max(next, busyUntil, c.currentTime), d = clip.buf.duration, quiet = 1;
+      const src = c.createBufferSource(); src.buffer = clip.buf;
+      const g = c.createGain(), peak = level * quiet * Math.pow(10, rnd(-3, 3) / 20);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + .03); g.gain.setValueAtTime(peak, Math.max(t + .03, t + d - .08)); g.gain.linearRampToValueAtTime(0, t + d);
+      src.connect(g); let n = g;
+      try { const p = c.createStereoPanner(); p.pan.value = rnd(-.8, .8); g.connect(p); n = p; } catch(e){}
+      n.connect(room); src.start(t); live.push(src); src.onended = () => { live = live.filter(x => x !== src); try { n.disconnect(); g.disconnect(); } catch(e){} };
+      last = clip; busyUntil = t + d; next = t + rnd(10, 25);
+      if (next < busyUntil) next = busyUntil;
+      sched.count = (sched.count || 0) + 1;
     }
   }
   function stop(){
-    const t = c.currentTime;
-    try { bus.gain.cancelScheduledValues(t); bus.gain.setValueAtTime(Math.max(.0001, bus.gain.value), t); bus.gain.exponentialRampToValueAtTime(.0001, t + .8); } catch(e){}
-    setTimeout(() => { voices.forEach(v => { try { v.o.stop(); } catch(e){} }); try { bus.disconnect(); } catch(e){} }, 1000);
+    dead = true; const t = c.currentTime;
+    try { bus.gain.cancelScheduledValues(t); bus.gain.setValueAtTime(bus.gain.value, t); bus.gain.linearRampToValueAtTime(0, t + .4); } catch(e){}
+    try { if (bedG){ bedG.gain.cancelScheduledValues(t); bedG.gain.setValueAtTime(bedG.gain.value, t); bedG.gain.linearRampToValueAtTime(0, t + .6); } } catch(e){}
+    setTimeout(() => { live.forEach(x => { try { x.stop(); } catch(e){} }); live = []; try { bus.disconnect(); } catch(e){} try { if (bedSrc) bedSrc.stop(); } catch(e){} try { if (bedG) bedG.disconnect(); } catch(e){} }, 800);
   }
-  return { sched, stop };
+  return { sched, stop, get events(){ return sched.count || 0; } };
 }
-window.ChipsAmbience = Ambience;      // also used to render a preview
+// One dealer line: plays buffer `buf` at time t on `dest`. Shared by SND.say and tests/audio.js.
+const VOICE_KEYS = ['open', 'locked', 'blackjack', 'payout', 'winner', 'newhand', 'flop', 'turn', 'river', 'allin', 'closed'], VOICE_LEVEL = .7;    // speech RMS about -20 dBFS at the master
+function playLine(c, dest, buf, t, level){
+  const s = c.createBufferSource(); s.buffer = buf; const g = c.createGain(); g.gain.value = level; s.connect(g); g.connect(dest); s.start(t); return s;
+}
+window.ChipsAmbience = Ambience; window.ChipsLine = playLine;     // for tests/audio.js
+window.CHIPS_BG = { manifest: AMB_MANIFEST, level: AMB_LEVEL, bedLevel: AMB_BED, loopBounds, voiceKeys: VOICE_KEYS, voiceLevel: VOICE_LEVEL, voiceUrl: k => `sounds/voice/${k}.mp3` };
 
 /* ---------- sounds: synthesized with Web Audio, so nothing to download and it works offline ---------- */
 const SND = (() => {
   const AC = window.AudioContext || window.webkitAudioContext;
-  let ctx = null, out = null, nbuf = null, on = ls.get('chips.sound') !== '0', lastT = 0, burst = 0, amb = null, ambTimer = null;
+  let ctx = null, out = null, nbuf = null, on = ls.get('chips.sound') !== '0', lastT = 0, burst = 0, amb = null, ambTimer = 0, bgBus = null, bgClips = [], vox = {}, voxLoading = false, voice = null, voiceQ = [];
+  // Clips load the first time they are wanted (then the service worker keeps them). A missing or broken file
+  // is skipped and tried again at most once a minute.
+  const decode = ab => new Promise((ok, no) => { const p = ctx.decodeAudioData(ab, ok, no); if (p && p.then) p.then(ok, no); });
+  const fetchBuf = url => fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(decode);
+  const BG_ITEMS = AMB_MANIFEST.map(m => ({ kind: m.kind, url: m.url, buf: null, busy: false, failAt: 0 }));
+  function loadBg(){
+    if (!ctx) return;
+    BG_ITEMS.forEach(it => {
+      if (it.buf || it.busy || now() - it.failAt < 60000) return; it.busy = true;
+      fetchBuf(it.url).then(b => { it.buf = b; it.busy = false; if (!bgClips.includes(it)) bgClips.push(it); }, () => { it.busy = true; it.failAt = now(); setTimeout(() => { it.busy = false; }, 60000); });
+    });
+  }
+  const VOX = VOICE_KEYS.map(k => ({ key: k, url: `sounds/voice/${k}.mp3`, buf: null, busy: false, failAt: 0 }));
+  function loadVoice(){
+    if (!ctx) return;
+    VOX.forEach(it => {
+      if (it.buf || it.busy || now() - it.failAt < 60000) return; it.busy = true;
+      fetchBuf(it.url).then(b => { it.buf = b; it.busy = false; vox[it.key] = b; }, () => { it.busy = true; it.failAt = now(); setTimeout(() => { it.busy = false; }, 60000); });
+    });
+  }
+  function duck(on_){ if (!bgBus) return; const t = ctx.currentTime; try { bgBus.gain.cancelScheduledValues(t); bgBus.gain.setValueAtTime(bgBus.gain.value, t); bgBus.gain.linearRampToValueAtTime(on_ ? .5 : 1, t + (on_ ? .15 : .5)); } catch(e){} }
+  function playNext(){
+    if (voice || !voiceQ.length || !ready() || !VOICE_ON) return;
+    const key = voiceQ.shift(), buf = vox[key]; if (!buf){ playNext(); return; }
+    const s = playLine(ctx, out, buf, ctx.currentTime + .02, VOICE_LEVEL); voice = s; duck(true);
+    s.onended = () => { if (voice === s) voice = null; duck(false); setTimeout(playNext, 250); };
+  }
   function init(){
     if (!AC || !on) return;
     try {
@@ -522,9 +544,26 @@ const SND = (() => {
   const api = {
     init,
     get on(){ return on; },
-    toggle(){ on = !on; ls.set('chips.sound', on ? '1' : '0'); if (on){ init(); setTimeout(() => api.chips(3), 60); } ambiSync(); return on; },
-    ambiStart(){ if (amb || !ready()) return; try { amb = Ambience(ctx, out, .45); amb.sched(ctx.currentTime + 3); ambTimer = setInterval(() => { if (amb) amb.sched(ctx.currentTime + 3); }, 1000); } catch(e){ amb = null; } },
+    toggle(){ on = !on; ls.set('chips.sound', on ? '1' : '0'); if (on){ init(); setTimeout(() => api.chips(3), 60); } else api.voiceStop(); ambiSync(); return on; },
+    ambiStart(){
+      if (!ready()) return; loadBg(); if (amb) return;
+      try {
+        if (!bgBus){ bgBus = ctx.createGain(); bgBus.connect(out); }
+        const a = Ambience(ctx, bgBus, AMB_LEVEL, bgClips); amb = a; a.sched(ctx.currentTime + 20);
+        ambTimer = setInterval(() => { try { a.sched(ctx.currentTime + 20); } catch(e){} }, 4000);
+      } catch(e){ amb = null; }
+    },
     ambiStop(){ if (!amb) return; clearInterval(ambTimer); amb.stop(); amb = null; },
+    voiceLoad(){ if (ready()) loadVoice(); },
+    // The dealer's narration. One line at a time: a new line is dropped while one plays, except 'winner' and 'closed',
+    // which wait their turn. The background is ducked 6 dB while a line plays.
+    say(key){
+      if (!ready() || !VOICE_ON || !VOICE_KEYS.includes(key)) return; loadVoice();
+      if (!vox[key]) return;
+      if (voice){ if ((key === 'winner' || key === 'closed') && !voiceQ.includes(key)) voiceQ.push(key); return; }
+      voiceQ.push(key); playNext();
+    },
+    voiceStop(){ voiceQ.length = 0; if (voice){ const s = voice; voice = null; try { s.onended = null; s.stop(); } catch(e){} duck(false); } },
     chips(n = 3, v = 1){
       if (!ready()) return; const t0 = ctx.currentTime;
       if (t0 - lastT < .07){ if (++burst > 4) return; } else burst = 0; lastT = t0;   // many chips at once: keep it pleasant
@@ -571,11 +610,15 @@ const SND = (() => {
 })();
 ['pointerdown', 'touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => SND.init(), { passive: true, capture: true }));
 // The casino in the background runs only inside a table, with the screen on, sound on, and ambience on.
-let AMBI_ON = ls.get('chips.ambi') !== '0';
-function ambiSync(){ const want = SND.on && AMBI_ON && !!(S.code && S.room && !S.room.closed) && document.visibilityState === 'visible'; if (want) SND.ambiStart(); else SND.ambiStop(); }
+let AMBI_ON = ls.get('chips.ambi') !== '0', VOICE_ON = ls.get('chips.voice') !== '0';
+function ambiSync(){
+  const inTable = SND.on && !!(S.code && S.room && !S.room.closed) && document.visibilityState === 'visible';
+  if (inTable && AMBI_ON) SND.ambiStart(); else SND.ambiStop();
+  if (inTable && VOICE_ON) SND.voiceLoad();
+}
 document.addEventListener('visibilitychange', () => ambiSync());
 // Casino vibes: now and then someone at the table plays with their chips. Only inside a table, only when the screen is on.
-(function ambLoop(){ setTimeout(() => { if (S.code && S.room && document.visibilityState === 'visible') SND.ambient(); ambLoop(); }, 15000 + Math.random() * 25000); })();
+(function ambLoop(){ setTimeout(() => { if (S.code && S.room && !S.room.closed && document.visibilityState === 'visible') SND.ambient(); ambLoop(); }, 45000 + Math.random() * 75000); })();
 
 /* ---------- effects: flying chips and cards ----------
    Everything here is derived from changes in the synced documents, so the stored data format is unchanged.
@@ -962,6 +1005,7 @@ function fxBJ(pid, a, b, r){
     return () => { SND.fold(); fly({ from: spot(0), to: seat(), amt: back, fadeOut: true, land: () => { SND.chips(2); clearOv(pid, tok); } }); };
   }
   if (k === 'bjpay'){
+    setTimeout(() => SND.say('blackjack'), 400);
     const h0 = A[0]; if (!h0) return null; const win = b.lastAction.amt || 0, from = oldRect(`spot:${pid}:0`);
     const tok = setOv(pid, { hands: [{ ...h0, _hide: true }], stack: a.stack }, 1700);
     return () => {
@@ -1023,6 +1067,7 @@ function fxBJ(pid, a, b, r){
 }
 function fxHold(pid, a, b, r){
   const k = b.lastAction.k;
+  if (k === 'allin' && FX.allinHand !== r.handId){ FX.allinHand = r.handId; setTimeout(() => SND.say('allin'), 350); }
   if (['blind', 'call', 'bet', 'raise', 'allin'].includes(k)){
     const d = (a.stack || 0) - (b.stack || 0); if (d <= 0) return null;
     const c = b.lastAction.chips;
@@ -1039,10 +1084,15 @@ function fxHold(pid, a, b, r){
 }
 function fxRoom(a, b){
   if (!a || !b || a.code !== b.code) return null;
-  if (!a.closed && b.closed && b.final) return () => ceremony();
-  if (b.game === 'blackjack' && a.phase === 'betting' && b.phase === 'playing' && a.roundId === b.roundId) return lockFx;
-  if (b.game === 'holdem' && (b.handId || 0) > (a.handId || 0)) return () => { SND.bell(); dealerNod(); };
-  return null;
+  const runs = [];
+  if (!a.closed && b.closed && b.final) runs.push(() => ceremony());              // the ceremony says 'winner' at the reveal
+  if (b.game === 'blackjack' && a.phase === 'betting' && b.phase === 'playing' && a.roundId === b.roundId) runs.push(() => { lockFx(); SND.say('locked'); });
+  // a round that was paid (not cancelled): the payout line, then the dealer opens the next round
+  if (a.game === 'blackjack' && b.game === 'blackjack' && a.phase === 'playing' && b.phase === 'betting' && (b.roundId || 0) > (a.roundId || 0) && (b.roundEnd ? b.roundEnd === 'paid' : /שולם/.test((b.lastEvent && b.lastEvent.t) || '')))   // roundEnd is missing when an older phone did the payout
+    runs.push(() => { SND.say('payout'); setTimeout(() => SND.say('open'), 2500); });
+  if (b.game === 'holdem' && (b.handId || 0) > (a.handId || 0)) runs.push(() => { SND.bell(); dealerNod(); SND.say('newhand'); });
+  else if (b.game === 'holdem' && a.stage !== b.stage && ['flop', 'turn', 'river'].includes(b.stage)) runs.push(() => SND.say(b.stage));
+  return runs.length ? () => runs.forEach(f => f()) : null;
 }
 // The dealer locked the bets: a bell, and every stack on the felt gives a little bump.
 function lockFx(){ SND.bell(); dealerNod(); players().filter(cur).forEach(p => p.hands.forEach((_, j) => pulse(`spot:${p.pid}:${j}`, 1.1))); }
@@ -1187,7 +1237,7 @@ async function bjPayout(){
     writes.push([p.pid, { stack: (p.stack || 0) + pay + insPay, hands, lastAction: { k:'bjres', amt: net }, ts: now() }]);
   }
   buzz();
-  const ok = await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, dealerBJ: false, house: (r.house || 0) + houseIn - houseOut, ...setEvent(`סיבוב ${r.roundId} שולם · הבית \u2066${houseIn - houseOut >= 0 ? '+' : '−'}${fmt(Math.abs(houseIn - houseOut))}\u2069`) });
+  const ok = await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, dealerBJ: false, roundEnd: 'paid', house: (r.house || 0) + houseIn - houseOut, ...setEvent(`סיבוב ${r.roundId} שולם · הבית \u2066${houseIn - houseOut >= 0 ? '+' : '−'}${fmt(Math.abs(houseIn - houseOut))}\u2069`) });
   if (!ok) return;
   await Promise.all(writes.map(([id, d]) => w(pPath(id), 'update', d)));
   S.sheet = null; S.settle = {}; S.dealerBJ = false; render();
@@ -1205,7 +1255,7 @@ async function bjNow(pid){
 }
 async function bjCancelRound(){
   const r = S.room; const list = players().filter(cur).filter(p => p.hands.some(h => !h.paid) || p.insurance);
-  await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, ...setEvent('הסיבוב בוטל וההימורים הוחזרו') });
+  await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, roundEnd: 'cancelled', ...setEvent('הסיבוב בוטל וההימורים הוחזרו') });
   await Promise.all(list.map(p => { const back = p.hands.reduce((a,x) => a + (x.paid ? 0 : x.result === 'surrender' ? Math.ceil(x.bet/2) : x.bet), 0) + (p.insurance || 0); return w(pPath(p.pid), 'update', { stack: p.stack + back, hands: [], bjRound: null, lastAction:{ k:'refund', amt: back }, ts: now() }); }));
   S.sheet = null; S.confirm = null; render();
 }
@@ -1344,7 +1394,7 @@ function ceremony(){
   const throb = setInterval(() => pulse('seat:' + lead.pid, 1.25), 420); finTimers.push(throb);
   // 2. the reveal: fanfare, applause, the winner's card, raining chips
   T(1950, () => {
-    clearInterval(throb); SND.fanfare(); SND.applause(); setTimeout(() => SND.chips(6), 300); setTimeout(() => SND.chips(5), 900);
+    clearInterval(throb); SND.fanfare(); SND.applause(); SND.say('winner'); setTimeout(() => SND.chips(6), 300); setTimeout(() => SND.chips(5), 900);
     finEl.insertAdjacentHTML('beforeend', `<div class="fin-card" role="dialog" aria-modal="true" aria-labelledby="fin-t">
       ${CROWN}
       <div class="fin-avs">${win.map(w_ => `<div class="fin-av" style="${avBg(S.players[w_.pid] || w_)}">${avInner(S.players[w_.pid] || w_)}</div>`).join('')}</div>
@@ -1737,7 +1787,8 @@ function sheetView(){
     return `${head('הגדרות')}
       <div class="card" style="padding:12px"><span class="muted">שתפו את הקישור לעמוד הזה ואת הקוד</span><div class="row" style="justify-content:space-between"><span class="code">${esc(r.code)}</span><button class="btn small" data-a="copy">שיתוף הזמנה</button></div>
       <span class="muted">להתקנה: באנדרואיד, תפריט הדפדפן ← "התקנת אפליקציה". באייפון, ספארי ← שיתוף ← "הוספה למסך הבית".</span></div>
-      <button class="opt" data-a="ambi" aria-pressed="${AMBI_ON}"><span class="box"></span><span><b>אווירת קזינו ברקע</b><br><span class="muted">מכונות מזל ואנשים מדברים${SND.on ? '' : ' · הצלילים כבויים כרגע'}</span></span><span></span></button>
+      <button class="opt" data-a="ambi" aria-pressed="${AMBI_ON}"><span class="box"></span><span><b>אווירת קזינו ברקע</b><br><span class="muted">מכונות מזל ואנשים מדברים בשקט, מדי פעם${SND.on ? '' : ' · הצלילים כבויים כרגע'}</span></span><span></span></button>
+      <button class="opt" data-a="voice" aria-pressed="${VOICE_ON}"><span class="box"></span><span><b>קריינות הדילרית</b><br><span class="muted">הדילרית אומרת בקול מה קורה: הימורים, קלפים, תשלום${SND.on ? '' : ' · הצלילים כבויים כרגע'}</span></span><span></span></button>
       ${host ? `
         <span class="label">סוג משחק</span>
         <div class="seg"><button data-a="setgame" data-v="holdem" aria-pressed="${hold}" ${busy ? 'disabled' : ''}>טקסס הולדם</button><button data-a="setgame" data-v="blackjack" aria-pressed="${!hold}" ${busy ? 'disabled' : ''}>בלאק ג'ק</button></div>
@@ -1784,6 +1835,7 @@ const A = {
   setp: v => { S.pending = Math.max(0, Math.min(me()?.stack || 0, Number(v))); FX.pendFly = 0; SND.chips(3); render(); },
   clearp: () => { if (S.pending) SND.slide(); S.pending = 0; FX.pendFly = 0; render(); },
   ambi: () => { AMBI_ON = !AMBI_ON; ls.set('chips.ambi', AMBI_ON ? '1' : '0'); ambiSync(); render(); },
+  voice: () => { VOICE_ON = !VOICE_ON; ls.set('chips.voice', VOICE_ON ? '1' : '0'); if (!VOICE_ON) SND.voiceStop(); ambiSync(); render(); },
   reload: () => { reloading = true; location.reload(); },
   endgame: () => endGame(),
   avcam: () => document.getElementById('avcam').click(),
@@ -1793,7 +1845,7 @@ const A = {
   bjnow: v => { if (S.confirm !== 'bj:' + v){ S.confirm = 'bj:' + v; render(); return; } bjNow(v); },
   reopen: async () => { if (await w(roomPath(), 'update', { closed: false, ...setEvent('השולחן נפתח מחדש') })) toast('השולחן פתוח שוב'); },
   replay: () => ceremony(),
-  finclose: () => { finHide(); FX.signDrop = now(); render(); },
+  finclose: () => { finHide(); FX.signDrop = now(); render(); if (S.room && S.room.closed) SND.say('closed'); },
   rotoff: () => { S.rotOff = true; render(); },
   rotlock: async () => {
     try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); await screen.orientation.lock('landscape'); }
@@ -1835,7 +1887,7 @@ function bind(e){
   const b = e.target.dataset && e.target.dataset.bind; if (!b) return;
   const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
   const [a, k] = b.split('.');
-  if (k === undefined){ S[a] = a === 'joinCode' ? String(v).toUpperCase() : v; if (a === 'name') ls.set('chips.name', String(v).trim()); }
+  if (k === undefined){ S[a] = a === 'joinCode' ? String(v).toUpperCase() : v; if (a === 'name'){ ls.set('chips.name', String(v).trim()); if (!S.avatar) document.querySelectorAll('.avbtn .av').forEach(el => el.textContent = String(v).trim().charAt(0) || '?'); } }
   else if (S[a]) S[a][k] = v;
   if (a === 'joinCode' && e.target.value !== S.joinCode) e.target.value = S.joinCode;
 }

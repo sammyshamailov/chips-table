@@ -5,6 +5,26 @@ development branch.
 
 ## Not yet live
 
+Nothing yet.
+
+## 2026-11-22
+
+### Changed
+- **New casino background: a steady, quiet murmur of people with a slot machine now and then.** A generated
+  murmur (no clear words, about 39 s, looped seamlessly) plays softly all the time, and a random slot-machine
+  sound plays every 10–25 s on top (recordings in `sounds/amb/`, credits in `sounds/CREDITS.md`). The old
+  talk and laugh one-shots are gone.
+- **Dealer narration** (Hebrew, `sounds/voice/`): "bets are locked", "payout", "new hand", flop/turn/river,
+  all-in, blackjack, "winner" and "table closed", heard on every phone. Own switch in Settings
+  ("קריינות הדילרית"); the speaker button still mutes everything.
+- Someone at the table plays with their chips less often (every 45–120 s instead of 15–40 s).
+
+### Fixed
+- Input fields stuck out of their cards and the two blind fields overlapped (home screen and forms).
+- The picture circle on the home screen shows your first letter as you type your name.
+
+## 2026-11-21 (5)
+
 ### Added
 - **Avatars**: take a photo with the front camera, pick one from the gallery, or choose one of 16
   illustrated characters. Set it on the home screen, when joining, by tapping your own seat, or from

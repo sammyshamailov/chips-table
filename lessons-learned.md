@@ -31,6 +31,12 @@ the fresh DOM for "to". `FX.ov` keeps showing the old stack until the flying chi
 shipped that way for several releases. No error is thrown for broken attributes. *Rule:* look at the
 screenshots of every screen that uses a changed helper, not just the one being worked on.
 
+**Set `box-sizing: border-box` from the start.** Inputs with `width: 100%` plus padding and border were
+wider than their cards from the first version: the name and chips fields stuck out and the two blind
+fields overlapped. It showed in my own test screenshots and I didn't notice; the user did. Now global.
+*Rule:* look at every screenshot for edges that don't line up, not only the feature being tested; the
+overflow check in a test (every input inside its card, page no wider than the screen) catches it in numbers.
+
 ## Stored data and sync
 
 **Store what the player did, not something derived from it.** Bets were stored as amounts and drawn by
@@ -75,6 +81,26 @@ louder than the crowd and 38 dB louder than the slot machines, so players heard 
 layer offline and measuring it found it in one step. *Rule:* run `node tests/audio.js` after changing any
 sound, and send a rendered preview to listen to before shipping.
 
+**A continuous bed is fine only if it is speech-like and very quiet.** (Update: the owner liked the generated talk
+clips and asked for that style all the way through, quieter, so the background is now a looped generated murmur
+at about −41 dBFS, 6 dB under the talk clip he liked, with a slot machine now and then.) The note below is what
+went wrong with a loud, noisy bed.
+
+**A continuous ambience bed reads as noise on a phone speaker.** Even a real casino recording looped at -32 dBFS
+was called "too noisy". Sparse, quiet, randomly timed events (a machine, a few words, a laugh, with silence between)
+read as a real room. *Rule:* for background atmosphere, schedule short one-shots instead of looping a bed, and
+measure both the average level and the event peaks.
+
+**Synthesized voices don't sound like people.** The crowd was built from buzzing oscillators shaped by vowel
+formants; players said it sounded like aliens, and that it chattered too often. Nothing short of real speech
+fixes that. *Rule:* realistic ambience comes from a recording (CC0, source in `sounds/CREDITS.md`); synthesis
+is for effects. Pick recordings by measuring them (level spread, spikes, rumble, hiss), and still let the user
+listen before shipping.
+
+**An MP3 doesn't loop cleanly on its own.** Even a loop cut with a perfect crossfade gets a small jump at the
+seam after MP3 encoding, because the codec changes the first and last frames. Crossfade the seam again after
+decoding (`loopBounds`), and check it by playing across the loop point (largest sample step vs a typical one).
+
 **Browsers only start audio after a touch.** The AudioContext is created and resumed on the first
 `pointerdown`/`touchend`/`click`; until then sounds are silently skipped. iPhones are silent with the mute
 switch on.
@@ -87,6 +113,10 @@ another player sees.
 
 **Hash-only navigation doesn't reload the app.** Going from `/index.html` to `/index.html#CODE` in a test
 never re-ran the app. Open the invite link directly.
+
+**A scripted find-and-replace that matches nothing fails silently.** A changelog edit looked for text that an
+earlier, blocked commit would have written; it matched nothing, and the changelog stayed wrong for a release.
+*Rule:* every scripted replacement asserts it matched exactly once.
 
 **Background processes don't survive between commands in some environments.** The local test server kept
 disappearing between tool calls. The test scripts now start their own server in-process.

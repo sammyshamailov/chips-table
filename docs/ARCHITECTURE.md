@@ -7,9 +7,9 @@ The script is one IIFE. Sections are marked with `/* ---------- name ---------- 
 | Section | What it does |
 |---|---|
 | state (`S`) | Everything the UI needs: identity (`myId`, `name`, `avatar`), current table (`code`, `room`, `players`), chips in hand (`pending`, `pendChips`), open sheet |
-| casino ambience (`Ambience`) | Synthesized background: distant crowd, slot machines, reverb. Works on any AudioContext (also offline for `tests/audio.js`) |
-| sounds (`SND`) | Chip clacks, slides, bell, drumroll, fanfare, applause, results. Unlocked on first touch |
-| ambience control | `ambiSync()`: the background runs only inside an open table, screen on, sound on, setting on |
+| casino background (`Ambience`, `playLine`) | Plays a looped crowd-murmur bed and schedules random slot-machine one-shots from `sounds/amb/`. Works on any AudioContext (also offline for `tests/audio.js`) |
+| sounds (`SND`) | Chip clacks, slides, bell, drumroll, fanfare, applause, results, and the dealer narration `SND.say`. Unlocked on first touch |
+| ambience control | `ambiSync()`: the background runs only inside an open table, screen on, sound on, setting on; it also starts loading the narration files |
 | effects (`FX`, `fly`, `floatText`, `pulse`) | Flying chips on the `#fx` layer, overrides that hold the old picture until chips land |
 | staying up to date | Compares `APP_BUILD` with the live `config.js` and reloads when idle |
 | avatars | Prepared characters (`AV_SET`, drawn by `avSVG`), photo processing, `avInner()` for every avatar circle |
@@ -42,6 +42,7 @@ them missing.
 | `createdAt`, `updatedAt`, `lastEvent {t, ts}` | Timestamps, and the line shown under the header |
 | Hold'em: `handId`, `streetId`, `stage`, `potLevel`, `buttonPid`, `sbPid`, `bbPid` | Hand state. The pot is derived from players' `committed` above `potLevel` |
 | Blackjack: `roundId`, `phase` (`betting` / `playing`), `house`, `dealerBJ` | Round state and the house balance |
+| `roundEnd` *added* | Blackjack: how the last round ended, `'paid'` or `'cancelled'`. Set with the new `roundId`; the dealer narration says "payout" only for `'paid'`. Missing when an older phone ended the round (readers then fall back to the `lastEvent` text) |
 | `closed` *added* | The game is over; the table shows the final standings |
 | `final {at, list:[{pid, name, stack}]}` *added* | Standings frozen when the dealer ended the game, highest first |
 
@@ -100,10 +101,35 @@ never overlap. In landscape (`@media (orientation: landscape)`) the room becomes
 
 ## Sound
 
-`SND` owns one AudioContext created on the first touch (browsers require it). Everything is synthesized:
-clay-chip clacks are short band-passed noise plus a click; the background (`Ambience`) is formant-shaped
-voices, slot-machine tones and clicks through a generated reverb. The background is scheduled ahead with
-`sched(until)` every second, which also lets `tests/audio.js` render it offline.
+`SND` owns one AudioContext created on the first touch (browsers require it). Effects are synthesized:
+clay-chip clacks are short band-passed noise plus a click; the bell, drumroll, fanfare and applause are
+oscillators and filtered noise.
+
+**Background.** A quiet steady murmur of people plus a slot machine now and then. `AMB_MANIFEST` lists
+`sounds/amb/crowd-bed.mp3` (kind `bed`, a generated ~39 s murmur already looped and filtered, see
+`sounds/CREDITS.md`) and `machine-1..4` (kind `machine`). They are fetched and decoded the first time the background
+is wanted (inside a table, not on the home screen); a missing file is skipped and retried at most once a minute.
+`Ambience(c, dest, level, clips)` returns `{sched(untilTime), stop()}`; `sched` (called every 4 s by `SND.ambiStart`)
+starts the bed as soon as it is loaded and schedules the machines.
+- *Bed:* one `AudioBufferSourceNode` with `loop = true`, straight to `dest` (not through the event compressor), faded in
+  over 3 s, started at a random offset so phones aren't in step. `loopBounds(buf)` (once per buffer, `WeakMap`) trims
+  decoder silence and crossfades 50 ms at the seam, because MP3 changes the edges. Level `AMB_BED`: about −41 dBFS
+  at the master (both channels summed), 6 dB under the talk clip the owner liked (−35 dBFS measured the same way).
+- *Machines:* one random machine every 10–25 s (the first after 4–8 s), never the same twice running, one at a time,
+  random pan ±0.8, ±3 dB gain jitter, through a 6 kHz lowpass, a light generated reverb (1.2 s, wet 0.25) and a gentle
+  compressor (`AMB_LEVEL`).
+Measured by `node tests/audio.js`: bed about −41 dBFS, loudest 50 ms about −23 dBFS. The header speaker, `ambiSync`
+rules and the 6 dB ducking under narration apply to both. Every 45–120 s a synthesized "someone plays with their
+chips" sound plays on top.
+
+**Narration.** `SND.say(key)` plays `sounds/voice/<key>.mp3` (`open locked blackjack payout winner newhand flop turn
+river allin closed`), loaded together the first time a table is open. One line at a time: a new one is dropped while
+one plays, except `winner` and `closed`, which wait. The background bus is ducked 6 dB meanwhile. Level about −20
+dBFS RMS (`VOICE_LEVEL`). Settings has a separate switch (`chips.voice`, default on); the header speaker mutes all.
+Triggers run on every phone from the change→animation code, not only the acting one: `fxRoom` (blackjack bets
+locked → `locked`; round paid, not cancelled → `payout`, 2.5 s later `open`; Hold'em new hand → `newhand`; stage
+flop/turn/river), `fxHold` (`allin`, once per hand), `fxBJ` (`bjpay` → `blackjack`), `ceremony` (`winner` at the
+reveal) and the `finclose` action (`closed`). Nothing is stored for this; it is all local.
 
 ## Updates
 
