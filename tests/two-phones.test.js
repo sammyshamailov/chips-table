@@ -2,7 +2,7 @@
 // Covers what has broken before: sync between phones, exact chip stacks, paying a blackjack
 // mid-round without paying it twice, avatars, closing the table, and loading a closed table.
 const path = require('path');
-const { ROOT, requirePlaywright, serve, phones, setPending, players, room, check, failures } = require('./lib');
+const { ROOT, requirePlaywright, serve, phones, setPending, players, room, openTable, check, failures } = require('./lib');
 
 (async () => {
   const { chromium } = requirePlaywright();
@@ -10,18 +10,9 @@ const { ROOT, requirePlaywright, serve, phones, setPending, players, room, check
   const { pages: [A, B], errors, db } = await phones(browser, 2);
   const wait = ms => A.waitForTimeout(ms);
   try {
-    // Sami opens a blackjack table (minimum 1) and picks a character.
-    await A.goto(srv.url); await wait(300);
-    await A.fill('#name', 'סמי');
-    await A.click('[data-a=sheet][data-v=avatar]'); await A.click('[data-a=avset][data-v=tex]'); await A.click('[data-a=close]');
-    await A.click('[data-a=cgame][data-v=blackjack]'); await A.fill('#cmin', '1'); await A.click('#cplay'); await A.click('[data-a=create]'); await wait(500);
-    const code = (await A.textContent('.code')).trim();
-
-    // Dana joins from the invite link with a photo.
-    await B.goto(srv.url + '#' + code); await wait(500);
-    await B.fill('#jname', 'דנה');
-    await B.setInputFiles('#avfile', path.join(ROOT, 'icons', 'icon-192.png')); await wait(600);
-    await B.click('[data-a=sit]'); await wait(500);
+    // Sami opens a blackjack table (minimum 1) and picks a character; Dana joins from the invite link with a photo.
+    await openTable([A, B], srv.url, { game: 'blackjack', settings: { min: 1 }, names: ['סמי', 'דנה'], play: true,
+      avatars: [{ set: 'tex' }, { photo: path.join(ROOT, 'icons', 'icon-192.png') }], db });
     let ps = players(db()); const sami = ps.find(p => p.name === 'סמי'), dana = ps.find(p => p.name === 'דנה');
     check('both players seated', !!sami && !!dana);
     check('character avatar stored', sami.avatar && sami.avatar.k === 'set' && sami.avatar.v === 'tex');

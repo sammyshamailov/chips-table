@@ -268,11 +268,11 @@ must not assume the player's document is unchanged), `docs/ARCHITECTURE.md` (wri
 | | |
 |---|---|
 | Type | Chore |
-| Status | Planned |
+| Status | In progress |
 | Priority | P1 |
 | Size | M |
 | Games | Hold'em |
-| Branch | — |
+| Branch | `ccr-74add77c-f7qmcg` |
 | Added | 2026-11-21 |
 | Done | — |
 
@@ -302,8 +302,8 @@ it comes before both.
 (see `docs/TESTING.md`, Pitfalls).
 
 **Tests.**
-- [ ] `node tests/holdem.test.js` passes three runs in a row
-- [ ] `node tests/two-phones.test.js` still passes after the helper is moved
+- [x] `node tests/holdem.test.js` passes three runs in a row
+- [x] `node tests/two-phones.test.js` still passes after the helper is moved
 
 **Docs to update.** `docs/TESTING.md`, `CLAUDE.md`, `CHANGELOG.md`.
 

@@ -69,6 +69,35 @@ const setPending = (pg, v) => pg.evaluate(v => { const b = document.createElemen
 const players = db => Object.entries(db).filter(([k]) => k.includes('/players/')).map(([k, v]) => ({ pid: k.split('/').pop(), ...v }));
 const room = db => Object.entries(db).find(([k]) => k.split('/').length === 2)[1];
 
+// Open a table on phone 0 (the dealer) and seat everyone else, the way people do: create the table, then each other
+// phone opens the invite link, types a name and sits.
+//   game: 'holdem' | 'blackjack'; settings: { stack, sb, bb, min, max } (only what is given is typed);
+//   names: one per phone (names[0] is the dealer); play: the dealer also plays (default: Hold'em yes, Blackjack no);
+//   avatars: optional per phone, { set: 'tex' } (a character) or { photo: '/path.png' } (a picture);
+//   db: the function returned by phones(), used to read the seated players' ids.
+// Returns { code, ids: { name: pid } }.
+async function openTable(pages, url, { game = 'holdem', settings = {}, names, play, avatars = [], db } = {}){
+  const [A, ...rest] = pages, wait = ms => A.waitForTimeout(ms);
+  await A.goto(url); await wait(300);
+  await A.fill('#name', names[0]);
+  if (avatars[0] && avatars[0].set){ await A.click('[data-a=sheet][data-v=avatar]'); await A.click(`[data-a=avset][data-v=${avatars[0].set}]`); await A.click('[data-a=close]'); }
+  await A.click(`[data-a=cgame][data-v=${game}]`);
+  for (const [k, id] of [['stack', '#cstack'], ['sb', '#csb'], ['bb', '#cbb'], ['min', '#cmin'], ['max', '#cmax']]) if (settings[k] != null) await A.fill(id, String(settings[k]));
+  const want = play != null ? play : game === 'holdem';
+  if ((await A.isChecked('#cplay')) !== want) await A.click('#cplay');
+  await A.click('[data-a=create]'); await wait(500);
+  const code = (await A.textContent('.code')).trim();
+  for (let i = 0; i < rest.length; i++){
+    const P = rest[i], av = avatars[i + 1];
+    await P.goto(url + '#' + code); await wait(500);
+    await P.fill('#jname', names[i + 1]);
+    if (av && av.photo){ await P.setInputFiles('#avfile', av.photo); await wait(600); }
+    await P.click('[data-a=sit]'); await wait(500);
+  }
+  const ids = {}; for (const p of players(db())) ids[p.name] = p.pid;
+  return { code, ids };
+}
+
 let failed = 0;
 function check(name, ok, detail = ''){
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : '  ' + detail}`);
@@ -76,4 +105,4 @@ function check(name, ok, detail = ''){
 }
 const failures = () => failed;
 
-module.exports = { ROOT, OUT, requirePlaywright, serve, phones, setPending, players, room, check, failures };
+module.exports = { ROOT, OUT, requirePlaywright, serve, phones, setPending, players, room, openTable, check, failures };

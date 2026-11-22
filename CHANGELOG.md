@@ -5,6 +5,11 @@ development branch.
 
 ## Not yet live
 
+### Added
+- **A Hold'em test on three phones** (`tests/holdem.test.js`): blinds, betting rounds, awarding the pot, an all-in
+  with a side pot, and cancelling a hand, checked on every phone with the total chips unchanged. For us, not for
+  players; it protects Hold'em during the coming changes.
+
 ### Fixed
 - **Chips could appear from nowhere if a player bet the moment a new Blackjack round opened.** The dealer's
   phone wrote each player's new chip count as a fixed number worked out from its own (possibly old) copy,
