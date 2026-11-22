@@ -184,17 +184,14 @@ The owner's answers of 2026-11-22. The entries below follow them.
 | Q10 | English app name | **Yes: "Chips"** for the English version (R-006). Say if you prefer another |
 | New | Blackjack double down | **The player chooses face up or face down** when doubling, in the card mode. Face down means nobody looks, the player included, until the dealer settles (R-011, R-013) |
 | New | English narration voice | **Claude picks a clear English voice and sends the owner a preview** before it ships (R-006) |
-| Q11, Q12 | Tapping on the table | **Blackjack only, manual only** (a button), in both modes, with the knocking sound on every phone (R-016) |
+| Q11, Q12 | Tapping on the table | **Blackjack only, manual only** (a button), in both modes, with the knocking sound on every phone. In the card mode, a dealt ace as a first card makes the tap button pulse as an invitation (R-016) |
+| New | Private table codes | **Private tables get 6-letter codes**; open tables keep 4 letters (R-017) |
 | Q13 | Lock down the table | **Yes: automatic anonymous sign-in plus stricter rules** (R-017) |
 | New | Private tables | **When opening a table, the host chooses "Open to everyone" or "Private"**; only open tables appear on the home screen (R-017, same rules change) |
 
 ### Still open
 
-- **Tapping, as understood:** a Blackjack feature only, in both modes (with and without cards), and
-  only by button: nothing taps by itself, not even on an ace. Say if a dealt ace in the card mode should
-  at least make the tap button pulse as an invitation. *Default:* no pulse.
-- **Private table codes.** Public tables keep 4-letter codes. *Default:* private tables get 6-letter codes,
-  so they can't be found by trying codes (the invite link carries the code, so nobody types it).
+Nothing at the moment.
 
 ---
 
@@ -626,8 +623,9 @@ your own seat and only the host's phone changes the table, and a choice when ope
 3. **Private or open.** The create screen gets a two-button choice under the game: **Open to everyone**
    (shown on the home screen) / **Private** (only with the code or the invite link). Stored as room
    `visibility: 'public' | 'private'`; missing means public (today's tables). Private tables get 6-letter
-   codes (default, see Still open) so they can't be found by trying codes. The host can switch it later
-   in Settings. The home screen asks only for open tables
+   codes (decided) so they can't be found by trying codes. The host can switch it later in Settings; an
+   open table made private keeps its 4-letter code (the code is the table's address), so for a table
+   that should stay hidden, choose Private when opening it. The home screen asks only for open tables
    (`where('visibility', '==', 'public')`, ordered by `updatedAt`), which needs one Firestore index
    (`firestore.indexes.json`, created by the owner from the link Firebase shows, or pasted with the rules).
 4. **New rules** (`firestore.rules`), roughly:
@@ -723,7 +721,10 @@ the knocks. If several players press at once, several hands drum together.
    new value in the snapshot diff and plays the hand at that player's seat. It deliberately does **not**
    use `lastAction`: that field also feeds the "raised 200" text under a seat and the chip animations,
    and a tap must not replace it. Phones on an older version ignore `tap`.
-6. **Seats**: the hand appears at the player's seat on the Blackjack table. A dealer who only deals (not
+6. **Invitation pulse (card mode).** When a player's first card is an ace, the tap button gently pulses
+   on every phone at the table for about 3 seconds. It only invites: nothing taps until someone presses.
+   Triggered from the card diff (R-013), so no extra write; it waits for R-011.
+7. **Seats**: the hand appears at the player's seat on the Blackjack table. A dealer who only deals (not
    seated) taps from the dealer's side.
 
 **Stored data.** Optional player `tap` (number, time of the last press). Fallback: missing = never tapped.
@@ -740,7 +741,8 @@ that opens the table later must not replay old taps: only taps newer than the mo
       2 seconds does nothing
 - [ ] A reloaded phone doesn't replay old taps
 - [ ] Screenshots mid-tap, portrait and landscape; `node tests/audio.js` for the knock
-- [ ] Card mode (with R-011): the button works the same; nothing taps by itself
+- [ ] Card mode (with R-011): the button works the same; a first-card ace makes the button pulse on every
+      phone; nothing taps by itself
 
 **Docs to update.** `docs/ARCHITECTURE.md`, `README.md` (play), `CHANGELOG.md`.
 
@@ -1067,6 +1069,7 @@ dealer's hole card, splits.
    - *Your Hold'em cards*: press-and-hold lifts and flips them in your dock; "Show my cards" flips them
      and leaves them up.
    - *Shuffle*: when the shoe is reshuffled, a short riffle at the shoe.
+   - *Aces*: a player's first card that is an ace makes the tap button pulse (R-016, step 6).
 4. **Sounds** (rule 6): card slide (short filtered noise swish), flip (soft snap) and riffle shuffle are
    effects, so synthesized first. If they sound fake, use a CC0 recording or one ElevenLabs sound effect
    (one take, owner previews first), credited in `sounds/CREDITS.md`. Measured with `tests/audio.js`
