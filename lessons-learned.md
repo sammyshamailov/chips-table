@@ -133,6 +133,12 @@ stays at `sounds/CREDITS.md`. *Rule:* after a build change, list `dist/` and che
 function declared inside a block behaves differently) and it runs deferred. Before the move the script was linted for
 both (`no-undef`, `no-inner-declarations`); the deferred start runs at the same point the old end-of-body script did.
 
+**A guard that has never failed proves nothing.** `tsconfig.domain.json` was meant to make the DOM unavailable in
+`src/domain/`, but it extended `tsconfig.json`, whose `jsxImportSource: preact` quietly loads Preact's types, which
+pull in the DOM library: a test file using `document` compiled fine. Found only by adding a deliberate violation; the
+domain config is now standalone. *Rule:* when adding a lint rule or a type check meant to forbid something, add a
+throwaway file that breaks it and see it fail (the ESLint purity rules were checked the same way).
+
 ## Testing
 
 **Single-device mode can't catch sync bugs.** It shares one database between all seats on one phone. The

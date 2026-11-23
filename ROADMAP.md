@@ -199,9 +199,28 @@ src/
      dev-file redirects removed, hashed `assets/*` cached as immutable; `firebase.json` hosting `dist`
    - [x] Tests build once and serve `dist/`; `tests/upgrade.test.js` proves the upgrade from the old version
    - [x] Docs: `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/TESTING.md`, `README.md`, `CHANGELOG.md`, `lessons-learned.md`
-2. **Domain out.** Move chips, Hold'em rules, side pots and Blackjack rules into `src/domain/` as pure
+2. **Domain out.** *(Built on the branch.)* Move chips, Hold'em rules, side pots and Blackjack rules into `src/domain/` as pure
    functions; the old code calls them. Unit tests for each (payouts, side pots with 3+ all-ins, split and
    double limits, the `paid` hand rules).
+   - [x] `src/domain/types.ts`: the room and player documents as stored (every field optional), `Seat`, `Outcome`
+   - [x] `chips.ts`: `DEN`, `denoms(game, sb, minBet)`, `chipLabel`, `chipsOf`, `sumOf`, `okChips`, `dispAmt`, `handStack`,
+     `handHalves` (the HTML builders `stackHTML`/`chipStyle` stay in `legacy.ts`)
+   - [x] `holdem/rules.ts` (hand state, `canAct`, action classification, button and blinds, streets) and `holdem/pots.ts`
+     (`computeAward`, `award`, cancel refunds)
+   - [x] `blackjack/rules.ts` (limits, eligibility, what each result pays, paid hands, `bjPaidRound`), `blackjack/actions.ts`
+     (bet, clear, double, split, insurance, surrender, mid-round blackjack) and `blackjack/round.ts` (round payout with the
+     house delta, cancelled round). A third Blackjack file instead of the two planned, to keep each under ~200 lines
+   - [x] Commands return `{ ok, patch }` or `{ ok: false, reason }`; `legacy.ts` adds `ts`, writes dealer stack amounts as
+     `inc(n)`, keeps the player-then-room order and the Hebrew toasts and event lines
+   - [x] Purity enforced: ESLint (`no-restricted-imports`/`-globals`/`-properties` in `src/domain/`) and a standalone
+     `tsconfig.domain.json` without DOM types, both proven by a deliberate violation
+   - [x] 135 Vitest unit tests; `npm run coverage` (`@vitest/coverage-v8`): 100% statements, lines, functions; branches
+     99% (pots and payouts 100%; three unreachable fallbacks in `holdem/rules.ts` kept for identical behaviour)
+   - [x] Docs: `CLAUDE.md` (files, rule 10), `docs/ARCHITECTURE.md` (the domain), `docs/TESTING.md`, `CHANGELOG.md`,
+     `lessons-learned.md`
+   - Not moved on purpose: the Blackjack dock's button `disabled` conditions (view code; a few edge cases differ slightly
+     from the rules, e.g. insurance on a bet of 1, and changing them would change what players see). Phase 5 can have the
+     dock ask the domain
 3. **Data layer.** `Store` interface, the three adapters, `schema.ts` with `normalize()`, the write
    queue, and `increment` (finishes R-004 if not done). Move `tests/fakefs.js` behind the same interface.
 4. **Events and effects.** Replace `fxPlayers` / `fxRoom` branching with `diff.ts` → events → `fx/`
@@ -225,13 +244,15 @@ src/
 - Phase 5 (UI) is the largest; if it drags, phases 1–4 already deliver most of the value.
 
 **Tests.**
-- [ ] Unit tests (Vitest) for every domain module; aim for full branch coverage of payouts and pots
+- [x] Unit tests (Vitest) for every domain module; aim for full branch coverage of payouts and pots (phase 2: 135
+  tests, pots and payouts at 100% branches)
 - [ ] `node tests/two-phones.test.js` and the Hold'em test (R-003) after each phase (phase 1: passed, with
-  `race`, `guard` and `audio`)
-- [ ] Screenshot comparison shows no difference after each phase (phase 1: zero pixels on all ten screens)
+  `race`, `guard` and `audio`; phase 2: passed, with `race`, `guard` and `upgrade`)
+- [ ] Screenshot comparison shows no difference after each phase (phase 1 and phase 2: zero pixels on all ten screens)
 - [x] Upgrade path: a phone on today's version updates itself into the new build (automated in
   `tests/upgrade.test.js`: old service worker and cache, self-update reload, new worker drops `chips-v6`, offline start)
-- [ ] Single-device mode by hand (phase 1: `npm run dev` and the build, home and a new table, no page errors)
+- [ ] Single-device mode by hand (phase 1: `npm run dev` and the build, home and a new table, no page errors; phase 2:
+  `npm run dev`, a Hold'em table with an added player, blinds and a call, no page errors)
 
 **Docs to update.** `CLAUDE.md` (files, rules 2 and 3 rewritten for the new structure, running locally
 with `npm run dev`), `docs/ARCHITECTURE.md` (rewritten), `docs/TESTING.md`, `README.md` (deploy),

@@ -3,13 +3,14 @@
 ## Where things are
 
 R-005 is moving the app from one hand-written `index.html` to modules built by Vite, in phases (see `ROADMAP.md`).
-After phase 1 the code is where it was, only in other files:
+After phase 2 the game rules are in `src/domain/`; everything else is still in `src/legacy.ts`:
 
 | Path | What |
 |---|---|
 | `index.html` | The shell: the same `<head>` (manifest, icons, metas, fonts), the elements the script expects (`#app`, `#sheet`, `#toast`, `#fx`, `#rot`, `#fin`, the two file inputs), `config.js` and the two Firebase compat scripts as classic scripts, then `<script type="module" src="/src/main.ts">` |
 | `src/main.ts` | Imports the styles and `legacy.ts` in order, and registers `sw.js` on `load` (in a build only: the dev server has no `sw.js`) |
-| `src/legacy.ts` | The app script, byte for byte as it was in `index.html`, with `// @ts-nocheck` on top. Sections below |
+| `src/legacy.ts` | The app script as it was in `index.html`, with `// @ts-nocheck` on top, except that it imports the game rules from `src/domain/`. Sections below |
+| `src/domain/` | The game rules as pure, typed functions with unit tests next to them. See "The domain" below |
 | `src/styles/*.css` | The old `<style>`, split at its section comments: `base`, `brand` (also cards, fields, buttons), `room` (header, table, seats, host panel, dock), `sheet` (also the toast), `blackjack`, `layout` (portrait/landscape), `rotate`, `end` |
 | `public/` | Copied to the site root as is, so the URLs didn't change: `icons/`, `manifest.webmanifest`, `sounds/amb/`, `sounds/voice/` |
 | `src/sw-template.js`, `scripts/sw-plugin.mts` | The service worker and the build step that writes `dist/sw.js` from it (see Updates) |
@@ -42,15 +43,42 @@ The script is one IIFE. Sections are marked with `/* ---------- name ---------- 
 | connect | Picks Firestore or `LocalDB`, opens the last table |
 | writes | `w(path, op, data)`: one write at a time per document, errors shown as toasts. `inc(n)` (hoisted function) is the increment marker for the dealer's stack changes: `FieldValue.increment(n)` on Firestore, `{__inc: n}` in `LocalDB` |
 | room session | Snapshot listeners for the room and its players; this is where effects are triggered |
-| chips | Denominations, `chipsOf`, `stackHTML`, exact-chip helpers |
+| chips | `denoms()` (the room's chip set, from `domain/chips.ts`), `chipStyle`, `stackHTML`, `pendChips()`. The chip rules are imported from `src/domain/chips.ts` |
 | change → animation | `fxPlayers`, `fxBJ`, `fxHold`, `fxRoom`, `lockFx` |
-| Hold'em model / Blackjack model | Game rules and the writes for each action |
+| Hold'em model / Blackjack model | Each action: read `S`, call the domain command, write the patch it returns (adding `ts`, wrapping dealer stack amounts in `inc()`), map a refusal to its toast, write the Hebrew event line. `H()`, `cur`, `bjStake`, `bjEligible`, `canAct`, `computeAward` are thin wrappers over the domain |
 | create / join | New table, join, claim a seat |
 | turn-the-phone prompt | Shown inside a table on a phone held upright |
 | end of the game | Standings, `endGame`, `ceremony`, final card, closed sign |
 | dealer figure | `dealerSVG`, `dealerNod` |
 | views | `render()`, home, room, Hold'em and Blackjack tables, docks, host panels, sheets |
 | events | `A` (all `data-a` actions), click/input handlers |
+
+## The domain (`src/domain/`)
+
+The game rules, with no DOM, no Firebase, no timers, no clock and no `S`: functions of the stored documents that
+return what to write. `legacy.ts` imports them (`HR`, `Pots`, `BJ`, `BJA`, `BJR`, and the chip helpers by name).
+
+| File | What |
+|---|---|
+| `types.ts` | `RoomDoc`, `PlayerDoc`, `BjHand`, `LastAction` as stored (every field optional), `Seat` (a player with its `pid`), `Outcome` |
+| `chips.ts` | `DEN`, `N_CHIPS`, `MAX_CHIPS`, `denoms(game, sb, minBet)`, `chipLabel`, `chipsOf`, `sumOf`, `okChips`, `dispAmt`, `handStack`, `handHalves` |
+| `holdem/rules.ts` | `STAGES`, `holdemState(room, players)` (the old `H()`: in hand, street bet, committed, pot, highest bet, minimum raise, live players), `canAct`, `classifyBet`, `bet`, `fold`, `activePlayers`, `blindSeats`, `newHand`, `nextStreet` |
+| `holdem/pots.ts` | `computeAward(state, winners)` (side pots by contribution level, odd chip to the first winner in seat order), `award`, `cancelHandRefunds` |
+| `blackjack/rules.ts` | `isCurrent` (the old `cur`), `stake`, `betLimitError`, `handReturn` (what each result gives back), `handRefund`, `insuranceCost`, `surrenderReturn`, `blackjackEligible`, `hasOpenBets` (paid spots are done), `alreadySettled` (`bjPaidRound`), `nextRoundId`, constants (`MAX_HANDS`, `BLACKJACK_PAYS`, `INSURANCE_RETURN`) |
+| `blackjack/actions.ts` | A player's `placeBet`, `clearBet`, `play` (double, split, insurance, surrender), and the dealer's `payBlackjackNow` |
+| `blackjack/round.ts` | The end of a round: `settleRound` (payout totals, house delta) and `cancelRound` (refunds) |
+
+**Command → patch.** A command takes the documents (and what the player is holding, such as the chips in hand) and
+returns `{ ok: true, patch, … }` with the fields to write, or `{ ok: false, reason }` with a string code
+(`'over-max'`, `'not-enough-chips'`, `'unmarked'`…). The caller adds `ts`, writes, and maps the code to today's Hebrew
+toast (or stays silent where it always did). Dealer changes to a player's stack come back as a plain number
+(`stackInc`, or the amounts in `pays`/`refunds`); the caller writes them as `inc(n)`. Commands that touch several
+documents return the player writes and the room write separately, and the caller keeps the order: players first, the
+room last. Hebrew text stays in `legacy.ts` until R-006.
+
+**Purity is enforced.** `eslint.config.mjs` refuses, in `src/domain/`, imports that leave the folder, packages (tests
+may import `vitest`), DOM and timer globals, `Date.now`, `new Date` and `Math.random`. `tsconfig.domain.json` checks the
+domain on its own without the DOM types, so a browser API there does not compile.
 
 ## Stored data (Firestore)
 
@@ -119,7 +147,7 @@ overrides) until the room flips. Tests: `tests/race.test.js`.
 of them has no result, so the payout animation has something to move.
 
 **Hold'em hand**: `newHand` posts blinds → `hAct` per action → `nextStreet` → `award` (side pots by
-contribution level) or `cancelHand`.
+contribution level) or `cancelHand`. The rules of each step are in `src/domain/holdem/`.
 
 **End of the game**: `endGame` writes `closed` and `final` → every phone's room listener sees
 `closed` switch on and runs `ceremony()` → on "לשולחן" the table renders closed with the sign.

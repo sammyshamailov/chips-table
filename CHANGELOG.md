@@ -11,6 +11,9 @@ development branch.
   the code lives in `src/` (still one script for now), Netlify runs `npm run build` and publishes `dist/`, the
   service worker's file list comes from the build, and there are lint, type and unit checks, a pixel comparison of
   ten screens (`tests/visual.js`) and a test of a phone upgrading from the old version (`tests/upgrade.test.js`).
+- **The game rules are separate, tested code** (R-005, step 2). Nothing changes for players. For us: chips, Hold'em
+  (blinds, betting, side pots) and Blackjack (limits, double, split, insurance, surrender, payouts) are pure functions
+  in `src/domain/` with 135 unit tests (`npm test`, `npm run coverage`); the app calls them.
 
 ## 2026-11-22 (2)
 

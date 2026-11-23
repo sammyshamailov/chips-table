@@ -12,8 +12,24 @@ npm i -g playwright
 npx playwright install chromium
 ```
 
-Checks without a browser: `npm run lint` (ESLint), `npm run typecheck` (TypeScript, strict), `npm test` (Vitest:
-`src/**/*.test.ts`, `scripts/**/*.test.mts`; today the service worker plugin).
+Checks without a browser: `npm run lint` (ESLint, including the domain purity rules), `npm run typecheck` (TypeScript,
+strict: the app, the build tooling, and `src/domain/` alone without DOM types), `npm test` (Vitest: `src/**/*.test.ts`,
+`scripts/**/*.test.mts`: the game rules in `src/domain/` and the service worker plugin).
+
+## Unit tests for the game rules
+
+Each file in `src/domain/` has its tests next to it (`chips.test.ts`, `holdem/rules.test.ts`, `holdem/pots.test.ts`,
+`blackjack/rules.test.ts`, `blackjack/actions.test.ts`, `blackjack/round.test.ts`). They build documents by hand and
+check the patch or refusal a command returns: side pots (two players, three all-ins at different levels, ties, the odd
+chip, folded contributors, a single contributor's excess), button and blinds (heads-up, 3+, sitting out, empty
+stacks), the minimum raise, action classification, Blackjack limits, double/split/insurance/surrender, every payout,
+paid hands, `bjPaidRound` and the house balance.
+
+`npm run coverage` runs them with v8 coverage of `src/domain/` (text report). At the end of R-005 phase 2: 100%
+statements, lines and functions; branches 100% except three defensive fallbacks in `holdem/rules.ts` that today's data
+can't reach (kept so behaviour stays exactly as before). Keep pots and payouts at 100% branches.
+
+A rule change needs a unit test first; the browser tests then prove the app still uses it the same way.
 
 ## The scripts
 
