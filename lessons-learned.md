@@ -66,6 +66,13 @@ update. The phase is now taken once, when the figure appears. *Rule:* anything a
 survive being rebuilt (phases, `scrollTop`, a class that replays an animation) needs a second look once the element is
 kept.
 
+**A helper fed the wrong shape draws something plausible.** While moving the ceremony's winner circle to the Avatar
+component (R-005 phase 5, part C), it turned out the ceremony passes the stored player document, which has no `pid`; the
+colour behind the letter is worked out from the pid, so every winner without a picture has been shown on the colour of
+the text "undefined" instead of their own. Nothing errors and it looks fine. It was kept as it is in the refactor (no
+visible change allowed) and noted for a fix. *Rule:* when a helper takes an "owner" object, check every caller passes
+the fields it reads, not just an object that type-checks loosely; `// @ts-nocheck` code hides exactly this.
+
 **Wire everything, then start.** Moving the effects into event subscribers meant they had to exist before the first
 snapshot, and the sound engine and the effects layer need the app (`render`, `myId`, "inside a table") while the app
 needs them. Rendering while the script was still loading would have made that a new start-up trap. Instead the app is

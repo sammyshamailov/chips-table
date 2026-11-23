@@ -41,6 +41,14 @@ development branch.
   keeps its rhythm. For us: `src/ui/tables/` (`BlackjackTable`, seats and betting circles, `ChipStack`,
   `DealerFigure`, the geometry with unit tests), `src/ui/docks/` and `src/ui/host/`, registered in
   `src/games/registry.ts`; Hold'em is still drawn from HTML strings until part C.
+- **The Hold'em table, your controls and the dealer's are Preact components** (R-005, step 5, part C), so every
+  screen of the app is now a component. The Hold'em table looks the same pixel for pixel (blinds, a short call and a
+  raise under the minimum, a fold, all-in with a side pot, the showdown, one player left, between hands, a break,
+  waiting for the next hand, landscape, a small phone, an empty table). As with Blackjack, the table is updated rather
+  than rebuilt, so the dealer's nod plays to the end and her blink keeps its rhythm. For us: `src/ui/tables/holdem/`
+  (`HoldemTable`, the player rows, selectors with unit tests), `src/ui/docks/holdem.tsx`, `src/ui/host/holdem.tsx`,
+  registered in `src/games/registry.ts`; the HTML-string views and `LegacyHtml` are gone from the code. The pixel
+  comparison covers 72 screens.
 
 ## 2026-11-22 (2)
 

@@ -330,7 +330,25 @@ src/
        all); `tests/behaviour.test.js`: the table, dealer and seats kept across renders, the blink's phase, chips in
        hand landing (seen failing on the old build); flight counts in the two-phone and Hold'em tests; all browser
        tests, upgrade, lint, typecheck; dev server checked
-   - [ ] Part C: Hold'em table, dock, dealer controls; remove the string views and `LegacyHtml`; CLAUDE.md rule 3
+   - [x] Part C: Hold'em table, dock, dealer controls; remove the string views and `LegacyHtml`; CLAUDE.md rule 3
+     - [x] First, 15 Hold'em screens added to `tests/visual.js` (72 in all; the count of 56 written in part B was one short: there were 57), baselines from the code before part C: blinds
+       with an avatar in a row, short of the call, under the minimum raise, a fold (portrait, landscape), three unequal
+       stacks all-in (portrait, landscape), the showdown, the side pot in the award sheet, one player left, between
+       hands, a break, waiting for the next hand, a small phone, an empty table. Two runs on unchanged code: zero pixels
+     - [x] `src/ui/tables/holdem/` (`HoldemTable`, `SeatRow`, `DealerRow`, selectors with `seatTags`, `holdemStatus`,
+       `holdemChoices`), `src/ui/docks/holdem.tsx`, `src/ui/host/holdem.tsx`, `holdemViews` in the registry (`views` is
+       now required); `STAGE_HE` and `actionText` in `src/ui/labels.ts`
+     - [x] Removed: `holdemView`, `holdemDock`, `holdemHost`, `seatRow`, `dealerRow`, `pendingBox`, `avatar()`,
+       `avInner()`, `actText`, `dealerSVG`, `closedSign`, `legacyParts()`/`lastParts`, `LegacyHtml`, `LegacyParts`,
+       `dealerFigureHtml`, `closedSignHtml`, `avatarArtHtml`. `legacy-html.tsx` became `to-html.tsx` (`toHtml`,
+       `avatarHtml`, `crownHtml`, `rankHtml`), used only by the ceremony's card
+     - [x] Same pixels: all 72 screens, zero pixels; the DOM of eleven Hold'em screens compared with the old build: the
+       same elements, attributes, text and boxes (only whitespace text nodes and the style text's serialisation differ)
+     - [x] Unit tests: `src/ui/tables/holdem/select.test.ts` (18; 291 in all); `tests/behaviour.test.js`: the Hold'em
+       table, dealer, rows and the dock's button kept, the blink's phase (seen failing on the old build); flight counts
+       in the two-phone and Hold'em tests; all browser tests, upgrade, lint, typecheck
+     - Found, not changed (no visible change allowed here): the ceremony's winner circle takes its colour from a
+       document without a pid, so a winner without a picture always gets the same colour (see lessons-learned)
 6. **Clean-up and CI.** GitHub Actions on every push: lint, typecheck, unit tests, two-phone and
    Hold'em tests, screenshots. Delete `legacy.ts`. Rewrite `docs/ARCHITECTURE.md` for the new layout.
 
@@ -353,9 +371,10 @@ src/
   `race`, `guard` and `audio`; phase 2: passed, with `race`, `guard` and `upgrade`; phase 3: passed, with `race` three
   times, `guard` and `upgrade`; phase 4: passed, with the new flight counts, `race` three times, `guard`, `upgrade` and
   `audio`; phase 5 part A: passed, with the flight counts, `race`, `guard` and `upgrade`; part B: passed, with the flight counts,
-  `race`, `guard`, `upgrade` and `behaviour`)
+  `race`, `guard`, `upgrade` and `behaviour`; part C: passed, with the flight counts, `race`, `guard`, `upgrade` and
+  `behaviour`)
 - [ ] Screenshot comparison shows no difference after each phase (phases 1, 2, 3 and 4: zero pixels on all ten screens; phase 5 part A: zero on the ten and on 37 more
-  screens compared with the old build; part B: zero on all 56 screens of `tests/visual.js`)
+  screens compared with the old build; part B: zero on all 56 screens of `tests/visual.js`; part C: zero on all 72)
 - [x] Upgrade path: a phone on today's version updates itself into the new build (automated in
   `tests/upgrade.test.js`: old service worker and cache, self-update reload, new worker drops `chips-v6`, offline start)
 - [ ] Single-device mode by hand (phase 1: `npm run dev` and the build, home and a new table, no page errors; phase 2:
