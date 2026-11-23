@@ -1,4 +1,11 @@
 // @ts-nocheck
+// The game rules are pure functions in src/domain/ (R-005 phase 2); this script reads S, calls them and writes what they return.
+import { DEN, chipsOf, sumOf, okChips, handStack, handHalves, chipLabel, denoms as denomsFor } from './domain/chips';
+import * as HR from './domain/holdem/rules';
+import * as Pots from './domain/holdem/pots';
+import * as BJ from './domain/blackjack/rules';
+import * as BJA from './domain/blackjack/actions';
+import * as BJR from './domain/blackjack/round';
 (() => {
 const app = document.getElementById('app'), sheetEl = document.getElementById('sheet'), toastEl = document.getElementById('toast'), rotEl = document.getElementById('rot'), finEl = document.getElementById('fin');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -567,37 +574,16 @@ const isHost = () => S.room && S.room.hostId === S.myId;
 const newPlayer = (stack) => ({ name: S.name.trim().slice(0,20) || 'שחקן', joinedAt: now(), stack, handId:0, streetId:0, streetBet:0, committed:0, folded:false, allIn:false, sittingOut:false, bjRound:null, hands:[], insurance:0, surrendered:false, lastAction:null, ts: now(), avatar: S.avatar || null });
 const nameOf = id => (S.players[id] && S.players[id].name) || (S.room && S.room.hostId === id && S.room.hostName) || 'שחקן';
 
-/* ---------- chip denominations ---------- */
-const DEN = [1,2,5,10,25,50,100,250,500,1000,2500,5000,10000];
-const N_CHIPS = 6;
-function denoms(){
-  const r = S.room; const unit = Math.max(1, r.game === 'holdem' ? (r.sb || 1) : (r.minBet || 1));
-  let i = 0; DEN.forEach((d, k) => { if (d <= unit) i = k; });   // largest chip not above the minimum
-  i = Math.max(0, i - 1);                                          // plus one smaller chip for change
-  i = Math.min(i, DEN.length - N_CHIPS);
-  return DEN.slice(i, i + N_CHIPS);
-}
+/* ---------- chip denominations ----------
+   The chip rules (DEN, chipsOf, okChips, handStack, handHalves…) live in src/domain/chips.ts; the HTML stays here. */
+function denoms(){ const r = S.room; return denomsFor(r.game, r.sb, r.minBet); }
 const chipStyle = d => { const dark = [5,10,25,100,250,500,2500,5000,10000].includes(d); return `--c:var(--c${d});--e:${d===1||d===2||d===1000?'var(--c5)':'var(--chalk)'};--t:${dark?'#fff':'#1a1a1a'}`; };
-const chipLabel = d => d >= 1000 ? (d/1000) + 'K' : d;
-function chipsOf(amt){ const out = []; let left = Math.floor(amt || 0); for (let k = DEN.length - 1; k >= 0 && left > 0; k--) while (left >= DEN[k] && out.length < 36){ out.push(DEN[k]); left -= DEN[k]; } return out; }
 // A stack can be drawn from an amount (made up from the biggest chips) or from the exact chips a player put down.
 function stackHTML(amt, per = 8){
   const c = Array.isArray(amt) ? amt : chipsOf(amt); if (!c.length) return '';
   const p = c.length > per * 4 ? Math.ceil(c.length / 4) : c.length > per * 3 ? Math.ceil(c.length / 3) : per, cols = [];
   for (let i = 0; i < c.length; i += p) cols.push(c.slice(i, i + p));
   return `<div class="stk">${cols.map(col => `<div class="col" style="--n:${col.length}">${col.map((d, i) => `<i class="cd" style="${chipStyle(d)};--i:${i}"></i>`).join('')}</div>`).join('')}</div>`;
-}
-const dispAmt = h => h.result === 'surrender' ? h.bet - Math.floor(h.bet / 2) : h.bet;
-/* The exact chips of a bet are saved with it (hands[i].chips, lastAction.chips) so everyone sees the same stack.
-   Optional: when missing or not adding up (an older version wrote the bet), we fall back to the amount. */
-const MAX_CHIPS = 40;
-const sumOf = a => a.reduce((x, y) => x + y, 0);
-const okChips = (c, amt) => Array.isArray(c) && c.length > 0 && c.length <= MAX_CHIPS && c.every(d => DEN.includes(d)) && sumOf(c) === amt;
-const handStack = h => h.result === 'surrender' ? dispAmt(h) : (okChips(h.chips, h.bet) ? h.chips : h.bet);
-function handHalves(h){
-  const c = h.chips, k = c ? c.length / 2 : 0;
-  if (okChips(c, h.bet) && k === Math.floor(k) && sumOf(c.slice(0, k)) === h.bet / 2) return [c.slice(0, k), c.slice(k)];
-  return [h.bet / 2, h.bet / 2];
 }
 // The chips in your hand right now. Anything that changed the pending amount without chips (presets, clearing) resets it.
 function pendChips(){ if (sumOf(S.pendChips) !== S.pending) S.pendChips = chipsOf(S.pending); return S.pendChips; }
@@ -755,171 +741,108 @@ function fxRoom(a, b){
 // The dealer locked the bets: a bell, and every stack on the felt gives a little bump.
 function lockFx(){ SND.bell(); dealerNod(); players().filter(cur).forEach(p => p.hands.forEach((_, j) => pulse(`spot:${p.pid}:${j}`, 1.1))); }
 
-/* ---------- Hold'em model ---------- */
-const STAGES = ['preflop','flop','turn','river','showdown'];
+/* ---------- Hold'em model ----------
+   The rules live in src/domain/holdem/ (rules.ts, pots.ts). This section reads S, writes what they return
+   (dealer stack changes as increments) and says it in Hebrew. */
+const STAGES = HR.STAGES;
 const STAGE_HE = { idle:'בין ידיים', preflop:'פרה-פלופ', flop:'פלופ', turn:'טרן', river:'ריבר', showdown:'שואודאון' };
-function H(){
-  const r = S.room, list = players(), lvl = r.potLevel || 0;
-  const inHand = p => r.stage !== 'idle' && p.handId === r.handId;
-  const st = p => inHand(p) && p.streetId === r.streetId ? (p.streetBet || 0) : 0;
-  const com = p => inHand(p) ? (p.committed || 0) : 0;
-  const pot = list.reduce((a,p) => a + Math.max(0, com(p) - lvl), 0);
-  const maxSt = Math.max(0, ...list.map(st));
-  const distinct = [...new Set(list.map(st))].sort((a,b) => b - a);
-  const lastRaise = Math.max(r.bb || 1, distinct.length > 1 ? distinct[0] - distinct[1] : distinct[0] || 0);
-  const minTo = maxSt === 0 ? (r.bb || 1) : maxSt + lastRaise;
-  const live = list.filter(p => inHand(p) && !p.folded);
-  return { r, list, lvl, inHand, st, com, pot, maxSt, minTo, live };
-}
-const canAct = (h, p) => p && h.inHand(p) && !p.folded && !p.allIn && STAGES.slice(0,4).includes(h.r.stage);
+function H(){ return HR.holdemState(S.room, players()); }
+const canAct = HR.canAct;
 
 async function hAct(add, kind){
-  const h = H(), m = me(); if (!canAct(h, m)) return;
-  add = Math.max(0, Math.min(add, m.stack || 0));
-  const mySt = h.st(m), newSt = mySt + add, stack = (m.stack || 0) - add;
-  if (add === 0 && newSt < h.maxSt) return;
-  let k = kind;
-  if (!k){ if (stack === 0 && add > 0) k = 'allin'; else if (add === 0) k = 'check'; else if (newSt === h.maxSt) k = 'call'; else k = h.maxSt === 0 ? 'bet' : 'raise'; }
+  const res = HR.bet(H(), me(), add, pendChips(), kind); if (!res.ok) return;
   buzz();
-  const la = { k, amt: k === 'raise' || k === 'allin' ? newSt : add }; if (add > 0 && okChips(pendChips(), add)) la.chips = pendChips().slice();
-  const ok = await w(pPath(), 'update', { stack, streetBet: newSt, streetId: S.room.streetId, committed: h.com(m) + add, allIn: stack === 0, lastAction: la, ts: now() });
+  const ok = await w(pPath(), 'update', { ...res.patch, ts: now() });
   if (ok) S.pending = 0;
   render();
 }
-async function hFold(){ const h = H(), m = me(); if (!canAct(h, m)) return; buzz(); await w(pPath(), 'update', { folded: true, lastAction: { k:'fold' }, ts: now() }); }
+async function hFold(){ const res = HR.fold(H(), me()); if (!res.ok) return; buzz(); await w(pPath(), 'update', { ...res.patch, ts: now() }); }
 
 async function newHand(){
-  const r = S.room; const h = H();
-  if (h.pot > 0 && r.stage !== 'idle'){ toast('יש עדיין צ\'יפים בקופה. חלקו את הקופה או בטלו את היד.'); return; }
-  const act = players().filter(p => !p.sittingOut && (p.stack || 0) > 0);
-  if (act.length < 2){ toast('צריך לפחות שני שחקנים עם צ\'יפים'); return; }
-  const bi = act.findIndex(p => p.pid === r.buttonPid);
-  const btn = act[(bi + 1) % act.length];
-  const n = act.length, b = act.indexOf(btn);
-  const sbP = n === 2 ? act[b] : act[(b + 1) % n];
-  const bbP = n === 2 ? act[(b + 1) % n] : act[(b + 2) % n];
-  const handId = (r.handId || 0) + 1, streetId = handId * 10 + 1;
-  const ok = await w(roomPath(), 'update', { handId, streetId, stage:'preflop', potLevel:0, buttonPid: btn.pid, sbPid: sbP.pid, bbPid: bbP.pid, ...setEvent(`יד ${handId} התחילה · בליינדים ${fmt(r.sb)}/${fmt(r.bb)}`) });
+  const r = S.room, plan = HR.newHand(r, players());
+  if (!plan.ok){ toast(plan.reason === 'pot-not-empty' ? 'יש עדיין צ\'יפים בקופה. חלקו את הקופה או בטלו את היד.' : 'צריך לפחות שני שחקנים עם צ\'יפים'); return; }
+  const ok = await w(roomPath(), 'update', { ...plan.room, ...setEvent(`יד ${plan.room.handId} התחילה · בליינדים ${fmt(r.sb)}/${fmt(r.bb)}`) });
   if (!ok) return;
   buzz();
-  await Promise.all(act.map(p => {
-    let x = p.pid === sbP.pid ? r.sb : p.pid === bbP.pid ? r.bb : 0; x = Math.min(x, p.stack || 0);
-    return w(pPath(p.pid), 'update', { handId, streetId, streetBet: x, committed: x, stack: (p.stack || 0) - x, folded:false, allIn: (p.stack||0) - x === 0, lastAction: x ? { k:'blind', amt:x } : null, ts: now() });
-  }));
+  await Promise.all(plan.posts.map(x => w(pPath(x.pid), 'update', { ...x.patch, ts: now() })));
 }
 async function nextStreet(){
-  const r = S.room; const i = STAGES.indexOf(r.stage); if (i < 0 || i >= 4) return;
+  const res = HR.nextStreet(S.room); if (!res.ok) return;
   buzz();
-  await w(roomPath(), 'update', { stage: STAGES[i+1], streetId: (r.streetId || 0) + 1, ...setEvent(STAGE_HE[STAGES[i+1]]) });
+  await w(roomPath(), 'update', { ...res.patch, ...setEvent(STAGE_HE[res.patch.stage]) });
 }
-function computeAward(win){
-  const h = H(); const c = {}; h.list.forEach(p => { const v = h.com(p); if (v > h.lvl) c[p.pid] = v; });
-  const order = h.list.map(p => p.pid); win = order.filter(id => win.includes(id));
-  const levels = [...new Set(Object.values(c))].sort((a,b) => a - b);
-  let prev = h.lvl, newL = h.lvl; const pay = {};
-  for (const L of levels){
-    const contrib = Object.keys(c).filter(id => c[id] > prev);
-    const amt = contrib.reduce((a,id) => a + Math.min(c[id], L) - prev, 0);
-    if (contrib.length === 1){ pay[contrib[0]] = (pay[contrib[0]] || 0) + amt; prev = newL = L; continue; }
-    const el = win.filter(id => (c[id] || 0) >= L); if (!el.length) break;
-    const sh = Math.floor(amt / el.length);
-    el.forEach((id, i) => pay[id] = (pay[id] || 0) + sh + (i === 0 ? amt - sh * el.length : 0));
-    prev = newL = L;
-  }
-  const left = Object.values(c).reduce((a,v) => a + Math.max(0, v - newL), 0);
-  return { pay, newL, left };
-}
+function computeAward(win){ return Pots.computeAward(H(), win); }
 async function award(win){
-  const { pay, newL, left } = computeAward(win);
-  const total = Object.values(pay).reduce((a,b) => a + b, 0); if (!total){ toast('בחרו זוכה'); return; }
-  const names = Object.entries(pay).filter(([,a]) => a > 0).map(([id,a]) => `${nameOf(id)} +${fmt(a)}`).join(' · ');
-  const ok = await w(roomPath(), 'update', { potLevel: newL, stage: left === 0 ? 'idle' : S.room.stage, ...setEvent(names) });
+  const res = Pots.award(H(), win); if (!res.ok){ toast('בחרו זוכה'); return; }
+  const names = res.pays.map(([id,a]) => `${nameOf(id)} +${fmt(a)}`).join(' · ');
+  const ok = await w(roomPath(), 'update', { ...res.room, ...setEvent(names) });
   if (!ok) return;
   buzz();
-  await Promise.all(Object.entries(pay).filter(([,a]) => a > 0).map(([id,a]) => w(pPath(id), 'update', { stack: inc(a), lastAction: { k:'won', amt:a }, ts: now() })));
+  await Promise.all(res.pays.map(([id,a]) => w(pPath(id), 'update', { stack: inc(a), lastAction: { k:'won', amt:a }, ts: now() })));
   S.sel = [];
-  if (left === 0) S.sheet = null; else toast(`נשארה קופה צדדית של ${fmt(left)} – בחרו את הזוכה בה`);
+  if (res.left === 0) S.sheet = null; else toast(`נשארה קופה צדדית של ${fmt(res.left)} – בחרו את הזוכה בה`);
   render();
 }
 async function cancelHand(){
-  const h = H(); const max = Math.max(h.lvl, ...h.list.map(h.com));
-  await w(roomPath(), 'update', { potLevel: max, stage:'idle', ...setEvent('היד בוטלה והצ\'יפים הוחזרו') });
-  await Promise.all(h.list.map(p => { const back = Math.max(0, h.com(p) - h.lvl); return back ? w(pPath(p.pid), 'update', { stack: inc(back), lastAction:{ k:'refund', amt: back }, ts: now() }) : null; }));
+  const c = Pots.cancelHandRefunds(H());
+  await w(roomPath(), 'update', { ...c.room, ...setEvent('היד בוטלה והצ\'יפים הוחזרו') });
+  await Promise.all(c.refunds.map(x => w(pPath(x.pid), 'update', { stack: inc(x.amt), lastAction:{ k:'refund', amt: x.amt }, ts: now() })));
   S.sheet = null; S.confirm = null; render();
 }
 
-/* ---------- Blackjack model ---------- */
-const cur = p => p && S.room && p.bjRound === S.room.roundId && (p.hands || []).length;
-const bjStake = p => (p.hands || []).reduce((a,x) => a + x.bet, 0);
+/* ---------- Blackjack model ----------
+   The rules live in src/domain/blackjack/ (rules.ts, actions.ts, round.ts); see the Hold'em model above. */
+const cur = p => BJ.isCurrent(p, S.room);
+const bjStake = BJ.stake;
 async function bjBet(){
-  const m = me(), r = S.room; if (!m || r.phase !== 'betting') return;
-  const add = Math.min(S.pending, m.stack || 0); if (!add) return;
-  const total = (cur(m) ? m.hands[0].bet : 0) + add;
-  if (r.maxBet && total > r.maxBet){ toast(`ההימור המקסימלי הוא ${fmt(r.maxBet)}`); return; }
-  if (total < (r.minBet || 0)){ toast(`ההימור המינימלי הוא ${fmt(r.minBet)}`); return; }
+  const r = S.room, res = BJA.placeBet(me(), r, S.pending, pendChips());
+  if (!res.ok){
+    if (res.reason === 'over-max') toast(`ההימור המקסימלי הוא ${fmt(r.maxBet)}`);
+    else if (res.reason === 'under-min') toast(`ההימור המינימלי הוא ${fmt(r.minBet)}`);
+    return;
+  }
   buzz();
-  const prev = cur(m) ? m.hands[0] : null, now_ = okChips(pendChips(), add) ? pendChips().slice() : chipsOf(add);
-  const chips = (prev ? (okChips(prev.chips, prev.bet) ? prev.chips : chipsOf(prev.bet)) : []).concat(now_);
-  const hand = { bet: total }; if (okChips(chips, total)) hand.chips = chips;
   const pend = S.pending, pc = S.pendChips; S.pending = 0; S.pendChips = []; FX.pendFly = 0;
-  const ok = await w(pPath(), 'update', { stack: m.stack - add, bjRound: r.roundId, hands: [hand], insurance:0, surrendered:false, lastAction:{ k:'bet', amt: total }, ts: now() });
+  const ok = await w(pPath(), 'update', { ...res.patch, ts: now() });
   if (!ok){ S.pending = pend; S.pendChips = pc; } render();
 }
 async function bjClear(){
-  const m = me(); if (!cur(m) || S.room.phase !== 'betting') return;
-  await w(pPath(), 'update', { stack: m.stack + bjStake(m), bjRound: null, hands: [], lastAction:{ k:'clear' }, ts: now() });
+  const res = BJA.clearBet(me(), S.room); if (!res.ok) return;
+  await w(pPath(), 'update', { ...res.patch, ts: now() });
 }
 async function bjDo(kind, i){
-  const m = me(), r = S.room; if (!cur(m) || r.phase !== 'playing') return;
-  const hands = m.hands.map(x => ({...x})); const hnd = hands[i] || hands[0]; let stack = m.stack; const patch = {};
-  const same = okChips(hnd.chips, hnd.bet) ? hnd.chips.slice() : null;
-  if (kind === 'double'){ if (hnd.doubled || hnd.result || stack < hnd.bet) return; stack -= hnd.bet; hnd.bet *= 2; hnd.doubled = true; if (same && same.length * 2 <= MAX_CHIPS) hnd.chips = same.concat(same); else delete hnd.chips; }
-  else if (kind === 'split'){ if (hands.length >= 4 || hnd.doubled || hnd.result || stack < hnd.bet) return; stack -= hnd.bet; hnd.split = true; const nh = { bet: hnd.bet, split: true }; if (same) nh.chips = same; hands.splice(i + 1, 0, nh); }
-  else if (kind === 'ins'){ const amt = Math.floor(hands[0].bet / 2); if (m.insurance || hands.length > 1 || hands[0].result || stack < amt || !amt) return; stack -= amt; patch.insurance = amt; }
-  else if (kind === 'surrender'){ if (hands.length > 1 || hnd.doubled || hnd.result) return; stack += Math.floor(hnd.bet / 2); hnd.result = 'surrender'; patch.surrendered = true; }
+  const res = BJA.play(me(), S.room, kind, i); if (!res.ok) return;
   buzz();
-  await w(pPath(), 'update', { stack, hands, ...patch, lastAction:{ k: kind }, ts: now() });
+  await w(pPath(), 'update', { ...res.patch, ts: now() });
 }
-const MULT = { win: b => b * 2, bj: b => b + Math.floor(b * 1.5), push: b => b, lose: () => 0 };
 async function bjPayout(){
-  const r = S.room; const list = players().filter(cur).filter(p => p.hands.some(h => !h.paid) || p.insurance);   // paid blackjacks are done
-  let houseIn = 0, houseOut = 0; const writes = [];
-  for (const p of list){
-    const hands = p.hands.map((x,i) => ({ ...x, result: x.result || S.settle[p.pid + ':' + i] }));
-    if (hands.some(x => !x.result)){ toast('סמנו תוצאה לכל הידיים'); return; }
-    let pay = 0, stake = 0, back = 0;
-    hands.forEach(x => { if (x.paid) return; stake += x.bet; if (x.result === 'surrender') back += Math.floor(x.bet/2); else pay += MULT[x.result](x.bet); });
-    const ins = p.insurance || 0, insPay = ins && S.dealerBJ ? ins * 3 : 0;
-    houseIn += stake + ins; houseOut += pay + back + insPay;
-    const net = pay + back + insPay - stake - ins;
-    if (p.bjPaidRound === r.roundId) continue;       // settled by an earlier press whose room write failed: house totals above still count it
-    writes.push([p.pid, { stack: inc(pay + insPay), bjPaidRound: r.roundId, hands, lastAction: { k:'bjres', amt: net }, ts: now() }]);
-  }
+  const r = S.room, res = BJR.settleRound(r, players(), S.settle, S.dealerBJ);   // paid blackjacks are done
+  if (!res.ok){ toast('סמנו תוצאה לכל הידיים'); return; }
   buzz();
   // Players first, then the room: nobody can open the next round while a payout is still on its way.
-  const results = await Promise.all(writes.map(([id, d]) => w(pPath(id), 'update', d)));
+  const results = await Promise.all(res.writes.map(x => w(pPath(x.pid), 'update', { stack: inc(x.stackInc), ...x.patch, ts: now() })));
   if (results.some(ok => !ok)) return;      // the toast is up; pressing again pays only the players not yet settled
-  const ok = await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, dealerBJ: false, roundEnd: 'paid', house: (r.house || 0) + houseIn - houseOut, ...setEvent(`סיבוב ${r.roundId} שולם · הבית \u2066${houseIn - houseOut >= 0 ? '+' : '−'}${fmt(Math.abs(houseIn - houseOut))}\u2069`) });
+  const d = res.houseDelta;
+  const ok = await w(roomPath(), 'update', { ...res.room, ...setEvent(`סיבוב ${r.roundId} שולם · הבית ⁦${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}⁩`) });
   if (!ok) return;
   S.sheet = null; S.settle = {}; S.dealerBJ = false; render();
 }
 // The dealer declares a player's blackjack mid-round: paid 3:2 at once, and the hand is marked paid
 // so the end-of-round payout and a cancelled round both leave it alone.
-const bjEligible = p => cur(p) && p.hands.length === 1 && !p.hands[0].doubled && !p.hands[0].split && !p.hands[0].result;
+const bjEligible = p => BJ.blackjackEligible(p, S.room);
 async function bjNow(pid){
-  const r = S.room, p = S.players[pid]; if (!p || r.phase !== 'playing' || !bjEligible(p)) return;
-  const h = p.hands[0], win = Math.floor(h.bet * 1.5);
+  const p = S.players[pid], res = BJA.payBlackjackNow(p, S.room); if (!res.ok) return;
   buzz();
-  if (!await w(pPath(pid), 'update', { stack: inc(h.bet + win), hands: [{ ...h, result: 'bj', paid: true }], lastAction: { k:'bjpay', amt: win }, ts: now() })) return;
-  await w(roomPath(), 'update', { house: (r.house || 0) - win, ...setEvent(`${p.name}: בלאק ג'ק! +${fmt(win)}`) });
+  if (!await w(pPath(pid), 'update', { stack: inc(res.stackInc), ...res.patch, ts: now() })) return;
+  await w(roomPath(), 'update', { ...res.room, ...setEvent(`${p.name}: בלאק ג'ק! +${fmt(res.win)}`) });
   S.confirm = null; if (!players().some(bjEligible)) S.sheet = null; render();
 }
 async function bjCancelRound(){
-  const r = S.room; const list = players().filter(cur).filter(p => p.hands.some(h => !h.paid) || p.insurance);
+  const c = BJR.cancelRound(S.room, players());
   // Players first, then the room (see bjPayout); bjPaidRound keeps a retry from refunding twice.
-  const results = await Promise.all(list.filter(p => p.bjPaidRound !== r.roundId).map(p => { const back = p.hands.reduce((a,x) => a + (x.paid ? 0 : x.result === 'surrender' ? Math.ceil(x.bet/2) : x.bet), 0) + (p.insurance || 0); return w(pPath(p.pid), 'update', { stack: inc(back), bjPaidRound: r.roundId, hands: [], bjRound: null, lastAction:{ k:'refund', amt: back }, ts: now() }); }));
+  const results = await Promise.all(c.refunds.map(x => w(pPath(x.pid), 'update', { stack: inc(x.stackInc), ...x.patch, ts: now() })));
   if (results.some(ok => !ok)) return;
-  if (!await w(roomPath(), 'update', { phase:'betting', roundId: (r.roundId || 1) + 1, roundEnd: 'cancelled', ...setEvent('הסיבוב בוטל וההימורים הוחזרו') })) return;
+  if (!await w(roomPath(), 'update', { ...c.room, ...setEvent('הסיבוב בוטל וההימורים הוחזרו') })) return;
   S.sheet = null; S.confirm = null; render();
 }
 

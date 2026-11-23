@@ -1,0 +1,22 @@
+{
+  // The pure game rules (src/domain/) on their own, with no DOM types: using a browser API there fails to compile.
+  // Standalone (not extending tsconfig.json), because the JSX settings there pull in Preact's DOM types.
+  // Unit tests are checked by tsconfig.json (they import vitest).
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": [],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src/domain/**/*.ts"],
+  "exclude": ["src/domain/**/*.test.ts"]
+}

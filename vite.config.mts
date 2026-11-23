@@ -8,5 +8,9 @@ export default defineConfig({
   appType: 'mpa',
   build: { outDir: 'dist', emptyOutDir: true },
   plugins: [swPlugin('src/sw-template.js')],
-  test: { include: ['src/**/*.test.ts', 'scripts/**/*.test.mts'] },
+  test: {
+    include: ['src/**/*.test.ts', 'scripts/**/*.test.mts'],
+    // `npm run coverage`: the game rules are the code that must be fully tested.
+    coverage: { provider: 'v8', include: ['src/domain/**/*.ts'], exclude: ['src/**/*.test.ts'], reporter: ['text'] },
+  },
 });
