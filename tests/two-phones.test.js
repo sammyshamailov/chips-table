@@ -12,7 +12,7 @@ const { ROOT, requirePlaywright, serve, phones, setPending, players, room, openT
   try {
     // Sami opens a blackjack table (minimum 1) and picks a character; Dana joins from the invite link with a photo.
     await openTable([A, B], srv.url, { game: 'blackjack', settings: { min: 1 }, names: ['סמי', 'דנה'], play: true,
-      avatars: [{ set: 'tex' }, { photo: path.join(ROOT, 'icons', 'icon-192.png') }], db });
+      avatars: [{ set: 'tex' }, { photo: path.join(ROOT, 'public', 'icons', 'icon-192.png') }], db });
     let ps = players(db()); const sami = ps.find(p => p.name === 'סמי'), dana = ps.find(p => p.name === 'דנה');
     check('both players seated', !!sami && !!dana);
     check('character avatar stored', sami.avatar && sami.avatar.k === 'set' && sami.avatar.v === 'tex');

@@ -1,0 +1,29 @@
+/* Widths include padding and border everywhere; without this, width:100% inputs stuck out of their cards. */
+*,*::before,*::after{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font-size:14px}
+img{max-width:100%}
+[hidden]{display:none!important}
+/* Layout: one narrow felt column, a fixed action dock at the thumb, sheets slide up from the bottom. Single committed dark "card room" look. */
+:root{
+  --bg:#0b1813; --felt:#12302a; --felt-2:#18403a; --felt-3:#21524a;
+  --line:rgba(214,236,224,.13); --ink:#eef4ee; --dim:#9db8ab; --faint:#6d8a7e;
+  --brass:#e0b766; --brass-ink:#2a1d06; --danger:#ec7462; --ok:#74cf9f; --chalk:#f7f2e6;
+  --c1:#f2efe6; --c2:#9cc3e0; --c5:#c8372d; --c2500:#b07a2a; --c10:#2f5fb8; --c25:#2e8a4f; --c50:#e07a26; --c100:#1c1c1f; --c250:#d0558f; --c500:#6b3fa0; --c1000:#e2c13c; --c5000:#7a4a2a; --c10000:#3fa9b5;
+  --f-display:"Karantina","IBM Plex Sans Hebrew",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans Hebrew",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  color-scheme:dark;
+}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));-webkit-tap-highlight-color:transparent}
+#app{max-width:520px;margin:0 auto;padding-block:14px 40px}
+#app.has-dock{padding-bottom:300px}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:disabled{opacity:.4;cursor:default}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0}
+input:focus{border-color:var(--brass);outline:none}
+.num{font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0;text-wrap:balance}
+
+/* brand */

@@ -1,0 +1,19 @@
+/* ---------- turn-the-phone prompt ---------- */
+#rot{position:fixed;inset:0;z-index:55;display:grid;place-items:center;padding:24px;background:rgba(4,10,8,.84);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.rot-card{width:100%;max-width:340px;box-sizing:border-box;display:grid;gap:12px;justify-items:center;text-align:center;background:var(--felt);border:1px solid var(--line);border-radius:24px;padding:24px 20px 20px;box-shadow:0 20px 60px rgba(0,0,0,.5);animation:rotin .4s cubic-bezier(.2,.8,.3,1.15)}
+.rot-card h2{font-family:var(--f-display);font-size:42px;font-weight:700;line-height:1}
+.rot-card p{margin:0;max-width:30ch}
+@keyframes rotin{from{opacity:0;transform:translateY(18px) scale(.95)}}
+.rot-anim{position:relative;width:140px;height:140px;display:grid;place-items:center}
+.rot-arrow{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:var(--brass);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;animation:rotarrow 3.2s ease-in-out infinite}
+.phone{width:60px;height:108px;box-sizing:border-box;border-radius:14px;border:4px solid var(--chalk);background:#06110c;padding:3px;animation:rotturn 3.2s cubic-bezier(.65,0,.3,1) infinite;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.scr{width:100%;height:100%;border-radius:8px;overflow:hidden;display:grid;place-items:center;background:#0b1813}
+.scr-in{position:relative;width:86px;height:46px;animation:rotfit 3.2s cubic-bezier(.65,0,.3,1) infinite}
+.mf{position:absolute;inset:0;box-sizing:border-box;border-radius:3px 3px 50% 50%/3px 3px 100% 100%;background:radial-gradient(ellipse at 50% 20%,#26955f,#0e4a30);border:3px solid #6b4428;border-top-width:1px}
+.mc{position:absolute;width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:2px dashed #f7f2e6;animation:rotchip 3.2s ease-out infinite}
+.mc.a{background:#c8372d;left:17px;top:18px}.mc.b{background:#2f5fb8;left:38px;top:26px;animation-delay:.1s}.mc.c{background:#2e8a4f;left:59px;top:18px;animation-delay:.2s}
+@keyframes rotturn{0%,20%{transform:rotate(0)}42%,78%{transform:rotate(-90deg)}96%,100%{transform:rotate(0)}}
+@keyframes rotfit{0%,20%{transform:scale(.52)}42%,78%{transform:rotate(90deg) scale(1)}96%,100%{transform:scale(.52)}}
+@keyframes rotarrow{0%,8%{opacity:0}18%,38%{opacity:1}52%,100%{opacity:0}}
+@keyframes rotchip{0%,44%{transform:translateY(-7px);opacity:0}52%,80%{transform:none;opacity:1}92%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.phone,.scr-in,.rot-arrow,.mc,.rot-card,.lids ellipse{animation:none}}

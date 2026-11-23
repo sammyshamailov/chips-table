@@ -3,24 +3,37 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
+const DIST = path.join(ROOT, 'dist');
 const OUT = path.join(__dirname, 'out');
 const FAKE = fs.readFileSync(path.join(__dirname, 'fakefs.js'), 'utf8');
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.css': 'text/css; charset=utf-8', '.mp3': 'audio/mpeg' };
+
+// The tests run against the built app (dist/), built once per test process. SKIP_BUILD=1 uses dist/ as it is.
+let built = false;
+function build(){
+  if (built || process.env.SKIP_BUILD === '1') return;
+  execSync('npx vite build --logLevel warn', { cwd: ROOT, stdio: 'inherit' });
+  built = true;
+}
+build();
 
 function requirePlaywright(){
   try { return require('playwright'); }
   catch(e){ console.error('Playwright is not installed. Run: npm i -g playwright && npx playwright install chromium'); process.exit(2); }
 }
 
-// A tiny static server for the repo folder, so tests don't depend on anything else running.
-function serve(){
+// A tiny static server for the built app (dist/), so tests don't depend on anything else running.
+// root: the folder to serve; a function is asked on every request, so a test can switch folders on the same origin.
+function serve(root = DIST){
   return new Promise(ok => {
     const srv = http.createServer((req, res) => {
+      const dir = typeof root === 'function' ? root() : root;
       let p = decodeURIComponent(new URL(req.url, 'http://x').pathname); if (p === '/') p = '/index.html';
-      const f = path.join(ROOT, path.normalize(p));
-      if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()){ res.writeHead(404); res.end(); return; }
+      const f = path.join(dir, path.normalize(p));
+      if (!f.startsWith(dir) || !fs.existsSync(f) || fs.statSync(f).isDirectory()){ res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'content-type': TYPES[path.extname(f)] || 'application/octet-stream', 'cache-control': 'no-store' });
       fs.createReadStream(f).pipe(res);
     });
@@ -106,4 +119,4 @@ function check(name, ok, detail = ''){
 }
 const failures = () => failed;
 
-module.exports = { ROOT, OUT, requirePlaywright, serve, phones, setPending, players, room, openTable, check, failures };
+module.exports = { ROOT, DIST, OUT, requirePlaywright, serve, phones, setPending, players, room, openTable, check, failures };

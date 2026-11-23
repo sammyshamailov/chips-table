@@ -3,9 +3,31 @@
   "private": true,
   "version": "0.0.0",
   "description": "Chip table for home poker and blackjack games",
-  "scripts": {},
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
+    "format": "prettier --write ."
+  },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
     "pixelmatch": "^7.2.0",
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "preact": "^11.2.0",
+    "prettier": "^3.10.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
   }
 }

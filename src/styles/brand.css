@@ -1,0 +1,30 @@
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:8px 2px 18px}
+.brand h1{font-family:var(--f-display);font-weight:700;font-size:56px;line-height:.9;letter-spacing:.5px}
+.brand h1 span{color:var(--brass)}
+.brand p{margin:0;color:var(--dim);font-size:13px;max-width:22ch}
+
+.card{background:var(--felt);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:12px}
+.stack{display:grid;gap:14px}
+.label{font-size:12px;color:var(--dim);letter-spacing:.06em;font-weight:600}
+.row{display:flex;gap:10px;align-items:center}
+.row>*{min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:grid;gap:6px}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--bg);border-radius:12px;padding:4px;gap:4px}
+.seg button{padding:10px 6px;border-radius:9px;font-weight:600;color:var(--dim)}
+.seg button[aria-pressed="true"]{background:var(--felt-3);color:var(--ink)}
+.check{display:flex;gap:10px;align-items:center;color:var(--dim);font-size:14px}
+.check input{width:20px;height:20px;accent-color:var(--brass)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:13px 16px;border-radius:12px;font-weight:600;background:var(--felt-3);color:var(--ink);min-height:48px;text-align:center}
+.btn.primary{background:var(--brass);color:var(--brass-ink)}
+.btn.danger{background:transparent;color:var(--danger);border:1px solid color-mix(in srgb,var(--danger) 45%,transparent)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.btn.small{min-height:38px;padding:8px 12px;font-size:14px;border-radius:10px}
+.btn.wide{width:100%}
+.banner{border-radius:14px;padding:12px 14px;font-size:14px;background:color-mix(in srgb,var(--brass) 14%,var(--felt));border:1px solid color-mix(in srgb,var(--brass) 40%,transparent);display:grid;gap:8px}
+.muted{color:var(--dim);font-size:13px}
+.rooms{display:grid;gap:8px}
+.roomrow{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:12px;background:var(--bg);border:1px solid var(--line);width:100%;text-align:start}
+.code{font-family:var(--f-display);font-size:28px;font-weight:700;letter-spacing:3px;line-height:1;direction:ltr}
+

@@ -1,0 +1,14 @@
+# Moved unchanged in R-005 phase 1; reformatting it would make the move impossible to review.
+src/legacy.ts
+src/styles/
+src/sw-template.js
+index.html
+# Hand-formatted scripts and tests, left as they are.
+tests/
+scripts/build-config.js
+config.example.js
+# Not code, or generated.
+*.md
+dist/
+public/
+package-lock.json

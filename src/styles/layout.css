@@ -1,0 +1,21 @@
+/* ---------- room layout: portrait stacks everything; landscape puts the table beside a control panel ---------- */
+.room{display:flex;flex-direction:column}
+.side{display:contents}
+.room .top{order:1}.room .updw,.room .mb{order:2}.updw{margin-bottom:12px}.room .event{order:3}.stage{order:4}.o-join{order:5}.o-host{order:6}.room .dock{order:7}
+@media (orientation:landscape){
+  #app.in-room{max-width:1200px;padding-block:10px}
+  #app.in-room.has-dock{padding-bottom:10px}
+  .room{display:grid;grid-template-columns:minmax(0,1fr) var(--tw);gap:18px;align-items:start}
+  .side{display:flex;flex-direction:column;min-width:0;position:sticky;top:10px;max-height:calc(100vh - 20px);max-height:calc(100dvh - 20px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+  .stage.fit{position:sticky;top:10px}
+  .room .top{order:1}.room .updw{order:1;margin:0 0 8px}.room .event{order:2}.room .dock{order:3}.o-host{order:4}.o-join{order:5}.room .mb{order:6;margin-top:10px}
+  .bjt{--dtop:18.5}
+  .room .dock{position:static;z-index:auto;background:none;border:0;padding:12px 0 2px;backdrop-filter:none;-webkit-backdrop-filter:none}
+  .room .dock-in{max-width:none}
+  .room .top{padding-bottom:6px;flex-wrap:wrap;row-gap:6px}
+  .room .top .actions{flex-wrap:wrap}
+  .room .event{padding-bottom:2px}
+  .room .host{margin-top:10px}
+  .o-join .card{margin-top:10px!important}
+}
+
