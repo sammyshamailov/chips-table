@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import preact from '@preact/preset-vite';
 import { swPlugin } from './scripts/sw-plugin.mts';
 
 export default defineConfig({
@@ -7,7 +8,7 @@ export default defineConfig({
   // No single-page fallback: a missing file (config.js in single-device mode) is a 404, as on Netlify, not index.html.
   appType: 'mpa',
   build: { outDir: 'dist', emptyOutDir: true },
-  plugins: [swPlugin('src/sw-template.js')],
+  plugins: [preact(), swPlugin('src/sw-template.js')],
   test: {
     include: ['src/**/*.test.ts', 'scripts/**/*.test.mts'],
     // `npm run coverage`: the game rules, the data layer and the document diff are the code that must be fully tested.

@@ -19,6 +19,7 @@ import { createFxLayer } from './fx/layer';
 import { subscribeBlackjackFx } from './fx/blackjack';
 import { subscribeHoldemFx } from './fx/holdem';
 import { subscribeRoomFx } from './fx/room';
+import { createUi } from './ui/app';
 import { createLegacyApp } from './legacy';
 
 interface LegacyApp {
@@ -44,7 +45,10 @@ const layer = createFxLayer({
   render: () => theApp().render(),
   myId: () => theApp().myId(),
 });
-app = createLegacyApp({ bus, snd, layer, storage, ambiSync }) as LegacyApp;
+// The screens (Preact components, src/ui/): mounted on the page's elements, drawn by the app's render().
+const el = (id: string) => document.getElementById(id) as HTMLElement;
+const ui = createUi({ app: el('app'), sheet: el('sheet'), toast: el('toast') });
+app = createLegacyApp({ bus, snd, layer, storage, ambiSync, ui }) as LegacyApp;
 
 // The table's events → effects. The order matters where two react to one event: animations and their sounds
 // first, the dealer's narration after (as it always ran). The ceremony is the app's own screen.

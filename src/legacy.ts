@@ -19,11 +19,18 @@ import { diffPlayers, diffRoom } from './sync/diff';
 import { dealerNod } from './fx/room';
 import { fmt } from './ui/format';
 import { chipStyle, stackHTML } from './ui/chips-html';
+// The shell, home, the final card and every sheet are Preact components in src/ui/ (R-005 phase 5); the tables, the
+// docks and the dealer controls are still HTML strings here, shown inside the components (LegacyHtml).
+import { avatarBg, validAv, initial } from './ui/avatars';
+import { avatarArtHtml, crownHtml, rankHtml } from './ui/legacy-html';
+import { RESULT_HE as RES_HE } from './ui/labels';
+import { gameMode } from './games/registry';
 
 // Builds the app around what main.ts created: the event bus, the sound engine (src/audio/synth.ts), the effects
-// layer (src/fx/layer.ts), the phone's storage and the background's on/off rule. Nothing renders until start().
-export function createLegacyApp({ bus, snd: SND, layer, storage: ls, ambiSync }) {
-const app = document.getElementById('app'), sheetEl = document.getElementById('sheet'), toastEl = document.getElementById('toast'), rotEl = document.getElementById('rot'), finEl = document.getElementById('fin');
+// layer (src/fx/layer.ts), the phone's storage, the background's on/off rule and the mounted screens (src/ui/app.tsx).
+// Nothing renders until start().
+export function createLegacyApp({ bus, snd: SND, layer, storage: ls, ambiSync, ui }) {
+const app = document.getElementById('app'), sheetEl = document.getElementById('sheet'), rotEl = document.getElementById('rot'), finEl = document.getElementById('fin');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rid = (n=8) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
 const now = () => Date.now();
@@ -89,64 +96,16 @@ setInterval(checkUpdate, 3 * 60 * 1000); setTimeout(checkUpdate, 8000);
 
 /* ---------- avatars: a photo (camera or gallery) or one of the prepared characters ----------
    Stored on the player document as avatar: { k:'img', v:'data:image/jpeg;base64,...' } or { k:'set', v:'<id>' }.
-   Photos are cropped and shrunk on the phone to about 5-14 KB, so no file storage is needed. */
-const SKIN = ['#f3cfb3', '#e2ab84', '#c68863', '#8d5a3b', '#5e3a26'];
-const AV_SET = {
-  //     background  skin     hair      hair colour  shirt      extras
-  ace:    ['#3d6fb6', SKIN[0], 'short',  '#5a3a24', '#1f2a44', []],
-  rose:   ['#d0558f', SKIN[0], 'long',   '#e9c46a', '#f4f1ea', ['earrings']],
-  bun:    ['#2a9d8f', SKIN[1], 'bun',    '#1d1d1f', '#17171c', ['bowtie']],
-  curls:  ['#e07a26', SKIN[3], 'curly',  '#2a1a12', '#264653', []],
-  sage:   ['#2e8a4f', SKIN[2], 'bald',   '#9a9a9a', '#5c4033', ['beard']],
-  rookie: ['#5fa8d3', SKIN[0], 'cap',    '#c8372d', '#c8372d', []],
-  tex:    ['#b07a2a', SKIN[1], 'cowboy', '#6b4428', '#7a2e1f', ['mustache']],
-  shark:  ['#6b3fa0', SKIN[1], 'short',  '#1d1d1f', '#17171c', ['shades']],
-  ruby:   ['#74cf9f', SKIN[0], 'long',   '#b5452a', '#3d405b', ['glasses']],
-  gent:   ['#e0b766', SKIN[2], 'short',  '#2a1a12', '#17171c', ['bowtie']],
-  diva:   ['#8e1f2c', SKIN[3], 'long',   '#1d1d1f', '#e0b766', ['shades', 'earrings']],
-  sunny:  ['#9bc53d', SKIN[0], 'curly',  '#e9c46a', '#3d6fb6', []],
-  boss:   ['#1c2b4a', SKIN[4], 'bald',   '#1d1d1f', '#f4f1ea', ['mustache', 'bowtie']],
-  nana:   ['#a78bfa', SKIN[0], 'bun',    '#d6d6d6', '#7a4a2a', ['glasses', 'earrings']],
-  chill:  ['#3fa9b5', SKIN[2], 'beanie', '#e07a26', '#2a2a2e', []],
-  red:    ['#7a4a2a', SKIN[0], 'short',  '#c0562d', '#2e8a4f', ['beard']]
-};
-function avSVG(id){
-  const a = AV_SET[id]; if (!a) return '';
-  const [bg, sk, hair, hc, shirt, ex] = a, has = x => ex.includes(x);
-  const back = hair === 'long' ? `<path d="M16 32c0-13 7-20 16-20s16 7 16 20v18H16z" fill="${hc}"/>` : '';
-  const top = {
-    short: `<path d="M18.5 29c-1-11 5.5-16.5 13.5-16.5S46.5 18 45.5 29c-2.5-6-7-8.5-13.5-8.5s-11 2.5-13.5 8.5z" fill="${hc}"/>`,
-    long: `<path d="M18.5 30c-1-12 5.5-17.5 13.5-17.5S46.5 18 45.5 30c-3-7-8-9-13.5-9.5-4 2-9 5-13.5 9.5z" fill="${hc}"/>`,
-    bun: `<circle cx="32" cy="11" r="6" fill="${hc}"/><path d="M18.5 29c-1-11 5.5-16.5 13.5-16.5S46.5 18 45.5 29c-2.5-6-7-8.5-13.5-8.5s-11 2.5-13.5 8.5z" fill="${hc}"/>`,
-    curly: [[21, 21], [26, 16], [32, 14], [38, 16], [43, 21], [45, 27], [19, 27]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="5.2" fill="${hc}"/>`).join(''),
-    bald: `<path d="M19 27c-1.2 2-1.2 5 0 7M45 27c1.2 2 1.2 5 0 7" stroke="${hc}" stroke-width="2.6" stroke-linecap="round" fill="none"/>`,
-    cap: `<path d="M18.5 27c0-9 6-14 13.5-14s13.5 5 13.5 14z" fill="${hc}"/><path d="M30 26.5h20c1.5 0 1.5 3 0 3H30z" fill="${hc}"/><circle cx="32" cy="13.5" r="1.6" fill="#fff"/>`,
-    cowboy: `<ellipse cx="32" cy="22.5" rx="20" ry="4" fill="${hc}"/><path d="M22 22c0-8 3-11 10-11s10 3 10 11z" fill="${hc}"/><path d="M22 20.5h20" stroke="#e0b766" stroke-width="2"/>`,
-    beanie: `<path d="M18.5 26c0-9 6-14.5 13.5-14.5S45.5 17 45.5 26z" fill="${hc}"/><rect x="17.5" y="23.5" width="29" height="5" rx="2.5" fill="${hc}" stroke="rgba(0,0,0,.15)"/><circle cx="32" cy="10.5" r="3" fill="${hc}"/>`
-  }[hair] || '';
-  const extra = [
-    has('beard') ? `<path d="M20.5 33c1 9 6 13 11.5 13s10.5-4 11.5-13c-3 4-7 5.5-11.5 5.5S23.5 37 20.5 33z" fill="${hc}"/>` : '',
-    has('mustache') ? `<path d="M26.5 36.2c2.5-2.2 4-1.6 5.5-.4 1.5-1.2 3-1.8 5.5.4-2.4.4-3.8 1.4-5.5 1.4s-3.1-1-5.5-1.4z" fill="${has('beard') ? '#000' : hc}" opacity=".85"/>` : '',
-    has('shades') ? `<path d="M22.5 27.5h8l-.6 3.6c-.3 1.4-1.4 2.2-2.8 2.2h-1.4c-1.4 0-2.5-.8-2.8-2.2zM33.5 27.5h8l-.6 3.6c-.3 1.4-1.4 2.2-2.8 2.2h-1.4c-1.4 0-2.5-.8-2.8-2.2zM30.5 28.5h3" fill="#111" stroke="#111" stroke-width="1"/>` : '',
-    has('glasses') ? `<circle cx="27" cy="30" r="3.6" fill="none" stroke="#2a1a12" stroke-width="1.3"/><circle cx="37" cy="30" r="3.6" fill="none" stroke="#2a1a12" stroke-width="1.3"/><path d="M30.6 30h2.8" stroke="#2a1a12" stroke-width="1.3"/>` : '',
-    has('earrings') ? `<circle cx="18.6" cy="35" r="1.6" fill="#e0b766"/><circle cx="45.4" cy="35" r="1.6" fill="#e0b766"/>` : '',
-    has('bowtie') ? `<path d="M32 50l-5.5-3v6zM32 50l5.5-3v6z" fill="#b3203c"/><circle cx="32" cy="50" r="1.4" fill="#86152d"/>` : ''
-  ].join('');
-  const eyes = has('shades') ? '' : `<circle cx="27" cy="30" r="1.7" fill="#2a1a12"/><circle cx="37" cy="30" r="1.7" fill="#2a1a12"/>`;
-  return `<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" fill="${bg}"/>${back}
-    <path d="M8 66c2-13 12-19 24-19s22 6 24 19z" fill="${shirt}"/><path d="M27.5 40h9v8.5c-2.8 2-6.2 2-9 0z" fill="${sk}"/>
-    <ellipse cx="18.8" cy="31" rx="2.2" ry="3" fill="${sk}"/><ellipse cx="45.2" cy="31" rx="2.2" ry="3" fill="${sk}"/>
-    <ellipse cx="32" cy="30" rx="13.4" ry="14.5" fill="${sk}"/>${eyes}
-    <path d="M27.5 36.5q4.5 3.6 9 0" stroke="#7a3b2e" stroke-width="1.5" fill="none" stroke-linecap="round"/>${top}${extra}</svg>`;
-}
-const validAv = a => !!a && ((a.k === 'set' && !!AV_SET[a.v]) || (a.k === 'img' && typeof a.v === 'string' && a.v.length < 60000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.v)));
+   Photos are cropped and shrunk on the phone to about 5-14 KB, so no file storage is needed. The characters, the
+   checks and the avatar component are in src/ui/avatars.ts and src/ui/components/avatar.tsx; avInner() and avatar()
+   below draw the circle as HTML for the string views. */
 // What goes inside an avatar circle: the photo, the character, or the first letter of the name.
 function avInner(p){
   const a = p && p.avatar;
-  if (validAv(a)) return a.k === 'img' ? `<img src="${a.v}" alt="">` : avSVG(a.v);
-  return esc(((p && p.name) || '?').trim().charAt(0) || '?');
+  if (validAv(a)) return a.k === 'img' ? `<img src="${a.v}" alt="">` : avatarArtHtml(a.v);
+  return esc(initial(p && p.name));
 }
-const avBg = p => validAv(p && p.avatar) ? '' : `background:hsl(${hue(p.pid)} 55% 68%)`;
+const avBg = avatarBg;
 let avSaved = null; try { avSaved = JSON.parse(ls.get('chips.avatar') || 'null'); } catch(e){}
 S.avatar = validAv(avSaved) ? avSaved : null;
 const myAv = () => ({ pid: S.myId, name: S.name || '?', avatar: S.avatar });
@@ -196,7 +155,7 @@ function subRooms(){
   if (roomsUnsub) roomsUnsub();
   roomsUnsub = S.db.collection('rooms').orderBy('updatedAt','desc').limit(6).onSnapshot(s => {
     S.rooms = s.docs.filter(d => d.exists).map(d => normalizeRoom(d.data())).filter(r => !r.closed && now() - (r.updatedAt||0) < 1000*60*60*48);
-    if (!S.code) renderRooms();
+    if (!S.code) paint();
   }, () => {});
 }
 function useLocal(){
@@ -392,12 +351,9 @@ async function joinTable(){
 function claimSeat(pid){ S.myId = pid; ls.set('chips.pid', pid); S.pending = 0; render(); }
 
 /* ---------- UI helpers ---------- */
-let tt;
-function toast(t){ toastEl.textContent = t; toastEl.hidden = false; clearTimeout(tt); tt = setTimeout(() => toastEl.hidden = true, 3200); }
-function hue(s){ let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; }
+function toast(t){ ui.toast(t); }       // src/ui/components/toast.tsx
 const avatar = (p, k) => `<div class="av"${k ? ` data-k="${esc(k)}"` : ''} style="${avBg(p)}">${avInner(p)}</div>`;
 const actText = a => { if (!a) return ''; const x = fmt(a.amt); return ({ fold:'קיפל', check:'צ\'ק', call:`השווה ${x}`, raise:`העלה ל-${x}`, bet:`הימר ${x}`, allin:`אול-אין ${x}`, blind:`בליינד ${x}`, won:`זכה ב-${x}`, refund:`הוחזר ${x}`, clear:'ביטל הימור', double:'דאבל דאון', split:'ספליט', ins:'ביטוח', surrender:'כניעה', bjres: a.amt > 0 ? `הרוויח ${x}` : a.amt < 0 ? `הפסיד ${fmt(-a.amt)}` : 'תיקו' })[a.k] || ''; };
-const RES_HE = { win:'ניצחון', bj:'בלאק ג\'ק', push:'תיקו', lose:'הפסד', surrender:'כניעה' };
 
 /* ---------- turn-the-phone prompt: shown only inside a table, on a phone held upright ---------- */
 const canLock = () => !!(window.screen && screen.orientation && screen.orientation.lock && document.documentElement.requestFullscreen);
@@ -452,28 +408,13 @@ function dealerSVG(){
 
 /* ---------- the end of the game: announce the winner, close the table ---------- */
 const standings = () => players().map(p => ({ pid: p.pid, name: p.name, stack: p.stack || 0 })).sort((a, b) => b.stack - a.stack);
-function rankHTML(list, top = list[0] ? list[0].stack : 0){
-  return `<ol class="rank">${list.map((x, i) => {
-    const place = list.findIndex(y => y.stack === x.stack) + 1;      // equal stacks share a place
-    return `<li class="${x.stack === top ? 'win' : ''}" style="--d:${i}"><span class="pl num">${place}</span>${avatar(S.players[x.pid] ? { ...x, avatar: S.players[x.pid].avatar } : x)}<b>${esc(x.name)}</b><span class="num">${fmt(x.stack)}</span></li>`;
-  }).join('')}</ol>`;
-}
 async function endGame(){
   const list = standings(); if (!list.length){ toast('אין שחקנים בשולחן'); return; }
   const top = list[0].stack, win = list.filter(x => x.stack === top);
   const t = win.length > 1 ? `תיקו בצמרת: ${win.map(x => x.name).join(' ו')} עם ${fmt(top)}` : `${win[0].name} ניצח/ה עם ${fmt(top)} צ'יפים`;
   if (await w(roomPath(), 'update', { closed: true, final: { at: now(), list }, ...setEvent('המשחק הסתיים · ' + t) })){ S.sheet = null; render(); }
 }
-const CROWN = '<svg class="crown" viewBox="0 0 64 40" aria-hidden="true"><path d="M4 34L8 8l14 13L32 3l10 18L56 8l4 26Z" fill="#e0b766" stroke="#8a6420" stroke-width="2" stroke-linejoin="round"/><rect x="4" y="32" width="56" height="6" rx="2" fill="#c99a45"/><circle cx="32" cy="22" r="3.5" fill="#c8372d"/><circle cx="17" cy="25" r="2.6" fill="#2f5fb8"/><circle cx="47" cy="25" r="2.6" fill="#2e8a4f"/></svg>';
 function closedSign(){ const drop = FX.signDrop && now() - FX.signDrop < 1800; return `<div class="csign${drop ? ' drop' : ''}" aria-label="השולחן סגור"><span>השולחן סגור</span></div>`; }
-function finalCard(){
-  const f = S.room.final || {}, list = f.list || [], top = list[0] ? list[0].stack : 0, win = list.filter(x => x.stack === top);
-  return `<section class="host fincard"><h3>המשחק הסתיים</h3>
-    ${win.length ? `<div class="fc-win">${CROWN}<b>${win.map(x => esc(x.name)).join(' ו')}</b><span class="muted">${win.length > 1 ? 'תיקו בצמרת' : 'המנצח/ת'} · <span class="num">${fmt(top)}</span> צ'יפים</span></div>` : ''}
-    ${rankHTML(list)}
-    <div class="btns"><button class="btn" data-a="replay">צפייה בטקס שוב</button>${isHost() ? '<button class="btn ghost" data-a="reopen">פתיחת השולחן מחדש</button>' : ''}<button class="btn ghost" data-a="home">למסך הראשי</button></div>
-  </section>`;
-}
 let finTimers = [];
 function finHide(){ finTimers.forEach(clearTimeout); finTimers = []; finEl.hidden = true; finEl.innerHTML = ''; FX.cer = false; }
 const looksClosed = () => !!(S.room && S.room.closed && !FX.cer);
@@ -503,12 +444,12 @@ function ceremony(){
   T(1950, () => {
     clearInterval(throb); SND.fanfare(); SND.applause(); SND.say('winner'); setTimeout(() => SND.chips(6), 300); setTimeout(() => SND.chips(5), 900);
     finEl.insertAdjacentHTML('beforeend', `<div class="fin-card" role="dialog" aria-modal="true" aria-labelledby="fin-t">
-      ${CROWN}
+      ${crownHtml()}
       <div class="fin-avs">${win.map(w_ => `<div class="fin-av" style="${avBg(S.players[w_.pid] || w_)}">${avInner(S.players[w_.pid] || w_)}</div>`).join('')}</div>
       <div class="fin-t">${win.length > 1 ? 'תיקו בצמרת!' : 'המנצח/ת!'}</div>
       <h2 id="fin-t" class="fin-name">${win.map(w_ => esc(w_.name)).join(' ו')}</h2>
       <div class="fin-amt"><span class="num" data-count>0</span> צ'יפים</div>
-      <div class="fin-rest">${list.length > 1 ? rankHTML(list) : ''}
+      <div class="fin-rest">${list.length > 1 ? rankHtml(list, S.players) : ''}
         <div class="btns"><button class="btn primary" data-a="finclose">לשולחן</button><button class="btn ghost" data-a="home">למסך הראשי</button></div></div>
     </div>`);
     finEl.querySelector('.fin-dim').classList.add('lit');
@@ -519,113 +460,44 @@ function ceremony(){
   T(3700, () => { const el = finEl.querySelector('.fin-rest'); if (el) el.classList.add('on'); SND.chips(3); });
 }
 
-/* ---------- views ---------- */
-const ICON_SND_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
-const ICON_SND_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>';
+/* ---------- views ----------
+   Home, the room's shell, the final card and the sheets are components (src/ui/app.tsx, mounted by main.ts as `ui`);
+   they read the app through `session`. The table, the dock and the dealer controls are still the strings below
+   (legacyParts), built before the components render. */
+const session = {
+  state: S,
+  me, players, isHost, nameOf, myAvatar: myAv, standings, looksClosed,
+  holdem: () => H(),
+  award: sel => computeAward(sel),
+  bjCurrent: p => cur(p),
+  bjEligible: p => bjEligible(p),
+  chipsOnTable: () => S.room && S.room.game === 'holdem' ? H().pot > 0 : players().some(cur),
+  installAvailable: () => !!installEvt,
+  newBuild: () => newBuild,
+  build: BUILD,
+  sound: () => ({ on: SND.on, ambiOn: SND.ambiOn, voiceOn: SND.voiceOn }),
+};
+// The string parts of a table, or null when no table is showing (home, loading, not found, the update screen).
+function legacyParts(){
+  if (!S.code || !S.roomLoaded || !S.room || tableUnsupported(S.room)) return null;
+  const r = S.room, m = me(), hold = r.game === 'holdem', closed = !!r.closed;
+  const table = hold ? holdemView() : bjView();
+  const dock = m && !closed ? (hold ? holdemDock() : bjDock()) : '';
+  return { table, dock, host: isHost() && !closed ? (hold ? holdemHost() : bjHost()) : '' };
+}
+let lastParts = null;
+// Redraws the components with the table strings of the last render: for changes only the components show (the
+// avatar letter while you type your name, the list of tables on the home screen).
+function paint(){ ui.paint(session, lastParts); }
 function render(){
   FX.rects = measure();
   const a = document.activeElement, id = a && a.id; let s1, s2; try { s1 = a.selectionStart; s2 = a.selectionEnd; } catch(e){}
-  const sideTop = (app.querySelector('.side') || {}).scrollTop || 0;      // keep the landscape panel where the player scrolled it
-  if (!S.code){ app.innerHTML = homeView(); app.className = ''; renderRooms(); }
-  else { app.innerHTML = roomView(); const sd = app.querySelector('.side'); if (sd && sideTop) sd.scrollTop = sideTop; }
+  lastParts = legacyParts();       // the strings first: nothing here may run while Preact renders
+  ui.paint(session, lastParts);
   setU(); renderRot(); ambiSync();
   if (newBuild) setTimeout(maybeReload, 0);
-  if (S.sheet && ((S.room && !tableUnsupported(S.room)) || S.sheet === 'avatar')){ sheetEl.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${sheetView()}</div>`; sheetEl.hidden = false; }
-  else { sheetEl.hidden = true; sheetEl.innerHTML = ''; }
+  ui.paintSheet(session, !!(S.sheet && ((S.room && !tableUnsupported(S.room)) || S.sheet === 'avatar')));
   if (id){ const el = document.getElementById(id); if (el && el !== document.activeElement){ el.focus({ preventScroll:true }); try { if (s1 != null) el.setSelectionRange(s1, s2); } catch(e){} } }
-}
-
-function modeBanner(){
-  if (S.mode === 'pending') return `<div class="banner">מתחבר לשרת…</div>`;
-  if (S.mode === 'local') return `<div class="banner"><b>מצב מכשיר אחד</b><span class="muted">האפליקציה עוד לא מחוברת לשרת, אז הכל נשמר רק בטלפון הזה. כדי לשחק ביחד, מלאו את פרטי Firebase בקובץ config.js (ההוראות בקובץ README).</span><button class="btn small ghost" data-a="retry">ניסיון חיבור מחדש</button></div>`;
-  if (S.readOnly) return '';
-  return '';
-}
-
-function homeView(){
-  const c = S.create, hold = c.game === 'holdem';
-  return `
-  <header class="brand"><h1>צ'יפים<span>.</span></h1><p>הקלפים אמיתיים, הצ'יפים כאן. כל אחד מהטלפון שלו.</p></header>
-  <div class="stack">
-    ${installEvt ? '<button class="btn ghost wide" data-a="install">התקנת האפליקציה בטלפון</button>' : ''}
-    ${modeBanner()}
-    <div class="card">
-      <div class="me-row"><button class="avbtn" data-a="sheet" data-v="avatar" aria-label="בחירת תמונה"><span class="av" style="${avBg(myAv())}">${avInner(myAv())}</span><span>תמונה</span></button>
-      <label class="field"><span class="label">השם שלך</span><input id="name" data-bind="name" value="${esc(S.name)}" maxlength="20" placeholder="למשל: סמי" autocomplete="nickname"></label></div>
-    </div>
-    <div class="card">
-      <span class="label">הצטרפות לשולחן</span>
-      <div class="row"><input id="jcode" data-bind="joinCode" value="${esc(S.joinCode)}" maxlength="4" placeholder="קוד חדר" style="direction:ltr;text-align:center;letter-spacing:6px;font-weight:700;text-transform:uppercase"><button class="btn primary" data-a="join">הצטרפות</button></div>
-      <div id="roomsList" class="rooms"></div>
-    </div>
-    <div class="card">
-      <span class="label">שולחן חדש</span>
-      <div class="seg" role="group" aria-label="סוג משחק">
-        <button data-a="cgame" data-v="holdem" aria-pressed="${hold}">טקסס הולדם</button>
-        <button data-a="cgame" data-v="blackjack" aria-pressed="${!hold}">בלאק ג'ק</button>
-      </div>
-      <label class="field"><span class="label">צ'יפים לכל שחקן</span><input id="cstack" data-bind="create.stack" inputmode="numeric" value="${esc(c.stack)}" style="direction:ltr"></label>
-      ${hold ? `<div class="grid2">
-        <label class="field"><span class="label">ביג בליינד</span><input id="cbb" data-bind="create.bb" inputmode="numeric" value="${esc(c.bb)}" style="direction:ltr"></label>
-        <label class="field"><span class="label">סמול בליינד</span><input id="csb" data-bind="create.sb" inputmode="numeric" value="${esc(c.sb)}" style="direction:ltr"></label>
-      </div>` : `<div class="grid2">
-        <label class="field"><span class="label">הימור מינימלי</span><input id="cmin" data-bind="create.minBet" inputmode="numeric" value="${esc(c.minBet)}" style="direction:ltr"></label>
-        <label class="field"><span class="label">הימור מקסימלי (0 = ללא)</span><input id="cmax" data-bind="create.maxBet" inputmode="numeric" value="${esc(c.maxBet)}" style="direction:ltr"></label>
-      </div>`}
-      <label class="check"><input type="checkbox" id="cplay" data-bind="create.play" ${c.play ? 'checked' : ''}> ${hold ? 'אני גם משחק, לא רק מנהל' : 'אני גם מהמר (לא רק הדילר)'}</label>
-      <button class="btn primary wide" data-a="create">פתיחת שולחן</button>
-      <span class="muted">מי שפותח את השולחן הוא הדילר: מתחיל ידיים, מקדם רחובות ומחלק את הקופה לזוכים.</span>
-    </div>
-  </div>`;
-}
-function renderRooms(){
-  const el = document.getElementById('roomsList'); if (!el) return;
-  el.innerHTML = S.rooms.length ? `<span class="muted">שולחנות פעילים</span>` + S.rooms.map(r => tableUnsupported(r) ? `<button class="roomrow" data-a="open" data-v="${esc(r.code)}"><span><span class="code">${esc(r.code)}</span></span><span class="muted">צריך עדכון</span></button>` : `<button class="roomrow" data-a="open" data-v="${esc(r.code)}"><span><span class="code">${esc(r.code)}</span></span><span class="muted">${r.game === 'holdem' ? 'הולדם' : 'בלאק ג\'ק'} · ${r.lastEvent ? esc(r.lastEvent.t) : ''}</span></button>`).join('') : '';
-}
-
-function roomView(){
-  if (!S.roomLoaded) return `<div class="spin">טוען את השולחן…</div>`;
-  if (!S.room) return `<div class="stack" style="padding-top:40px"><div class="card"><h2 style="font-family:var(--f-display);font-size:36px">החדר ${esc(S.code)} לא נמצא</h2><span class="muted">בדקו את הקוד ונסו שוב.</span><button class="btn primary" data-a="home">חזרה</button></div></div>`;
-  if (tableUnsupported(S.room)){ app.className = ''; return updateView(); }
-  const r = S.room, m = me(), hold = r.game === 'holdem';
-  const body = hold ? holdemView() : bjView();
-  const closed = !!r.closed;
-  const dock = m && !closed ? (hold ? holdemDock() : bjDock()) : '';
-  app.className = 'in-room' + (dock ? ' has-dock' : '');
-  return `<div class="room"><div class="side">
-  <div class="top">
-    <button class="code-btn" data-a="copy" aria-label="העתקת קוד החדר"><small>${hold ? 'טקסס הולדם' : 'בלאק ג\'ק'} · ${S.mode === 'cloud' ? (S.syncErr ? '<span style="color:var(--danger)">שגיאה: ' + esc(S.syncErr) + '</span>' : (S.synced && S.pSynced ? '<span style="color:var(--ok)">● מחובר</span>' : '<span style="color:var(--brass)">● מתחבר…</span>')) : '<span style="color:var(--danger)">● לא מחובר</span>'}</small><span class="code">${esc(r.code)}</span></button>
-    <div class="actions">
-      <button class="btn small ghost icon-btn" data-a="snd" aria-label="${SND.on ? 'השתקת צלילים' : 'הפעלת צלילים'}" aria-pressed="${SND.on}">${SND.on ? ICON_SND_ON : ICON_SND_OFF}</button>
-      <button class="btn small ghost" data-a="sheet" data-v="players">שחקנים</button>
-      <button class="btn small ghost" data-a="sheet" data-v="settings">הגדרות</button>
-    </div>
-  </div>
-  ${S.mode !== 'cloud' || S.readOnly ? `<div class="mb" style="margin-bottom:12px">${modeBanner()}</div>` : ''}
-  ${newBuild ? `<div class="updw"><button class="btn primary wide" data-a="reload">יש גרסה חדשה · לחצו לעדכון</button></div>` : ''}
-  <div class="event">${r.lastEvent ? esc(r.lastEvent.t) : ''}</div>
-  ${!m && !closed ? `<div class="o-join">${joinCard()}</div>` : ''}
-  ${isHost() && !closed ? `<div class="o-host">${hold ? holdemHost() : bjHost()}</div>` : ''}
-  ${looksClosed() ? `<div class="o-host">${finalCard()}</div>` : ''}
-  ${dock ? `<div class="dock"><div class="dock-in">${dock}</div></div>` : ''}
-  </div><div class="stage${hold ? '' : ' fit'}">${body}</div></div>`;
-}
-
-function updateView(){
-  return `<div class="stack" style="padding-top:40px"><div class="card" id="needupd"><h2 style="font-family:var(--f-display);font-size:34px">השולחן הזה צריך גרסה חדשה יותר</h2>
-    <span class="muted">השולחן ${esc(S.code)} נפתח בגרסה חדשה של האפליקציה. כדי להצטרף אליו צריך לעדכן.</span>
-    <button class="btn primary wide" data-a="upd">עדכון</button><button class="btn ghost wide" data-a="home">חזרה למסך הראשי</button></div></div>`;
-}
-function joinCard(){
-  const list = players();
-  if (isHost() && S.room.game === 'blackjack') return `<div class="card" style="margin-top:14px"><span class="muted">אתה הדילר. אם תרצה גם להמר:</span><button class="btn ghost" data-a="sit">הצטרפות כמהמר</button></div>`;
-  return `<div class="card" style="margin-top:14px">
-    <span class="label">הצטרפות לשולחן</span>
-    <div class="me-row"><button class="avbtn" data-a="sheet" data-v="avatar" aria-label="בחירת תמונה"><span class="av" style="${avBg(myAv())}">${avInner(myAv())}</span><span>תמונה</span></button>
-    <input id="jname" data-bind="name" value="${esc(S.name)}" maxlength="20" placeholder="השם שלך"></div>
-    <button class="btn primary" data-a="sit">שבו לשולחן עם ${fmt(S.room.startStack)} צ'יפים</button>
-    ${list.length ? `<span class="muted">כבר ישבתם מטלפון אחר? בחרו את עצמכם:</span><div class="btns">${list.map(p => `<button class="btn small ghost" data-a="claim" data-v="${esc(p.pid)}">${esc(p.name)}</button>`).join('')}</div>` : ''}
-  </div>`;
 }
 
 function dealerRow(){
@@ -824,99 +696,6 @@ function bjHost(){
   </div>${r.phase === 'betting' && !n ? '<span class="muted">מחכים שמישהו יהמר.</span>' : ''}</section>`;
 }
 
-/* ---------- sheets ---------- */
-function sheetView(){
-  const head = t => `<div class="sheet-head"><h2>${t}</h2><button class="btn small ghost" data-a="close">סגירה</button></div>`;
-  const r = S.room || {};
-  if (S.sheet === 'award'){
-    const h = H(); const cands = h.list.filter(p => h.inHand(p) && h.com(p) > h.lvl);
-    const prev = computeAward(S.sel);
-    return `${head('חלוקת הקופה')}
-      <span class="muted">בחרו את הזוכה. בתיקו בחרו כמה זוכים והקופה תתחלק ביניהם. קופות צדדיות מחושבות לבד לפי מה שכל אחד הכניס.</span>
-      <div class="stack" style="gap:8px">${cands.map(p => `<button class="opt" data-a="pick" data-v="${esc(p.pid)}" aria-pressed="${S.sel.includes(p.pid)}"><span class="box"></span><span><b>${esc(p.name)}</b> <span class="muted">${p.folded ? '· קיפל' : p.allIn ? '· אול-אין' : ''}</span></span><span class="num muted">הכניס ${fmt(h.com(p))}</span></button>`).join('')}</div>
-      ${S.sel.length ? `<div class="card" style="padding:12px;gap:4px">${Object.entries(prev.pay).filter(([,a]) => a > 0).map(([id,a]) => `<div class="payline"><span>${esc(nameOf(id))}</span><b class="num">+${fmt(a)}</b></div>`).join('')}${prev.left ? `<div class="payline muted"><span>נשאר בקופה צדדית</span><span class="num">${fmt(prev.left)}</span></div>` : ''}</div>` : ''}
-      <button class="btn primary wide" data-a="award" ${S.sel.length ? '' : 'disabled'}>תשלום לזוכים</button>`;
-  }
-  if (S.sheet === 'settle'){
-    const list = players().filter(cur); const anyIns = list.some(p => p.insurance);
-    let missing = 0;
-    const rows = list.map(p => p.hands.map((x,i) => {
-      if (x.result) return `<div class="handrow"><div class="row" style="justify-content:space-between"><b>${esc(p.name)}${p.hands.length > 1 ? ` · יד ${i+1}` : ''}</b><span class="num muted">${fmt(x.bet)} · ${RES_HE[x.result]}</span></div></div>`;
-      const k = p.pid + ':' + i, v = S.settle[k]; if (!v) missing++;
-      return `<div class="handrow"><div class="row" style="justify-content:space-between"><b>${esc(p.name)}${p.hands.length > 1 ? ` · יד ${i+1}` : ''}</b><span class="amt num"><span class="mini"></span>${fmt(x.bet)}${x.doubled ? ' · דאבל' : ''}</span></div>
-        <div class="res4">${[['win','ניצח','w'],['bj','בלאק ג\'ק','b'],['push','תיקו','p'],['lose','הפסיד','l']].map(([rv,t,cl]) => `<button class="${cl}" data-a="res" data-v="${esc(k)}|${rv}" aria-pressed="${v === rv}">${t}</button>`).join('')}</div></div>`;
-    }).join('')).join('');
-    return `${head('סיום סיבוב')}
-      <button class="btn ghost" data-a="allwin">הדילר נשרף: כל מי שלא סומן ניצח</button>
-      ${anyIns ? `<button class="opt" data-a="dbj" aria-pressed="${S.dealerBJ}"><span class="box"></span><span>לדילר יש בלאק ג'ק (ביטוח משלם 2:1)</span><span></span></button>` : ''}
-      <div class="stack" style="gap:8px">${rows}</div>
-      <button class="btn primary wide" data-a="payout" ${missing ? 'disabled' : ''}>${missing ? `נשארו ${missing} ידיים לסמן` : 'תשלום וסיבוב חדש'}</button>`;
-  }
-  if (S.sheet === 'avatar'){
-    return `${head('התמונה שלך')}
-      <div class="avp"><div class="av big" style="${avBg(myAv())}">${avInner(myAv())}</div><span class="muted">כולם בשולחן רואים אותה ליד השם שלך.</span></div>
-      <div class="grid2"><button class="btn" data-a="avcam">צילום עכשיו</button><button class="btn" data-a="avfile">תמונה מהגלריה</button></div>
-      <span class="label">או בחרו דמות</span>
-      <div class="avgrid">${Object.keys(AV_SET).map(id => `<button class="avopt" data-a="avset" data-v="${id}" aria-pressed="${!!(S.avatar && S.avatar.k === 'set' && S.avatar.v === id)}" aria-label="דמות ${id}">${avSVG(id)}</button>`).join('')}</div>
-      ${S.avatar ? '<button class="btn ghost" data-a="avclear">בלי תמונה (האות הראשונה של השם)</button>' : ''}`;
-  }
-  if (S.sheet === 'bjnow'){
-    const list = players().filter(bjEligible);
-    return `${head('בלאק ג\'ק')}
-      <span class="muted">למי יש בלאק ג'ק (אס ותמונה בשני הקלפים הראשונים)? הוא מקבל עכשיו 3:2 על ההימור, בלי לחכות לסוף הסיבוב.</span>
-      <div class="stack" style="gap:8px">${list.map(p => { const bet = p.hands[0].bet, win = Math.floor(bet * 1.5), sure = S.confirm === 'bj:' + p.pid;
-        return `<div class="handrow hr1"><div class="hl"><b>${esc(p.name)}</b><span class="amt num"><span class="mini"></span>${fmt(bet)}</span></div>
-          <button class="btn small ${sure ? 'primary' : ''}" data-a="bjnow" data-v="${esc(p.pid)}" style="grid-column:span 2">${sure ? `בטוח? לשלם +${fmt(win)}` : `בלאק ג'ק · +${fmt(win)}`}</button></div>`; }).join('') || '<span class="muted">אין ידיים שאפשר לסמן כרגע.</span>'}</div>`;
-  }
-  if (S.sheet === 'end'){
-    const hold = r.game === 'holdem', busy = hold ? H().pot > 0 : players().some(cur), list = standings();
-    return `${head('סיום המשחק')}
-      <span class="muted">מכריזים על המנצח, כולם רואים את הטקס, והשולחן נסגר. אפשר לפתוח אותו מחדש אחר כך.</span>
-      ${busy ? `<div class="banner">יש עדיין צ'יפים על השולחן. ${hold ? 'חלקו את הקופה או בטלו את היד' : 'שלמו או בטלו את הסיבוב'} לפני ההכרזה.</div>` : ''}
-      ${rankHTML(list)}
-      <button class="btn primary wide" data-a="endgame" ${busy || !list.length ? 'disabled' : ''}>הכרזה על המנצח וסגירת השולחן</button>`;
-  }
-  if (S.sheet === 'cancel'){
-    const hold = r.game === 'holdem';
-    return `${head(hold ? 'ביטול היד' : 'ביטול הסיבוב')}
-      <span class="muted">כל הצ'יפים שהוכנסו ${hold ? 'ביד הזו וטרם חולקו' : 'בסיבוב הזה'} יחזרו לשחקנים.</span>
-      <button class="btn danger wide" data-a="${hold ? 'cancelhand' : 'cancelround'}">כן, לבטל ולהחזיר</button>`;
-  }
-  if (S.sheet === 'players'){
-    const host = isHost(); const list = players();
-    return `${head('שחקנים')}
-      ${me() ? '<button class="btn ghost" data-a="sheet" data-v="avatar">החלפת התמונה שלי</button>' : ''}
-      ${host ? '<span class="muted">כאן מוסיפים צ\'יפים (ריביי), מורידים, ומעבירים את תפקיד הדילר. אפשר גם להוסיף שחקן בלי טלפון, ואז מנהלים אותו מכאן.</span><div class="row"><input id="newp" data-bind="newName" value="' + esc(S.newName) + '" maxlength="20" placeholder="שם שחקן חדש"><button class="btn small" data-a="addp">הוספה</button></div>' : ''}
-      <div class="stack" style="gap:8px">${list.map(p => `<div class="mgr">
-        <div class="row" style="justify-content:space-between"><b>${esc(p.name)}${r.hostId === p.pid ? ' · דילר' : ''}</b><span class="num">${fmt(p.stack)}</span></div>
-        ${host ? `<div class="row"><input id="adj-${esc(p.pid)}" data-bind="adj.${esc(p.pid)}" inputmode="numeric" value="${esc(S.adj[p.pid] ?? r.startStack)}"><button class="btn small" data-a="adj" data-v="${esc(p.pid)}|1">הוספה</button><button class="btn small ghost" data-a="adj" data-v="${esc(p.pid)}|-1">הורדה</button></div>
-        <div class="row" style="flex-wrap:wrap">${r.game === 'holdem' ? `<button class="btn small ghost" data-a="sitout" data-v="${esc(p.pid)}">${p.sittingOut ? 'חזרה למשחק' : 'הפסקה'}</button>` : ''}${r.hostId !== p.pid ? `<button class="btn small ghost" data-a="mkhost" data-v="${esc(p.pid)}">העברת דילר</button>` : ''}<button class="btn small danger" data-a="remove" data-v="${esc(p.pid)}">${S.confirm === p.pid ? 'בטוח? להסיר' : 'הסרה'}</button></div>` :
-        (p.pid === S.myId && r.game === 'holdem' ? `<button class="btn small ghost" data-a="sitout" data-v="${esc(p.pid)}">${p.sittingOut ? 'חזרה למשחק' : 'הפסקה'}</button>` : '')}
-      </div>`).join('') || '<span class="muted">אין שחקנים עדיין.</span>'}</div>`;
-  }
-  if (S.sheet === 'settings'){
-    const host = isHost(), hold = r.game === 'holdem'; const e = S.edit;
-    const busy = hold ? H().pot > 0 : players().some(cur);
-    return `${head('הגדרות')}
-      <div class="card" style="padding:12px"><span class="muted">שתפו את הקישור לעמוד הזה ואת הקוד</span><div class="row" style="justify-content:space-between"><span class="code">${esc(r.code)}</span><button class="btn small" data-a="copy">שיתוף הזמנה</button></div>
-      <span class="muted">להתקנה: באנדרואיד, תפריט הדפדפן ← "התקנת אפליקציה". באייפון, ספארי ← שיתוף ← "הוספה למסך הבית".</span></div>
-      <button class="opt" data-a="ambi" aria-pressed="${SND.ambiOn}"><span class="box"></span><span><b>אווירת קזינו ברקע</b><br><span class="muted">מכונות מזל ואנשים מדברים בשקט, מדי פעם${SND.on ? '' : ' · הצלילים כבויים כרגע'}</span></span><span></span></button>
-      <button class="opt" data-a="voice" aria-pressed="${SND.voiceOn}"><span class="box"></span><span><b>קריינות הדילרית</b><br><span class="muted">הדילרית אומרת בקול מה קורה: הימורים, קלפים, תשלום${SND.on ? '' : ' · הצלילים כבויים כרגע'}</span></span><span></span></button>
-      ${host ? `
-        <span class="label">סוג משחק</span>
-        <div class="seg"><button data-a="setgame" data-v="holdem" aria-pressed="${hold}" ${busy ? 'disabled' : ''}>טקסס הולדם</button><button data-a="setgame" data-v="blackjack" aria-pressed="${!hold}" ${busy ? 'disabled' : ''}>בלאק ג'ק</button></div>
-        ${busy ? '<span class="muted">אפשר להחליף משחק כשאין צ\'יפים על השולחן.</span>' : ''}
-        ${hold ? `<div class="grid2"><label class="field"><span class="label">ביג בליינד</span><input id="ebb" data-bind="edit.bb" inputmode="numeric" value="${esc(e.bb)}" style="direction:ltr"></label><label class="field"><span class="label">סמול בליינד</span><input id="esb" data-bind="edit.sb" inputmode="numeric" value="${esc(e.sb)}" style="direction:ltr"></label></div>`
-               : `<div class="grid2"><label class="field"><span class="label">הימור מינימלי</span><input id="emin" data-bind="edit.minBet" inputmode="numeric" value="${esc(e.minBet)}" style="direction:ltr"></label><label class="field"><span class="label">מקסימלי (0 = ללא)</span><input id="emax" data-bind="edit.maxBet" inputmode="numeric" value="${esc(e.maxBet)}" style="direction:ltr"></label></div>`}
-        <label class="field"><span class="label">צ'יפים למצטרפים חדשים</span><input id="estack" data-bind="edit.startStack" inputmode="numeric" value="${esc(e.startStack)}" style="direction:ltr"></label>
-        <button class="btn primary" data-a="saveset">שמירה</button>` :
-        `<span class="muted">${esc(nameOf(r.hostId))} הוא הדילר. אם הוא עזב, אפשר לקחת את התפקיד.</span><button class="btn ghost" data-a="mkhost" data-v="${esc(S.myId)}">אני הדילר עכשיו</button>`}
-      <button class="btn ghost" data-a="home">יציאה למסך הראשי</button>
-      <span class="muted num" style="text-align:center">גרסה ${esc(BUILD ? BUILD.slice(0, 7) : 'מקומית')}</span>`;
-  }
-  return '';
-}
-
 /* ---------- events ---------- */
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (!S.code) render(); });
 window.addEventListener('appinstalled', () => { installEvt = null; toast('האפליקציה הותקנה'); if (!S.code) render(); });
@@ -925,7 +704,7 @@ const A = {
   local: () => useLocal(),
   addp: async () => { const n = S.newName.trim(); if (!n){ toast('כתבו שם'); return; } const pid = 'p_' + rid(10); const d = newPlayer(S.room.startStack || 0); d.name = n.slice(0,20); d.avatar = null; if (await w(pPath(pid), 'set', d)) { S.newName = ''; toast(n + ' נוסף לשולחן'); render(); } },
   retry: () => { try { location.reload(); } catch(e){} },
-  cgame: v => { S.create.game = v; S.create.play = v === 'holdem'; render(); },
+  cgame: v => { S.create.game = v; S.create.play = gameMode(v).dealerPlays; render(); },
   create: () => createRoom(),
   join: async () => { const c = S.joinCode.trim().toUpperCase(); if (c.length !== 4){ toast('קוד החדר הוא 4 אותיות'); return; } if (S.name.trim()) ls.set('chips.name', S.name.trim()); await dbReady; enterRoom(c); },
   open: async v => { await dbReady; enterRoom(v); },
@@ -1002,7 +781,7 @@ function bind(e){
   const b = e.target.dataset && e.target.dataset.bind; if (!b) return;
   const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
   const [a, k] = b.split('.');
-  if (k === undefined){ S[a] = a === 'joinCode' ? String(v).toUpperCase() : v; if (a === 'name'){ ls.set('chips.name', String(v).trim()); if (!S.avatar) document.querySelectorAll('.avbtn .av').forEach(el => el.textContent = String(v).trim().charAt(0) || '?'); } }
+  if (k === undefined){ S[a] = a === 'joinCode' ? String(v).toUpperCase() : v; if (a === 'name'){ ls.set('chips.name', String(v).trim()); if (!S.avatar) paint(); } }
   else if (S[a]) S[a][k] = v;
   if (a === 'joinCode' && e.target.value !== S.joinCode) e.target.value = S.joinCode;
 }
