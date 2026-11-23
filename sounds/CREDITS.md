@@ -1,6 +1,9 @@
 # Sound credits
 
-## casino-floor.mp3
+## casino-floor.mp3 (removed)
+
+No longer in the repo: replaced by the generated `sounds/amb/crowd-bed.mp3` (below) on 2026-11-22. Kept here as a record
+of what the app once played.
 
 - **Source:** "Casino Floor, Phoenix AZ (Audio Field Recording) [mono]" by mhtaylor67, Freesound sound 277444:
   https://freesound.org/s/277444/
