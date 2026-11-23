@@ -3,14 +3,16 @@
 ## Where things are
 
 R-005 is moving the app from one hand-written `index.html` to modules built by Vite, in phases (see `ROADMAP.md`).
-After phase 2 the game rules are in `src/domain/`; everything else is still in `src/legacy.ts`:
+After phase 3 the game rules are in `src/domain/` and storage is in `src/data/`; everything else is still in
+`src/legacy.ts`:
 
 | Path | What |
 |---|---|
 | `index.html` | The shell: the same `<head>` (manifest, icons, metas, fonts), the elements the script expects (`#app`, `#sheet`, `#toast`, `#fx`, `#rot`, `#fin`, the two file inputs), `config.js` and the two Firebase compat scripts as classic scripts, then `<script type="module" src="/src/main.ts">` |
 | `src/main.ts` | Imports the styles and `legacy.ts` in order, and registers `sw.js` on `load` (in a build only: the dev server has no `sw.js`) |
-| `src/legacy.ts` | The app script as it was in `index.html`, with `// @ts-nocheck` on top, except that it imports the game rules from `src/domain/`. Sections below |
+| `src/legacy.ts` | The app script as it was in `index.html`, with `// @ts-nocheck` on top, except that it imports the game rules from `src/domain/` and stores through `src/data/`. Sections below |
 | `src/domain/` | The game rules as pure, typed functions with unit tests next to them. See "The domain" below |
+| `src/data/` | Storage: the `Store` port and its adapters, the write queue, and `normalize*()`. See "The data layer" below |
 | `src/styles/*.css` | The old `<style>`, split at its section comments: `base`, `brand` (also cards, fields, buttons), `room` (header, table, seats, host panel, dock), `sheet` (also the toast), `blackjack`, `layout` (portrait/landscape), `rotate`, `end` |
 | `public/` | Copied to the site root as is, so the URLs didn't change: `icons/`, `manifest.webmanifest`, `sounds/amb/`, `sounds/voice/` |
 | `src/sw-template.js`, `scripts/sw-plugin.mts` | The service worker and the build step that writes `dist/sw.js` from it (see Updates) |
@@ -39,10 +41,9 @@ The script is one IIFE. Sections are marked with `/* ---------- name ---------- 
 | effects (`FX`, `fly`, `floatText`, `pulse`) | Flying chips on the `#fx` layer, overrides that hold the old picture until chips land |
 | staying up to date | Compares `APP_BUILD` with the live `config.js` and reloads when idle |
 | avatars | Prepared characters (`AV_SET`, drawn by `avSVG`), photo processing, `avInner()` for every avatar circle |
-| local single-device store | `LocalDB`, same surface as Firestore, in localStorage |
-| connect | Picks Firestore or `LocalDB`, opens the last table |
-| writes | `w(path, op, data)`: one write at a time per document, errors shown as toasts. `inc(n)` (hoisted function) is the increment marker for the dealer's stack changes: `FieldValue.increment(n)` on Firestore, `{__inc: n}` in `LocalDB` |
-| room session | Snapshot listeners for the room and its players; this is where effects are triggered |
+| connect | Creates the write queue (`writer`), then `dbReady`: `connect()` picks Firestore or single-device mode, `subRooms()` lists the open tables (normalised), and the last table is entered or the home screen rendered, synchronously (rule 2: everything this reaches is declared above this section) |
+| writes | `w(path, op, data)` (hoisted) hands the write to `writer` (`src/data/writes.ts`); `handleErr` turns a failure into a toast. `inc(n)` (hoisted) is the store's increment for the dealer's stack changes: `FieldValue.increment(n)` on Firestore, `{__inc: n}` in single-device mode |
+| room session | Snapshot listeners for the room and its players. Each snapshot is normalised (`normalizeRoom`, `normalizePlayer`) before it reaches `S.room` / `S.players` and the effects, so the rest of the script sees complete documents; this is where effects are triggered |
 | chips | `denoms()` (the room's chip set, from `domain/chips.ts`), `chipStyle`, `stackHTML`, `pendChips()`. The chip rules are imported from `src/domain/chips.ts` |
 | change → animation | `fxPlayers`, `fxBJ`, `fxHold`, `fxRoom`, `lockFx` |
 | Hold'em model / Blackjack model | Each action: read `S`, call the domain command, write the patch it returns (adding `ts`, wrapping dealer stack amounts in `inc()`), map a refusal to its toast, write the Hebrew event line. `H()`, `cur`, `bjStake`, `bjEligible`, `canAct`, `computeAward` are thin wrappers over the domain |
@@ -80,10 +81,41 @@ room last. Hebrew text stays in `legacy.ts` until R-006.
 may import `vitest`), DOM and timer globals, `Date.now`, `new Date` and `Math.random`. `tsconfig.domain.json` checks the
 domain on its own without the DOM types, so a browser API there does not compile.
 
+## The data layer (`src/data/`)
+
+Storage behind one interface, so the app doesn't care whether a table lives in Firestore or on this phone, and every
+fallback for a stored field is in one place.
+
+| File | What |
+|---|---|
+| `store.ts` | The `Store` port, exactly the surface the app uses: `doc(path)` → `get`, `set`, `update`, `delete`, `onSnapshot(next, error?)`; `collection(path)` → `orderBy`, `limit`, `where(field, '==', value)`, `get`, `onSnapshot`; `increment(n)`. Snapshots: `DocSnap` (`id`, `exists`, `data()` a fresh copy, `metadata.fromCache`), `QuerySnap` (`docs`, `size`, `empty`, `metadata`). `Unsubscribe`, `StoreError` (`code`) |
+| `firestore-store.ts` | The adapter over the Firebase **compat** SDK, passed in (`window.firebase` from gstatic; the browser tests pass `tests/fakefs.js`). `initializeApp(config)`, `firestore()`, the same `settings(...)` as always; snapshots converted to the port's shape; `increment` is `FieldValue.increment` |
+| `local-store.ts` | Single-device mode, the old `LocalDB` unchanged in behaviour: the whole database as JSON under `chips.localdb` in the key-value storage it is given (the app's `ls`), increments as `{__inc: n}`, nested maps merged on `update` (Firestore replaces them), an update of a missing document rejected with `invalid_argument`, listeners told after `setTimeout(0)`. `memoryStorage()` is an in-memory storage for tests |
+| `connect.ts` | `connect(config, firebase, storage)`: Firestore when `config.js` has a real config (a `projectId`, an `apiKey` not starting with `PASTE`) and the SDK loaded and started; otherwise single-device mode. Synchronous |
+| `writes.ts` | `createWriter({ store, onError, refuse })` → `write(path, op, data)` and `inc(n)`. One write at a time per document (a write waits for the previous one to that path, even if it failed); different documents in parallel; a failure goes to `onError` once and resolves `false`; `refuse(path)` (the unsupported-table guard) resolves `false` without writing. The store is asked for on every write, so switching to single-device mode takes effect at once |
+| `schema.ts` | `Room` and `Player`: the domain's `RoomDoc` / `PlayerDoc` with every field present. `normalizeRoom(raw)` / `normalizePlayer(raw)` (and `normalizeHand`, `normalizeLastAction`, `normalizeAvatar`) |
+
+**Normalising.** The room session, the home list and nothing else call `normalize*()`, on every snapshot; writes are
+never normalised (they stay the patches they always were, and nothing writes a normalised document back whole). The
+fallbacks:
+- numbers missing or not numbers → 0; flags → `!!value`; text → `''`; `hands` → `[]` (entries that aren't objects
+  dropped); `stage` → `'idle'`, `phase` → `'betting'`, `roundId` → 1 (what a new table is created with); `game` →
+  `'holdem'` only when it says so, otherwise `'blackjack'` (as every view already drew it);
+- `null` where "missing" means something: `bjRound` (no bet), `bjPaidRound` (never settled), `lastAction`, `avatar`
+  (`{k, v}` with both text, else null), `buttonPid`, `sbPid`, `bbPid`, `lastEvent` (`{t, ts}`), `final`
+  (`{at, list:[{pid, name, stack}]}`);
+- absent when missing, because their readers tell missing from any value: `roundEnd` (any text kept), `mode` (text
+  kept; anything else becomes its JSON text, so it never matches a known mode), `appMin` (`Number(value)`, NaN kept,
+  as the guard always read it);
+- `hands[i]`: `bet` a number; `chips` kept only when they add up to `bet` (`okChips`); `result` text or null; no flag
+  added that wasn't stored, because the Blackjack commands copy hands and write them back;
+- `lastAction`: null without a text `k`; `amt` dropped unless a number, `chips` unless an array;
+- unknown fields and values are kept everywhere (a newer phone may have written them).
+
 ## Stored data (Firestore)
 
-All fields marked *added* are optional and appeared after the first release. Readers must cope with
-them missing.
+All fields marked *added* are optional and appeared after the first release. Their fallbacks, and the fallbacks for
+damaged values, are in `normalizeRoom` / `normalizePlayer` (above); a new field gets its fallback there.
 
 ### `rooms/{CODE}` (4 capital letters)
 
@@ -104,7 +136,7 @@ them missing.
 **Guard for unknown table types.** `tableUnsupported(room)` (`src/legacy.ts`, next to `now`) is true when `appMin > FEATURE_LEVEL`
 or `mode` is present and not in `KNOWN_MODES`. For such a room `roomView` shows `updateView()` (title, an "עדכון" button
 that runs `checkUpdate` and reloads, and a way home) instead of the table; the sheet is not shown; the room and
-players listeners keep running (so the table renders once the phone is updated) but skip the effects; `w()` refuses
+players listeners keep running (so the table renders once the phone is updated) but skip the effects; `w()` (the `refuse` option of the write queue) refuses
 every write under `rooms/{CODE}` of that room; and the click dispatcher ignores every action except
 `home`/`upd`/`reload`/`snd`/`retry`. The home list marks such tables "צריך עדכון". `FEATURE_LEVEL` is raised only
 when a build really plays tables with that `appMin`. Card tables will also set the legacy Blackjack
@@ -130,7 +162,7 @@ Blackjack `bet`, `clear`, `double`, `split`, `ins`, `surrender`, `bjpay` *added*
 
 Writes that don't set `lastAction`/`ts` (avatar changes, sitting out) don't animate.
 
-**Dealer writes to a player's stack are increments** (`stack: inc(n)`): `bjPayout`, `bjCancelRound`, `bjNow`,
+**Dealer writes to a player's stack are increments** (`stack: inc(n)`, `Store.increment`): `bjPayout`, `bjCancelRound`, `bjNow`,
 `award`, `cancelHand`. They add to whatever the server holds, so they cannot overwrite a bet the player placed
 in the meantime. A player's own writes (`bjBet`, `bjDo`, `hAct`, `bjClear`) still set absolute values. In
 `bjPayout` and `bjCancelRound` the player documents are written first and the room document last (so nobody can

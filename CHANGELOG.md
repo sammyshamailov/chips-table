@@ -14,6 +14,11 @@ development branch.
 - **The game rules are separate, tested code** (R-005, step 2). Nothing changes for players. For us: chips, Hold'em
   (blinds, betting, side pots) and Blackjack (limits, double, split, insurance, surrender, payouts) are pure functions
   in `src/domain/` with 135 unit tests (`npm test`, `npm run coverage`); the app calls them.
+- **Storage is behind one interface** (R-005, step 3). Nothing changes for players, and stored tables keep their
+  shape. For us: Firestore and single-device mode are two adapters of a `Store` port in `src/data/`, the write queue is
+  there too, and every fallback for a missing or damaged stored field is in `normalizeRoom` / `normalizePlayer`, applied
+  when a table is read. Contract tests run the same cases against single-device mode and the browser tests' Firestore
+  stand-in.
 
 ## 2026-11-22 (2)
 

@@ -221,8 +221,37 @@ src/
    - Not moved on purpose: the Blackjack dock's button `disabled` conditions (view code; a few edge cases differ slightly
      from the rules, e.g. insurance on a bet of 1, and changing them would change what players see). Phase 5 can have the
      dock ask the domain
-3. **Data layer.** `Store` interface, the three adapters, `schema.ts` with `normalize()`, the write
+3. **Data layer.** *(Built on the branch.)* `Store` interface, the three adapters, `schema.ts` with `normalize()`, the write
    queue, and `increment` (finishes R-004 if not done). Move `tests/fakefs.js` behind the same interface.
+   - [x] `src/data/store.ts`: the `Store` port as the app uses it: `doc(path)` (get, set, update, delete, onSnapshot),
+     `collection(path)` (orderBy, limit, where `==`, get, onSnapshot), `increment(n)`; `DocSnap`, `QuerySnap`
+     (`exists`, `data()`, `id`, `metadata.fromCache`), `Unsubscribe`
+   - [x] `firestore-store.ts`: adapter over the compat SDK passed in (`window.firebase` from gstatic), the same
+     `initializeApp` and `db.settings(...)` as before. `local-store.ts`: the old `LocalDB`, typed, on a key-value storage
+     passed in (the app passes its `ls`): same key `chips.localdb`, `{__inc}` marker, nested-map merge on update and
+     `setTimeout(0)` notify. The third adapter is the test fake: `tests/fakefs.js` (an in-memory compat SDK) behind the
+     Firestore adapter; it gains `where`
+   - [x] `schema.ts`: `Room` / `Player` (the domain's `RoomDoc` / `PlayerDoc` with every field filled in) and
+     `normalizeRoom`, `normalizePlayer`: every fallback in one place. Missing numbers 0, arrays [], flags false; the
+     creation values for `stage` (`idle`), `phase` (`betting`), `roundId` (1); `null` where "missing" means something
+     (`bjRound`, `bjPaidRound`, `lastAction`, `avatar`, `buttonPid`, `lastEvent`, `final`); `roundEnd`, `mode`, `appMin`
+     left out when missing (the payout narration and the guard read "missing" differently from any value). Unknown
+     fields and values (from newer phones) are kept, so a hand rewritten by this phone keeps them. `hands[i].chips`
+     kept only when it adds up. Normalised on read in the session (room, players, home list), never on write
+   - [x] `writes.ts`: the per-document queue (`w`) with the error handler and the unsupported-table refusal injected,
+     and `inc` from the store. `connect.ts`: Firestore or local, exactly as `dbReady` chose; `dbReady` stays
+     synchronous up to its first render
+   - [x] Vitest: `store.contract.test.ts` (the same cases against `local-store` and against fakefs behind the
+     Firestore adapter: set, update, merge, increments, delete, snapshots after writes, orderBy/limit/where, update of a
+     missing document fails), `local-store.test.ts` (persistence, nested merge), `schema.test.ts` (old-shaped documents
+     from before each added field, junk), `writes.test.ts` (one write at a time per document, errors, refusal)
+   - [x] `legacy.ts` uses them (the `LocalDB`, connect and queue code removed); browser tests, pixels, `race` 3×
+   - [x] Docs: `CLAUDE.md` (files, rules 1 and 2), `docs/ARCHITECTURE.md` (data layer), `docs/TESTING.md`,
+     `CHANGELOG.md`, `lessons-learned.md`
+   - 69 new unit tests (204 in all); `npm run coverage` now covers `src/data/` too, at 100%. The domain types gained
+     `null` where the normalised documents use it (`lastEvent`, `sbPid`/`bbPid`, `final`, `bjPaidRound`) and `roundEnd`
+     became any text. Not done on purpose: a separate in-memory adapter (local-store on `memoryStorage()` is that, and
+     fakefs behind the Firestore adapter is the more useful second run of the contract)
 4. **Events and effects.** Replace `fxPlayers` / `fxRoom` branching with `diff.ts` → events → `fx/`
    subscribers. Same animations, same timings.
 5. **UI components.** Mount Preact at `#app`. Convert screen by screen (home, sheets, Blackjack table,
@@ -247,12 +276,14 @@ src/
 - [x] Unit tests (Vitest) for every domain module; aim for full branch coverage of payouts and pots (phase 2: 135
   tests, pots and payouts at 100% branches)
 - [ ] `node tests/two-phones.test.js` and the Hold'em test (R-003) after each phase (phase 1: passed, with
-  `race`, `guard` and `audio`; phase 2: passed, with `race`, `guard` and `upgrade`)
-- [ ] Screenshot comparison shows no difference after each phase (phase 1 and phase 2: zero pixels on all ten screens)
+  `race`, `guard` and `audio`; phase 2: passed, with `race`, `guard` and `upgrade`; phase 3: passed, with `race` three
+  times, `guard` and `upgrade`)
+- [ ] Screenshot comparison shows no difference after each phase (phases 1, 2 and 3: zero pixels on all ten screens)
 - [x] Upgrade path: a phone on today's version updates itself into the new build (automated in
   `tests/upgrade.test.js`: old service worker and cache, self-update reload, new worker drops `chips-v6`, offline start)
 - [ ] Single-device mode by hand (phase 1: `npm run dev` and the build, home and a new table, no page errors; phase 2:
-  `npm run dev`, a Hold'em table with an added player, blinds and a call, no page errors)
+  `npm run dev`, a Hold'em table with an added player, blinds and a call, no page errors; phase 3: `npm run dev`, a
+  Hold'em table, an added player, blinds posted (pot 15), the table still there after a reload, no page errors)
 
 **Docs to update.** `CLAUDE.md` (files, rules 2 and 3 rewritten for the new structure, running locally
 with `npm run dev`), `docs/ARCHITECTURE.md` (rewritten), `docs/TESTING.md`, `README.md` (deploy),

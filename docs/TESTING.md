@@ -14,7 +14,7 @@ npx playwright install chromium
 
 Checks without a browser: `npm run lint` (ESLint, including the domain purity rules), `npm run typecheck` (TypeScript,
 strict: the app, the build tooling, and `src/domain/` alone without DOM types), `npm test` (Vitest: `src/**/*.test.ts`,
-`scripts/**/*.test.mts`: the game rules in `src/domain/` and the service worker plugin).
+`scripts/**/*.test.mts`: the game rules in `src/domain/`, the data layer in `src/data/` and the service worker plugin).
 
 ## Unit tests for the game rules
 
@@ -30,6 +30,30 @@ statements, lines and functions; branches 100% except three defensive fallbacks 
 can't reach (kept so behaviour stays exactly as before). Keep pots and payouts at 100% branches.
 
 A rule change needs a unit test first; the browser tests then prove the app still uses it the same way.
+
+## Unit tests for the data layer
+
+`src/data/` has its tests next to it, and `npm run coverage` covers it too (100%):
+
+- `store.contract.test.ts`, the **store contract**: the same cases run against every adapter, `local-store` (on an
+  in-memory storage) and `tests/fakefs.js` behind the Firestore adapter (the fake is loaded into Node as text with
+  `?raw` and run with a plain object as `window`, so the browser tests' stand-in is held to the same contract). Reading a
+  missing document, `set` (replaces, `data()` is a copy), `update` (named fields only, arrays replaced, a missing
+  document rejected), increments (on set and update, missing counts as 0, negative, applied to the stored value rather
+  than the writer's copy), `delete`, listeners (never called inside the call or the write, every change, stop when
+  unsubscribed), collections (direct documents only), `orderBy` (missing as 0) / `where ==` / `limit`, and query
+  listeners. The one place the adapters differ is declared per adapter: `update` of a map merges in `local-store`
+  and replaces in Firestore. Add a case here when the app starts using another part of Firestore, and implement it in
+  both adapters and in `tests/fakefs.js`.
+- `local-store.test.ts`: the `chips.localdb` key and format (a database written by the old `LocalDB` reads back), a
+  damaged database, the `{__inc}` marker, the `invalid_argument` refusal, nested merge, the injected `defer`.
+- `firestore-store.test.ts`: the adapter starts the SDK with the same settings, passes calls through, passes an error
+  callback only when given, uses `FieldValue.increment`. `connect.test.ts`: when the app goes cloud or local.
+- `writes.test.ts`: one write at a time per document, documents in parallel, a failure reported once without
+  blocking the next write, the guard refusing without touching the store, the store asked for on every write.
+- `schema.test.ts`: `normalizeRoom` / `normalizePlayer` on documents shaped like the first release (before every
+  *added* field), today's documents (unchanged), nothing at all, damaged values, values and fields from a newer phone,
+  and the guard fields (`mode`, `appMin`) read exactly as the guard always read them.
 
 ## The scripts
 
@@ -57,7 +81,7 @@ zero differing pixels after pixelmatch's own anti-aliasing allowance (`MAX_DIFF`
 
 Each "phone" is a separate browser context, so it has its own localStorage and its own player identity.
 The test serves a fake `config.js` and replaces the Firebase SDK with `tests/fakefs.js`, a small stand-in
-for the parts of Firestore the app uses. Every write on one phone is copied to the others through
+for the parts of the compat SDK the Firestore adapter uses (held to the store contract above). Every write on one phone is copied to the others through
 `exposeFunction` (`tests/lib.js`), which is how the real server behaves from the app's point of view.
 
 This catches what single-device mode can't: one phone drawing something differently from another, data

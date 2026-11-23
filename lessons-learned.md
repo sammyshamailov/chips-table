@@ -9,8 +9,8 @@ bottom of each section. Add to it whenever something breaks in a way that could 
 before its first `render()`, so it renders synchronously while the script is still being read. A
 `const`/`let` declared further down is still in its temporal dead zone: "Cannot access 'X' before
 initialization", and the app is stuck on the home screen. Hit three times (`rotEl`, `newBuild`, the
-avatar helpers). *Rule:* anything a render can reach goes above the `local single-device store` section
-or is a `function` declaration. Every test script reports page errors, so this shows up at once.
+avatar helpers). *Rule:* anything a render can reach goes above the `connect` section (until R-005 phase 3,
+the `local single-device store` section) or is a `function` declaration. Every test script reports page errors, so this shows up at once.
 
 **A full re-render resets the DOM.** `#app` is rebuilt with `innerHTML` on every update. Consequences
 we hit:
@@ -62,6 +62,23 @@ in that gap had the bet erased and the old hand left in the new round: chips fro
 changes to a player's chips are increments (`inc(n)`); settle the players first and open the next round last;
 mark a settled player (`bjPaidRound`) so a retry doesn't pay twice. The test harness had to relay single
 writes (not whole copies of the database) with a delay hook to reproduce it (`tests/race.test.js`).
+
+**A fallback must keep "missing" readable where the code reads it.** Moving every fallback into `normalizeRoom` /
+`normalizePlayer` (R-005 phase 3) looked like "missing → 0 or false" everywhere, but several readers tell missing apart
+from a value: the guard treats a missing `appMin`/`mode` differently from any value (and a non-number `appMin` as too
+new), the payout narration reads `roundEnd` only when it is there and the event text otherwise, `bjRound: null` and
+`bjPaidRound` missing must never equal a round number. Those stay absent or `null`. And a normalised hand must not gain
+flags: the Blackjack commands copy hands with `{...h}` and write them back whole, so a default `doubled: false` would
+have been written into every rewritten hand. *Rule:* before giving a field a default, search every reader for
+`== null`, `??`, `in`, `===` against another field, and for spreads that end up in a write; keep unknown fields too,
+so a hand rewritten by an older phone keeps what a newer one added.
+
+**Single-device mode merges maps; Firestore replaces them.** The old `LocalDB` (now `local-store.ts`) merges a nested
+map on `update` field by field, while Firestore (and `tests/fakefs.js`) replace a map named in an update. The only maps
+the app writes are whole `lastAction`/`lastEvent`/`final`/`avatar` objects, so on one phone a key can linger (a Hold'em
+`lastAction.chips` from an earlier bet, drawn only if it happens to add up to the new amount); it was kept as it was,
+for phones with offline tables, and the contract tests pin both behaviours.
+*Rule:* never rely on either: write a map whole, with every key it should have.
 
 **Keep new data inside the documents the rules already allow.** `firestore.rules` only opens `rooms` and
 their `players`. A new collection would need the owner to paste new rules into the Firebase console, and

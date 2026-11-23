@@ -11,9 +11,9 @@ table) runs the round. Hebrew, right-to-left, phone first.
 
 - Static PWA, built by Vite from `src/` (R-005 is splitting it into modules, phase by phase). For now
   the app's code is still mostly one script, `src/legacy.ts` (moved from the old `index.html`), with
-  the game rules in `src/domain/` and the styles in `src/styles/`; `index.html` is the shell.
+  the game rules in `src/domain/`, storage in `src/data/` and the styles in `src/styles/`; `index.html` is the shell.
 - Firebase Firestore (compat SDK from gstatic) syncs the table between phones in real time.
-  Without a Firebase config the app runs in **single-device mode** (`LocalDB` in localStorage).
+  Without a Firebase config the app runs in **single-device mode** (`src/data/local-store.ts`, in localStorage).
 - Hosted on Netlify: `npm run build && node scripts/build-config.js dist`, publishing `dist/`.
   `config.js` (Firebase settings, `APP_BUILD`) stays a separate, unbundled file next to `index.html`.
 - The players play live from `main`. **Develop on a side branch and push to `main` only when the user
@@ -25,8 +25,9 @@ table) runs the round. Hebrew, right-to-left, phone first.
 |---|---|
 | `index.html` | The shell: head, the elements the script needs, `config.js` and the Firebase compat scripts (classic scripts), then `src/main.ts` |
 | `src/main.ts` | Entry point: imports the styles and the app, registers the service worker (build only) |
-| `src/legacy.ts` | The app script (state, writes, views, sounds, animations), moved from `index.html`; it calls the game rules in `src/domain/`. `// @ts-nocheck` until later phases |
+| `src/legacy.ts` | The app script (state, room session, views, sounds, animations), moved from `index.html`; it calls the game rules in `src/domain/` and stores through `src/data/`. `// @ts-nocheck` until later phases |
 | `src/domain/` | The game rules as pure, typed functions with unit tests beside them: `chips.ts`, `holdem/` (`rules.ts`, `pots.ts`), `blackjack/` (`rules.ts`, `actions.ts`, `round.ts`), `types.ts` (the stored documents). Commands return the fields to write or a refusal code |
+| `src/data/` | Storage behind the `Store` port (`store.ts`): `firestore-store.ts` (compat SDK), `local-store.ts` (single-device mode), `connect.ts` (picks one at start-up), `writes.ts` (one write at a time per document, `inc`), `schema.ts` (`Room`/`Player` and `normalizeRoom`/`normalizePlayer`: every fallback for stored fields). Contract tests run the same cases against `local-store` and `tests/fakefs.js` |
 | `src/styles/*.css` | The styles, split at their old section comments, imported in order by `main.ts` |
 | `src/sw-template.js` | Service worker: network-first for the app's own files, cache as offline fallback. `dist/sw.js` is generated from it |
 | `scripts/sw-plugin.mts` | Vite plugin that writes `dist/sw.js`: the install list is the built files (hashed names), the cache name follows the build. Unit tested |
@@ -48,12 +49,14 @@ table) runs the round. Hebrew, right-to-left, phone first.
 ## Rules
 
 1. **Stored data stays compatible.** Phones on different versions share a table mid-game. Only *add*
-   optional fields; never rename, remove or change the meaning of existing ones. Every reader of a new
-   field needs a fallback for when it's missing or wrong (example: `hands[i].chips` falls back to the
-   amount when it doesn't add up). Document new fields in `docs/ARCHITECTURE.md`.
+   optional fields; never rename, remove or change the meaning of existing ones. A new field gets its
+   fallback for when it's missing or wrong in `normalizeRoom`/`normalizePlayer` (`src/data/schema.ts`), with a
+   unit test for a document from before the field (example: `hands[i].chips` is dropped there when it doesn't
+   add up, so readers fall back to the amount). Normalise on read only; writes stay patches. Document new
+   fields in `docs/ARCHITECTURE.md`.
 2. **Start-up order.** `render()` runs synchronously while `src/legacy.ts` is still loading (inside the
    `dbReady` IIFE). Anything a render touches must be declared above the
-   `/* ---------- local single-device store` section, or be a hoisted `function` declaration or an import.
+   `/* ---------- connect` section, or be a hoisted `function` declaration or an import.
    A `const`/`let` declared later throws "Cannot access X before initialization" and the app stays on
    the home screen. This has happened three times.
 3. **Rendering replaces `#app` and `#sheet` wholesale** (`innerHTML`). Never keep state in the DOM.
@@ -74,7 +77,7 @@ table) runs the round. Hebrew, right-to-left, phone first.
    Measure before shipping (`node tests/audio.js`): background about −38 dBFS average, narration about
    −20 dBFS, both under the chip sounds.
 7. **Hebrew copy**: short, plain, gender-neutral where it matters (`את/ה`, `ניצח/ה`).
-8. **Test before pushing**: `npm run lint`, `npm run typecheck`, `npm test` (unit tests; `npm run coverage` after a rule change), `node tests/two-phones.test.js`, `node tests/race.test.js`, `node tests/holdem.test.js` (any Hold'em change), `node tests/guard.test.js` (anything about room fields or opening a table), `node tests/upgrade.test.js` (anything about start-up, the service worker, `config.js` or the build), `node tests/screenshots.js`, and look at the
+8. **Test before pushing**: `npm run lint`, `npm run typecheck`, `npm test` (unit tests; `npm run coverage` after a rule or data-layer change), `node tests/two-phones.test.js`, `node tests/race.test.js`, `node tests/holdem.test.js` (any Hold'em change), `node tests/guard.test.js` (anything about room fields or opening a table), `node tests/upgrade.test.js` (anything about start-up, the service worker, `config.js` or the build), `node tests/screenshots.js`, and look at the
    screenshots. The browser tests build the app first (`SKIP_BUILD=1` reuses `dist/`). `screenshots.js` also compares
    ten screens with `tests/baseline/` pixel by pixel; take a new baseline (`--update`) only for an intended visual
    change, after looking at the new images. A single-device test can't catch sync bugs; use the two-phone harness
