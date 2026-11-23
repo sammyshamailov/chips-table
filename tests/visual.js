@@ -128,6 +128,42 @@ async function bjPaid(pg){
   await pg.click('[data-a=payout]'); await w(pg, 3500);
 }
 
+// Hold'em (part C). Seats in joining order: the dealer (me), דנה, יוסי, מיכל; the first hand's button is the dealer,
+// דנה the small blind, יוסי the big blind. Anyone may act at any time in single-device mode.
+const hIds = pg => pg.$$eval('.seat [data-a=claim]', els => els.map(e => e.dataset.v));
+async function hAs(pg, pid){ await pg.click(`.seat [data-a=claim][data-v="${pid}"]`); await w(pg, 150); }
+async function hGo(pg, amt = 0){ if (amt) await setPending(pg, amt); await pg.click('[data-a=hgo]'); await w(pg, 900); }
+async function hFold(pg){ await pg.click('[data-a=fold]'); await w(pg, 500); }
+async function hAllIn(pg){ await pg.click('.dock .presets button:has-text("אול-אין")'); await w(pg, 150); await pg.click('[data-a=hgo]'); await w(pg, 900); }
+async function hNext(pg){ await pg.click('[data-a=next]'); await w(pg, 400); }
+// A hand with the blinds posted; with `avatar`, the dealer picked a character first (an avatar in a seat row).
+async function holdemPreflop(pg, { avatar = false } = {}){
+  if (avatar){ await pg.click('[data-a=sheet][data-v=avatar]'); await pg.click('[data-a=avset][data-v=tex]'); await w(pg); await pg.click('[data-a=close]'); }
+  await holdemTable(pg); await noToast(pg);
+  await pg.click('[data-a=newhand]'); await w(pg, 1500);
+}
+// The flop: everyone called the big blind, then דנה bets 20 and מיכל folds. Seen by מיכל.
+async function holdemFold(pg){
+  await holdemPreflop(pg);
+  const me = await pg.evaluate(() => localStorage.getItem('chips.pid')), [dana, yossi, michal] = await hIds(pg);
+  await hGo(pg); await hAs(pg, dana); await hGo(pg); await hAs(pg, yossi); await hGo(pg); await hAs(pg, michal); await hGo(pg);
+  await hAs(pg, me); await hNext(pg);
+  await hAs(pg, dana); await hGo(pg, 20); await hAs(pg, michal); await hFold(pg);
+}
+// Three unequal stacks (1000, 600, 300) all in, מיכל folded: a main pot and a side pot. Seen by the dealer.
+async function holdemAllIn(pg){
+  await holdemTable(pg);
+  const [dana, yossi, michal] = await hIds(pg);
+  await pg.click('[data-a=sheet][data-v=players]'); await w(pg);
+  for (const [pid, take] of [[dana, 400], [yossi, 700]]){ await pg.fill(`[id="adj-${pid}"]`, String(take)); await pg.click(`[data-a=adj][data-v="${pid}|-1"]`); await w(pg, 300); }
+  await pg.click('[data-a=close]'); await noToast(pg);
+  const me = await pg.evaluate(() => localStorage.getItem('chips.pid'));
+  await pg.click('[data-a=newhand]'); await w(pg, 1500);
+  await hAllIn(pg); await hAs(pg, dana); await hAllIn(pg); await hAs(pg, yossi); await hAllIn(pg); await hAs(pg, michal); await hFold(pg);
+  await hAs(pg, me);
+}
+async function holdemShowdown(pg){ await holdemAllIn(pg); for (let i = 0; i < 4; i++) await hNext(pg); }
+
 const SCREENS = [
   // The first ten, from before the Vite build (phase 1).
   { name: 'home-empty', size: P, full: true, run: async () => {} },
@@ -205,6 +241,43 @@ const SCREENS = [
   { name: 'bj-crowded', size: P, run: async pg => { await bjTable(pg, { players: ['דנה', 'יוסי', 'מיכל', 'אבי', 'רונית', 'שלומי', 'נועה', 'עידו'] }); await noToast(pg); } },
   { name: 'bj-empty-land', size: L, run: async pg => { await bjTable(pg, { play: false, players: [] }); } },
   { name: 'bj-closed', size: P, full: true, run: async pg => { await bjTable(pg); await endGame(pg); await pg.click('[data-a=finclose]'); await w(pg, 2200); } },
+  // Hold'em states (R-005 phase 5, part C): blinds posted (an avatar in a row), short of the call, under the minimum
+  // raise, a fold on the flop, all-in with unequal stacks, the showdown, the side pot in the award sheet, everyone
+  // folded to one player, between hands, sitting out, waiting for the next hand, a small phone, an empty table.
+  { name: 'holdem-preflop', size: P, full: true, run: async pg => { await holdemPreflop(pg, { avatar: true }); } },
+  { name: 'holdem-short', size: P, run: async pg => { await holdemPreflop(pg); await setPending(pg, 5); await w(pg); } },
+  { name: 'holdem-min-raise', size: P, run: async pg => { await holdemPreflop(pg); await setPending(pg, 15); await w(pg); } },
+  { name: 'holdem-fold', size: P, full: true, run: holdemFold },
+  { name: 'holdem-fold-land', size: L, run: holdemFold },
+  { name: 'holdem-allin', size: P, full: true, run: holdemAllIn },
+  { name: 'holdem-allin-land', size: L, run: holdemAllIn },
+  { name: 'holdem-showdown', size: P, full: true, run: holdemShowdown },
+  { name: 'holdem-award-side', size: P, run: async pg => {
+    await holdemShowdown(pg); const [, yossi] = await hIds(pg);
+    await pg.click('[data-a=sheet][data-v=award]'); await w(pg); await pg.click(`[data-a=pick][data-v="${yossi}"]`); await w(pg);
+    await pg.click('[data-a=award]'); await w(pg, 1500); await noToast(pg);
+  } },
+  { name: 'holdem-solo', size: P, run: async pg => {
+    await holdemPreflop(pg); const me = await pg.evaluate(() => localStorage.getItem('chips.pid'));
+    for (const pid of await hIds(pg)){ await hAs(pg, pid); await hFold(pg); }
+    await hAs(pg, me);
+  } },
+  { name: 'holdem-between', size: P, full: true, run: async pg => {
+    await holdemPreflop(pg); const me = await pg.evaluate(() => localStorage.getItem('chips.pid'));
+    for (const pid of await hIds(pg)){ await hAs(pg, pid); await hFold(pg); }
+    await hAs(pg, me); await pg.click('[data-a=solo]'); await w(pg, 1500);
+  } },
+  { name: 'holdem-sitout', size: P, full: true, run: async pg => {
+    await holdemTable(pg); const [, , michal] = await hIds(pg);
+    await pg.click('[data-a=sheet][data-v=players]'); await w(pg); await pg.click(`[data-a=sitout][data-v="${michal}"]`); await w(pg, 300); await pg.click('[data-a=close]'); await noToast(pg);
+    await pg.click('[data-a=newhand]'); await w(pg, 1500); await hAs(pg, michal);
+  } },
+  { name: 'holdem-waiting', size: P, full: true, run: async pg => {
+    await holdemPreflop(pg); await addPlayers(pg, ['רונית']); await noToast(pg);
+    const ids = await hIds(pg); await hAs(pg, ids[ids.length - 1]);
+  } },
+  { name: 'holdem-small', size: [375, 667], run: holdemScenario },
+  { name: 'holdem-empty', size: P, full: true, run: async pg => { await holdemTable(pg, { play: false, players: [] }); } },
 ];
 
 async function shoot(browser, url, s, errors){

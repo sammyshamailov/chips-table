@@ -13,8 +13,9 @@ describe('gameMode', () => {
     expect(GAMES.holdem.dealerPlays).toBe(true);
     expect(GAMES.blackjack.dealerPlays).toBe(false);
   });
-  it("draws Blackjack with components and Hold'em from the string views until part C", () => {
-    expect(Object.keys(GAMES.blackjack.views || {})).toEqual(['Table', 'Dock', 'HostPanel']);
-    expect(GAMES.holdem.views).toBeUndefined();
+  it('draws every game with components: a table, a dock and the dealer controls', () => {
+    for (const g of [GAMES.holdem, GAMES.blackjack])
+      expect(Object.keys(g.views)).toEqual(['Table', 'Dock', 'HostPanel']);
+    expect(GAMES.holdem.views).not.toBe(GAMES.blackjack.views);
   });
 });

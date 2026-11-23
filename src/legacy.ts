@@ -1,6 +1,6 @@
 // @ts-nocheck
 // The game rules are pure functions in src/domain/ (R-005 phase 2); this script reads S, calls them and writes what they return.
-import { DEN, chipsOf, sumOf, chipLabel, denoms as denomsFor } from './domain/chips';
+import { DEN, chipsOf, sumOf, denoms as denomsFor } from './domain/chips';
 import { tableUnsupported } from './domain/guard';
 import * as HR from './domain/holdem/rules';
 import * as Pots from './domain/holdem/pots';
@@ -19,11 +19,11 @@ import { diffPlayers, diffRoom } from './sync/diff';
 import { dealerNod } from './fx/room';
 import { fmt } from './ui/format';
 import { chipStyle } from './ui/chips-html';
-// The shell, home, the final card, every sheet and the Blackjack table, dock and dealer controls are Preact components
-// in src/ui/ (R-005 phase 5); the Hold'em table, dock and dealer controls are still HTML strings here, shown inside the
-// components (LegacyHtml).
-import { avatarBg, validAv, initial } from './ui/avatars';
-import { avatarArtHtml, closedSignHtml, crownHtml, dealerFigureHtml, rankHtml } from './ui/legacy-html';
+// Every screen is a Preact component in src/ui/ (R-005 phase 5), mounted by main.ts and handed in as `ui`; render()
+// below draws them. The ceremony's card is still built as HTML here, from components (src/ui/to-html.tsx).
+import { validAv } from './ui/avatars';
+import { STAGE_HE } from './ui/labels';
+import { avatarHtml, crownHtml, rankHtml } from './ui/to-html';
 import { gameMode } from './games/registry';
 
 // Builds the app around what main.ts created: the event bus, the sound engine (src/audio/synth.ts), the effects
@@ -98,15 +98,7 @@ setInterval(checkUpdate, 3 * 60 * 1000); setTimeout(checkUpdate, 8000);
 /* ---------- avatars: a photo (camera or gallery) or one of the prepared characters ----------
    Stored on the player document as avatar: { k:'img', v:'data:image/jpeg;base64,...' } or { k:'set', v:'<id>' }.
    Photos are cropped and shrunk on the phone to about 5-14 KB, so no file storage is needed. The characters, the
-   checks and the avatar component are in src/ui/avatars.ts and src/ui/components/avatar.tsx; avInner() and avatar()
-   below draw the circle as HTML for the string views. */
-// What goes inside an avatar circle: the photo, the character, or the first letter of the name.
-function avInner(p){
-  const a = p && p.avatar;
-  if (validAv(a)) return a.k === 'img' ? `<img src="${a.v}" alt="">` : avatarArtHtml(a.v);
-  return esc(initial(p && p.name));
-}
-const avBg = avatarBg;
+   checks and the avatar component are in src/ui/avatars.ts and src/ui/components/avatar.tsx. */
 let avSaved = null; try { avSaved = JSON.parse(ls.get('chips.avatar') || 'null'); } catch(e){}
 S.avatar = validAv(avSaved) ? avSaved : null;
 const myAv = () => ({ pid: S.myId, name: S.name || '?', avatar: S.avatar });
@@ -225,10 +217,8 @@ function pendChips(){ if (sumOf(S.pendChips) !== S.pending) S.pendChips = chipsO
 /* ---------- Hold'em model ----------
    The rules live in src/domain/holdem/ (rules.ts, pots.ts). This section reads S, writes what they return
    (dealer stack changes as increments) and says it in Hebrew. */
-const STAGES = HR.STAGES;
-const STAGE_HE = { idle:'בין ידיים', preflop:'פרה-פלופ', flop:'פלופ', turn:'טרן', river:'ריבר', showdown:'שואודאון' };
+// STAGE_HE (the streets' names) is in src/ui/labels.ts.
 function H(){ return HR.holdemState(S.room, players()); }
-const canAct = HR.canAct;
 
 async function hAct(add, kind){
   const res = HR.bet(H(), me(), add, pendChips(), kind); if (!res.ok) return;
@@ -352,8 +342,6 @@ function claimSeat(pid){ S.myId = pid; ls.set('chips.pid', pid); S.pending = 0; 
 
 /* ---------- UI helpers ---------- */
 function toast(t){ ui.toast(t); }       // src/ui/components/toast.tsx
-const avatar = (p, k) => `<div class="av"${k ? ` data-k="${esc(k)}"` : ''} style="${avBg(p)}">${avInner(p)}</div>`;
-const actText = a => { if (!a) return ''; const x = fmt(a.amt); return ({ fold:'קיפל', check:'צ\'ק', call:`השווה ${x}`, raise:`העלה ל-${x}`, bet:`הימר ${x}`, allin:`אול-אין ${x}`, blind:`בליינד ${x}`, won:`זכה ב-${x}`, refund:`הוחזר ${x}`, clear:'ביטל הימור', double:'דאבל דאון', split:'ספליט', ins:'ביטוח', surrender:'כניעה', bjres: a.amt > 0 ? `הרוויח ${x}` : a.amt < 0 ? `הפסיד ${fmt(-a.amt)}` : 'תיקו' })[a.k] || ''; };
 
 /* ---------- turn-the-phone prompt: shown only inside a table, on a phone held upright ---------- */
 const canLock = () => !!(window.screen && screen.orientation && screen.orientation.lock && document.documentElement.requestFullscreen);
@@ -376,9 +364,7 @@ function renderRot(){
 function unlockTurn(){ try { screen.orientation.unlock(); } catch(e){} try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch(e){} }
 
 /* ---------- the dealer: an original illustration, standing behind the table ----------
-   The figure is DealerFigure (src/ui/tables/dealer-figure.tsx); the Hold'em view draws it as HTML. */
-const dealerSVG = () => dealerFigureHtml();
-// dealerNod() is in src/fx/room.ts.
+   The figure is DealerFigure (src/ui/tables/dealer-figure.tsx); her nod is dealerNod() in src/fx/room.ts. */
 
 /* ---------- the end of the game: announce the winner, close the table ---------- */
 const standings = () => players().map(p => ({ pid: p.pid, name: p.name, stack: p.stack || 0 })).sort((a, b) => b.stack - a.stack);
@@ -389,7 +375,6 @@ async function endGame(){
   if (await w(roomPath(), 'update', { closed: true, final: { at: now(), list }, ...setEvent('המשחק הסתיים · ' + t) })){ S.sheet = null; render(); }
 }
 const signDrop = () => !!(FX.signDrop && now() - FX.signDrop < 1800);       // the closed sign drops in after the ceremony
-const closedSign = () => closedSignHtml(signDrop());
 let finTimers = [];
 function finHide(){ finTimers.forEach(clearTimeout); finTimers = []; finEl.hidden = true; finEl.innerHTML = ''; FX.cer = false; }
 const looksClosed = () => !!(S.room && S.room.closed && !FX.cer);
@@ -420,7 +405,7 @@ function ceremony(){
     clearInterval(throb); SND.fanfare(); SND.applause(); SND.say('winner'); setTimeout(() => SND.chips(6), 300); setTimeout(() => SND.chips(5), 900);
     finEl.insertAdjacentHTML('beforeend', `<div class="fin-card" role="dialog" aria-modal="true" aria-labelledby="fin-t">
       ${crownHtml()}
-      <div class="fin-avs">${win.map(w_ => `<div class="fin-av" style="${avBg(S.players[w_.pid] || w_)}">${avInner(S.players[w_.pid] || w_)}</div>`).join('')}</div>
+      <div class="fin-avs">${win.map(w_ => avatarHtml(S.players[w_.pid] || w_, 'fin-av')).join('')}</div>
       <div class="fin-t">${win.length > 1 ? 'תיקו בצמרת!' : 'המנצח/ת!'}</div>
       <h2 id="fin-t" class="fin-name">${win.map(w_ => esc(w_.name)).join(' ו')}</h2>
       <div class="fin-amt"><span class="num" data-count>0</span> צ'יפים</div>
@@ -436,10 +421,9 @@ function ceremony(){
 }
 
 /* ---------- views ----------
-   Home, the room's shell, the final card and the sheets are components (src/ui/app.tsx, mounted by main.ts as `ui`);
-   they read the app through `session`. So are the Blackjack table, dock and dealer controls (src/ui/tables/blackjack/,
-   registered in src/games/registry.ts). Hold'em's are still the strings below (legacyParts), built before the
-   components render. */
+   Every screen is a component (src/ui/app.tsx, mounted by main.ts as `ui`): home, the room's shell, the final card,
+   the sheets, and each game's table, dock and dealer controls (src/ui/tables/, docks/, host/, registered in
+   src/games/registry.ts). They read the app through `session`. */
 const session = {
   state: S,
   fx: { ov, shownStack, ghost: ghostChips, signDrop },
@@ -455,124 +439,17 @@ const session = {
   build: BUILD,
   sound: () => ({ on: SND.on, ambiOn: SND.ambiOn, voiceOn: SND.voiceOn }),
 };
-// The string parts of a table, or null when no table is showing (home, loading, not found, the update screen). A game
-// whose parts are components (Blackjack) has none.
-function legacyParts(){
-  if (!S.code || !S.roomLoaded || !S.room || tableUnsupported(S.room)) return null;
-  const r = S.room, m = me(), closed = !!r.closed;
-  if (gameMode(r.game).views) return {};
-  return { table: holdemView(), dock: m && !closed ? holdemDock() : '', host: isHost() && !closed ? holdemHost() : '' };
-}
-let lastParts = null;
-// Redraws the components with the table strings of the last render: for changes only the components show (the
-// avatar letter while you type your name, the list of tables on the home screen).
-function paint(){ ui.paint(session, lastParts); }
+// Redraws the components without measuring or the rest of render(): for changes only the components show (the avatar
+// letter while you type your name, the list of tables on the home screen, a chip from the tray landing in your hand).
+function paint(){ ui.paint(session); }
 function render(){
   FX.rects = measure();
   const a = document.activeElement, id = a && a.id; let s1, s2; try { s1 = a.selectionStart; s2 = a.selectionEnd; } catch(e){}
-  lastParts = legacyParts();       // the strings first: nothing here may run while Preact renders
-  ui.paint(session, lastParts);
+  ui.paint(session);
   setU(); renderRot(); ambiSync();
   if (newBuild) setTimeout(maybeReload, 0);
   ui.paintSheet(session, !!(S.sheet && ((S.room && !tableUnsupported(S.room)) || S.sheet === 'avatar')));
   if (id){ const el = document.getElementById(id); if (el && el !== document.activeElement){ el.focus({ preventScroll:true }); try { if (s1 != null) el.setSelectionRange(s1, s2); } catch(e){} } }
-}
-
-function dealerRow(){
-  const r = S.room; if (!r || S.players[r.hostId]) return '';
-  const mine = r.hostId === S.myId;
-  return `<div class="seat ${mine ? 'me' : ''}">${avatar({ pid: r.hostId, name: r.hostName || 'ד' })}<div class="who"><div class="nm"><b>${esc(r.hostName || 'הדילר')}</b>${mine ? '<span class="tag">את/ה</span>' : ''}<span class="tag host">דילר</span></div><div class="sub"><span>${r.game === 'blackjack' ? 'הבית' : 'מנהל את השולחן'}</span></div></div><div></div></div>`;
-}
-function seatRow(p, extraTags, right, sub){
-  const host = S.room.hostId === p.pid;
-  const swap = S.mode === 'local' && p.pid !== S.myId ? `<button class="btn small ghost" data-a="claim" data-v="${esc(p.pid)}">שחק בתור</button>` : '';
-  return `<div class="seat ${p.pid === S.myId ? 'me' : ''} ${p._out ? 'out' : ''}">
-    ${avatar(p, 'seat:' + p.pid)}
-    <div class="who"><div class="nm"><b>${esc(p.name)}</b>${p.pid === S.myId ? '<span class="tag">את/ה</span>' : ''}${host ? '<span class="tag host">דילר</span>' : ''}${extraTags}</div>
-      <div class="sub"><span class="num">${fmt(p.stack)} צ'יפים</span>${sub ? `<span>${sub}</span>` : ''}</div></div>
-    <div style="display:grid;gap:6px;justify-items:end">${right}${swap}</div>
-  </div>`;
-}
-
-function holdemView(){
-  const h = H(), r = h.r;
-  const si = STAGES.indexOf(r.stage), cards = si < 0 ? 0 : [0,3,4,5,5][si];
-  const rows = h.list.map(p => {
-    const inH = h.inHand(p);
-    let tags = '';
-    if (inH && r.buttonPid === p.pid) tags += '<span class="tag btn-d">D</span>';
-    if (inH && r.stage === 'preflop' && r.sbPid === p.pid) tags += '<span class="tag">SB</span>';
-    if (inH && r.stage === 'preflop' && r.bbPid === p.pid) tags += '<span class="tag">BB</span>';
-    if (inH && p.folded) tags += '<span class="tag fold">קיפל</span>';
-    if (inH && p.allIn && !p.folded) tags += '<span class="tag allin">ALL-IN</span>';
-    if (p.sittingOut) tags += '<span class="tag">בהפסקה</span>';
-    else if (!inH && r.stage !== 'idle') tags += '<span class="tag">ממתין ליד הבאה</span>';
-    const sb = h.st(p);
-    const right = sb ? `<div class="amt num"><span class="mini"></span>${fmt(sb)}</div>` : '';
-    return seatRow({ ...p, stack: shownStack(p), _out: inH && p.folded }, tags, right, inH || p.lastAction?.k === 'won' ? esc(actText(p.lastAction)) : '');
-  }).join('');
-  return `
-  <div class="hdealer">${dealerSVG()}</div>
-  <section class="table${looksClosed() ? ' closed' : ''}">
-    ${looksClosed() ? closedSign() : ''}
-    <div class="stage-row"><span class="pill ${r.stage === 'idle' ? 'ok' : ''}">${STAGE_HE[r.stage] || ''}${r.handId ? ` · יד ${r.handId}` : ''}</span><span class="meta num">בליינדים ${fmt(r.sb)}/${fmt(r.bb)}</span></div>
-    <div class="board" aria-label="קלפים על השולחן">${[0,1,2,3,4].map(i => `<span class="slot ${i < cards ? 'on' : ''}"></span>`).join('')}</div>
-    <div class="pot"><span class="lbl">קופה</span><span class="big num" data-k="pot">${fmt(h.pot)}</span></div>
-    <div class="tocall">${r.stage === 'idle' ? (r.handId ? 'היד הסתיימה. הדילר יתחיל יד חדשה.' : 'מחכים שהדילר יתחיל את היד הראשונה') : h.maxSt ? `ההימור ברחוב: ${fmt(h.maxSt)}` : 'אין הימור ברחוב הזה'}</div>
-  </section>
-  <div class="seats">${dealerRow()}${rows || '<div class="muted" style="text-align:center;padding:16px">עוד אין שחקנים. שתפו את הקוד.</div>'}</div>`;
-}
-
-function holdemDock(){
-  const h = H(), m = me();
-  const stackHead = `<div class="dock-head"><div class="mystack"><span class="big num" data-k="mystack">${fmt(shownStack(m))}</span><span class="muted">הצ'יפים שלך</span></div>${pendingBox()}</div>`;
-  if (m.sittingOut) return `${stackHead}<div class="status">אתם בהפסקה. אפשר לחזור מתפריט השחקנים.</div>`;
-  if (!h.inHand(m)) return `${stackHead}<div class="status">${h.r.stage === 'idle' ? 'מחכים ליד הבאה' : 'תצטרפו ביד הבאה'}</div>`;
-  if (m.folded) return `${stackHead}<div class="status">קיפלתם ביד הזו</div>`;
-  if (m.allIn) return `${stackHead}<div class="status">אתם באול-אין. בהצלחה.</div>`;
-  if (!canAct(h, m)) return `${stackHead}<div class="status">שואודאון. מחכים לדילר שיחלק את הקופה.</div>`;
-  const mySt = h.st(m), toCall = Math.max(0, h.maxSt - mySt), stack = m.stack || 0;
-  const add = Math.min(S.pending, stack), newSt = mySt + add;
-  let label, dis = false;
-  if (add === 0) label = toCall === 0 ? 'צ\'ק' : (toCall >= stack ? `אול-אין ${fmt(stack)}` : `השוואה ${fmt(toCall)}`);
-  else if (add === stack) label = `אול-אין ${fmt(stack)}`;
-  else if (newSt < h.maxSt){ label = `חסר ${fmt(h.maxSt - newSt)} להשוואה`; dis = true; }
-  else if (newSt === h.maxSt) label = `השוואה ${fmt(add)}`;
-  else if (newSt < h.minTo){ label = `העלאה מינימלית ל-${fmt(h.minTo)}`; dis = true; }
-  else label = h.maxSt === 0 ? `הימור ${fmt(add)}` : `העלאה ל-${fmt(newSt)}`;
-  const callAmt = add === 0 ? Math.min(toCall, stack) : add;
-  const toAdd = to => Math.max(0, Math.min(stack, to - mySt));
-  const potTo = h.maxSt + h.pot + toCall, halfTo = h.maxSt + Math.round((h.pot + toCall) / 2);
-  const presets = [
-    toCall ? ['השוואה', Math.min(toCall, stack)] : null,
-    ['מינימום', toAdd(h.minTo)],
-    ['½ קופה', toAdd(Math.max(h.minTo, halfTo))],
-    ['קופה', toAdd(Math.max(h.minTo, potTo))],
-    ['אול-אין', stack]
-  ].filter(Boolean);
-  return `${stackHead}
-    <div class="tray">${denoms().map(d => `<button class="chip" style="${chipStyle(d)}" data-a="add" data-v="${d}" aria-label="הוספת ${d}"><span>${chipLabel(d)}</span></button>`).join('')}</div>
-    <div class="presets">${presets.map(([t,v]) => `<button data-a="setp" data-v="${v}">${t} <span class="num">${fmt(v)}</span></button>`).join('')}</div>
-    <div class="acts"><button class="btn danger" data-a="fold">קיפול</button><button class="btn primary" data-a="hgo" data-v="${callAmt}" ${dis ? 'disabled' : ''}>${label}</button></div>`;
-}
-function pendingBox(){
-  return `<div class="pending"><button data-a="clearp" aria-label="ניקוי">×</button><span class="v num" data-k="pend">${fmt(S.pending)}</span><span class="muted">להוסיף</span></div>`;
-}
-
-function holdemHost(){
-  const h = H(), r = h.r, i = STAGES.indexOf(r.stage);
-  const nextLbl = { preflop:'פתיחת פלופ', flop:'פתיחת טרן', turn:'פתיחת ריבר', river:'לשואודאון' }[r.stage];
-  const solo = h.live.length === 1 && h.pot > 0 ? h.live[0] : null;
-  return `<section class="host"><h3>בקרת דילר</h3>
-    ${solo ? `<button class="btn primary" data-a="solo" data-v="${esc(solo.pid)}">${esc(solo.name)} לוקח את הקופה (${fmt(h.pot)})</button>` : ''}
-    <div class="btns">
-      ${r.stage === 'idle' || h.pot === 0 ? `<button class="btn ${solo ? '' : 'primary'}" data-a="newhand">יד חדשה</button>` : ''}
-      ${nextLbl && h.pot >= 0 && r.stage !== 'idle' ? `<button class="btn" data-a="next">${nextLbl}</button>` : ''}
-      ${h.pot > 0 ? `<button class="btn ${r.stage === 'showdown' ? 'primary' : ''}" data-a="sheet" data-v="award">חלוקת הקופה</button>` : ''}
-      ${r.stage !== 'idle' ? `<button class="btn ghost" data-a="sheet" data-v="cancel">ביטול היד</button>` : ''}
-      <button class="btn ghost" data-a="sheet" data-v="end">סיום המשחק</button>
-    </div>
-  </section>`;
 }
 
 /* ---------- events ---------- */

@@ -1,9 +1,9 @@
 /**
- * What the screens read: the app's state and the questions they ask about it. `src/legacy.ts` builds the session
- * (R-005 phase 5 moves the views to components step by step; the state and the actions still live there).
+ * What the screens read: the app's state and the questions they ask about it. `src/legacy.ts` builds the session (the
+ * state and the actions still live there; every view is a component since R-005 phase 5).
  *
- * Only screens (`App`, `Home`, `RoomScreen`, `SheetScreen` and the sheet selectors) read the session; every component
- * below them gets plain data through its props.
+ * Only screens (`App`, `Home`, `RoomScreen`, `SheetScreen`) and the selectors of the sheets and the game views read the
+ * session; every component below them gets plain data through its props.
  */
 import type { Avatar, Player, Room, Standing } from '../data/schema';
 import type { Override } from '../fx/layer';
@@ -118,14 +118,4 @@ export interface Session {
   /** `APP_BUILD` from config.js, or null in a local build. */
   readonly build: string | null;
   sound(): { on: boolean; ambiOn: boolean; voiceOn: boolean };
-}
-
-/**
- * The parts of a table still drawn as HTML strings by `src/legacy.ts` (Hold'em until Part C converts it), or `{}` for
- * a game whose parts are components (`GameMode.views`). The parts are null when no table is showing.
- */
-export interface LegacyParts {
-  table?: string;
-  dock?: string;
-  host?: string;
 }

@@ -2,14 +2,14 @@
  * One entry per game (Strategy): what differs between Hold'em and Blackjack on the screens, so the screens ask the
  * registry instead of checking `game === 'holdem'` in every place.
  *
- * R-005 phase 5 fills it in part by part: Part A (the shell, home and sheets) uses the names, the form fields and the
- * per-game wording below; Part B added Blackjack's `views` (its table, dock and dealer controls as components). Part C
- * adds Hold'em's (until then `src/legacy.ts` draws those as HTML strings).
+ * The screens use the names, the form fields and the per-game wording below, and draw each game's table, dock and
+ * dealer controls from its `views` (R-005 phase 5).
  */
 import type { ComponentType } from 'preact';
 import type { Game } from '../domain/types';
 import type { Session } from '../ui/session';
 import { blackjackViews } from '../ui/tables/blackjack';
+import { holdemViews } from '../ui/tables/holdem';
 
 /** A table limit: Hold'em blinds or Blackjack bet limits, as typed in the create form and the dealer's settings. */
 export interface LimitField {
@@ -53,8 +53,8 @@ export interface GameMode {
   cancel: { title: string; refunds: string; action: string };
   /** The end-game sheet, when chips are still on the table: what the dealer has to do first. */
   settleFirst: string;
-  /** The table, dock and dealer controls as components; missing: the HTML strings from `src/legacy.ts` (Hold'em, until Part C). */
-  views?: GameViews;
+  /** The table, dock and dealer controls. */
+  views: GameViews;
 }
 
 export const GAMES: Record<Game, GameMode> = {
@@ -73,6 +73,7 @@ export const GAMES: Record<Game, GameMode> = {
     ],
     cancel: { title: 'ביטול היד', refunds: 'ביד הזו וטרם חולקו', action: 'cancelhand' },
     settleFirst: 'חלקו את הקופה או בטלו את היד',
+    views: holdemViews,
   },
   blackjack: {
     id: 'blackjack',

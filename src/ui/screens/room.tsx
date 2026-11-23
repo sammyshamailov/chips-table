@@ -2,8 +2,7 @@
  * Inside a table: loading, not found, the update screen (R-009), or the room. The room is a side panel (header,
  * status lines, join card, dealer controls or the final card, your dock) and the table; in portrait the side panel's
  * parts are laid out around the table by CSS order. The table, the dock and the dealer controls are the game's
- * components (`GameMode.views`: Blackjack since Part B), or still HTML strings from src/legacy.ts (`LegacyParts`,
- * Hold'em until Part C).
+ * components (`GameMode.views`).
  */
 import { tableUnsupported } from '../../domain/guard';
 import { gameMode } from '../../games/registry';
@@ -11,8 +10,7 @@ import { FinalCard } from '../components/final-card';
 import { RoomHeader } from '../components/header';
 import { JoinCard } from '../components/join-card';
 import { ModeBanner } from '../components/mode-banner';
-import { LegacyHtml } from '../legacy-html';
-import type { LegacyParts, Session } from '../session';
+import type { Session } from '../session';
 import { UpdateView } from './update';
 
 function NotFound({ code }: { code: string }) {
@@ -29,13 +27,13 @@ function NotFound({ code }: { code: string }) {
   );
 }
 
-export function RoomScreen({ session, legacy }: { session: Session; legacy: LegacyParts | null }) {
+export function RoomScreen({ session }: { session: Session }) {
   const S = session.state,
     r = S.room,
     code = S.code || '';
   if (!S.roomLoaded) return <div class="spin">טוען את השולחן…</div>;
   if (!r) return <NotFound code={code} />;
-  if (tableUnsupported(r) || !legacy) return <UpdateView code={code} />;
+  if (tableUnsupported(r)) return <UpdateView code={code} />;
   const g = gameMode(r.game),
     v = g.views,
     m = session.me(),
@@ -75,15 +73,11 @@ export function RoomScreen({ session, legacy }: { session: Session; legacy: Lega
             />
           </div>
         )}
-        {host &&
-          !closed &&
-          (v ? (
-            <div class="o-host">
-              <v.HostPanel session={session} />
-            </div>
-          ) : (
-            <LegacyHtml class="o-host" html={legacy.host || ''} />
-          ))}
+        {host && !closed && (
+          <div class="o-host">
+            <v.HostPanel session={session} />
+          </div>
+        )}
         {session.looksClosed() && (
           <div class="o-host">
             <FinalCard list={r.final ? r.final.list : []} players={S.players} canReopen={host} />
@@ -91,23 +85,15 @@ export function RoomScreen({ session, legacy }: { session: Session; legacy: Lega
         )}
         {hasDock(session) && (
           <div class="dock">
-            {v ? (
-              <div class="dock-in">
-                <v.Dock session={session} />
-              </div>
-            ) : (
-              <LegacyHtml class="dock-in" html={legacy.dock || ''} />
-            )}
+            <div class="dock-in">
+              <v.Dock session={session} />
+            </div>
           </div>
         )}
       </div>
-      {v ? (
-        <div class={stage}>
-          <v.Table session={session} />
-        </div>
-      ) : (
-        <LegacyHtml class={stage} html={legacy.table || ''} />
-      )}
+      <div class={stage}>
+        <v.Table session={session} />
+      </div>
     </div>
   );
 }
@@ -119,10 +105,10 @@ const hasDock = (session: Session) => !!session.me() && !session.state.room?.clo
  * The class of `#app` for this screen: `in-room` (and `has-dock`) inside a table, nothing on home and on the update
  * screen, and null (leave it as it is) while a table loads or wasn't found, as the string views always did.
  */
-export function appClass(session: Session, legacy: LegacyParts | null): string | null {
+export function appClass(session: Session): string | null {
   const S = session.state;
   if (!S.code) return '';
   if (!S.roomLoaded || !S.room) return null;
-  if (tableUnsupported(S.room) || !legacy) return '';
+  if (tableUnsupported(S.room)) return '';
   return 'in-room' + (hasDock(session) ? ' has-dock' : '');
 }
