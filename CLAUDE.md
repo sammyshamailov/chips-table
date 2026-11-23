@@ -9,11 +9,13 @@ start-up, rendering, stored data or sound: most of the rules below were learned 
 table; the app only replaces the chips. Each player uses their own phone; the dealer (whoever opened the
 table) runs the round. Hebrew, right-to-left, phone first.
 
-- Static PWA, no build step for the app itself. Almost everything lives in `index.html` (HTML, CSS and
-  one script).
+- Static PWA, built by Vite from `src/` (R-005 is splitting it into modules, phase by phase). For now
+  the app's code is still one script, `src/legacy.ts` (moved unchanged from the old `index.html`), with
+  the styles in `src/styles/`; `index.html` is the shell.
 - Firebase Firestore (compat SDK from gstatic) syncs the table between phones in real time.
   Without a Firebase config the app runs in **single-device mode** (`LocalDB` in localStorage).
-- Hosted on Netlify. The build only generates `config.js` (`scripts/build-config.js`).
+- Hosted on Netlify: `npm run build && node scripts/build-config.js dist`, publishing `dist/`.
+  `config.js` (Firebase settings, `APP_BUILD`) stays a separate, unbundled file next to `index.html`.
 - The players play live from `main`. **Develop on a side branch and push to `main` only when the user
   says so.** Netlify deploys `main`.
 
@@ -21,15 +23,21 @@ table) runs the round. Hebrew, right-to-left, phone first.
 
 | Path | What |
 |---|---|
-| `index.html` | The whole app: styles, markup shell, game logic, views, sounds, animations |
-| `sw.js` | Service worker: network-first for the app's own files, cache as offline fallback. Bump `CACHE` when the shell file list changes |
-| `scripts/build-config.js` | Netlify build: writes `config.js` from env vars, plus `APP_BUILD` (commit) used for self-updates |
+| `index.html` | The shell: head, the elements the script needs, `config.js` and the Firebase compat scripts (classic scripts), then `src/main.ts` |
+| `src/main.ts` | Entry point: imports the styles and the app, registers the service worker (build only) |
+| `src/legacy.ts` | The whole app script (game logic, views, sounds, animations), moved unchanged; `// @ts-nocheck` until later phases |
+| `src/styles/*.css` | The styles, split at their old section comments, imported in order by `main.ts` |
+| `src/sw-template.js` | Service worker: network-first for the app's own files, cache as offline fallback. `dist/sw.js` is generated from it |
+| `scripts/sw-plugin.mts` | Vite plugin that writes `dist/sw.js`: the install list is the built files (hashed names), the cache name follows the build. Unit tested |
+| `vite.config.mts`, `tsconfig*.json`, `eslint.config.mjs`, `.prettierrc` | Build, TypeScript (strict), lint and format settings |
+| `public/` | Copied as is to the site root: `icons/`, `manifest.webmanifest`, `sounds/` (`amb/` casino background: a looped crowd-murmur bed and slot-machine one-shots; `voice/` Hebrew dealer narration) |
+| `scripts/build-config.js` | Netlify build: writes `config.js` (into the folder given, `dist` on Netlify) from env vars, plus `APP_BUILD` (commit) used for self-updates |
 | `config.example.js` | Template for local testing with a real Firebase project |
 | `firestore.rules` | Security rules. Only `rooms/{CODE}` and `rooms/{CODE}/players/{pid}` are reachable. Changing them means the owner pastes them in the Firebase console, so avoid it |
-| `netlify.toml` | Build command, cache headers, and redirects that keep dev files off the site |
-| `sounds/` | `amb/` (casino background: a looped crowd-murmur bed and slot-machine one-shots), `voice/` (Hebrew dealer narration) and `CREDITS.md` with the source of each |
-| `tests/` | Browser tests with Playwright (see `docs/TESTING.md`) |
-| `docs/ARCHITECTURE.md` | How `index.html` is organised, the stored data model, flows, effects, sound |
+| `netlify.toml` | Build command, publish folder `dist`, Node version, cache headers |
+| `sounds/CREDITS.md` | The source and licence of every sound in `public/sounds/` (kept outside `public/` so it isn't published) |
+| `tests/` | Browser tests with Playwright, run against the build (see `docs/TESTING.md`); `tests/baseline/` holds the reference screenshots |
+| `docs/ARCHITECTURE.md` | How the app is organised, the stored data model, flows, effects, sound |
 | `docs/TESTING.md` | How to test, including two phones syncing |
 | `lessons-learned.md` | Bugs and mistakes worth not repeating |
 | `ROADMAP.md` | Every planned update and fix, each with a detailed plan. New work starts as an entry here |
@@ -42,7 +50,7 @@ table) runs the round. Hebrew, right-to-left, phone first.
    optional fields; never rename, remove or change the meaning of existing ones. Every reader of a new
    field needs a fallback for when it's missing or wrong (example: `hands[i].chips` falls back to the
    amount when it doesn't add up). Document new fields in `docs/ARCHITECTURE.md`.
-2. **Start-up order.** `render()` runs synchronously while the script is still loading (inside the
+2. **Start-up order.** `render()` runs synchronously while `src/legacy.ts` is still loading (inside the
    `dbReady` IIFE). Anything a render touches must be declared above the
    `/* ---------- local single-device store` section, or be a hoisted `function` declaration.
    A `const`/`let` declared later throws "Cannot access X before initialization" and the app stays on
@@ -65,9 +73,11 @@ table) runs the round. Hebrew, right-to-left, phone first.
    Measure before shipping (`node tests/audio.js`): background about −38 dBFS average, narration about
    −20 dBFS, both under the chip sounds.
 7. **Hebrew copy**: short, plain, gender-neutral where it matters (`את/ה`, `ניצח/ה`).
-8. **Test before pushing**: `node tests/two-phones.test.js`, `node tests/race.test.js`, `node tests/holdem.test.js` (any Hold'em change), `node tests/guard.test.js` (anything about room fields or opening a table), `node tests/screenshots.js`, and look at the
-   screenshots. A single-device test can't catch sync bugs; use the two-phone harness for anything that
-   other players see.
+8. **Test before pushing**: `npm run lint`, `npm run typecheck`, `npm test` (unit tests), `node tests/two-phones.test.js`, `node tests/race.test.js`, `node tests/holdem.test.js` (any Hold'em change), `node tests/guard.test.js` (anything about room fields or opening a table), `node tests/upgrade.test.js` (anything about start-up, the service worker, `config.js` or the build), `node tests/screenshots.js`, and look at the
+   screenshots. The browser tests build the app first (`SKIP_BUILD=1` reuses `dist/`). `screenshots.js` also compares
+   ten screens with `tests/baseline/` pixel by pixel; take a new baseline (`--update`) only for an intended visual
+   change, after looking at the new images. A single-device test can't catch sync bugs; use the two-phone harness
+   for anything that other players see.
 9. Keep `CHANGELOG.md`, `docs/ARCHITECTURE.md` and `lessons-learned.md` up to date in the same change.
 10. **Plan in `ROADMAP.md` first.** Every update or fix gets an entry with a full plan before code is
     written; keep its status and steps current while building, and move it to Done when it reaches `main`.
@@ -86,9 +96,12 @@ table) runs the round. Hebrew, right-to-left, phone first.
 ## Running locally
 
 ```
-python3 -m http.server 8000        # or any static server; open http://localhost:8000
+npm install
+npm run dev                        # Vite dev server; open the address it prints
+npm run build && npm run preview   # the built site (dist/), as Netlify serves it
 ```
 
 Without `config.js` the app is in single-device mode: the dealer can add players and "שחק בתור"
 (play as) them from the same phone. To use a real Firebase project locally, copy `config.example.js`
-to `config.js` and fill it in (it is git-ignored).
+to `config.js` and fill it in (it is git-ignored). `npm run dev` serves it from the repo root; for
+`npm run preview`, write it into `dist/` (`node scripts/build-config.js dist` with the env vars set, or copy it).

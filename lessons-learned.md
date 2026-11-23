@@ -119,6 +119,20 @@ will happily bet into it. Before a table type with different rules exists, every
 doesn't understand (`mode` / `appMin`, R-009), and the new tables should also set the old fields (`phase` / `stage`
 = `'cards'`) to values the old code won't act on. Ship the guard, wait until phones have updated, then ship the type.
 
+## Build and deploy
+
+**A dev server answers a missing file with `index.html`.** Vite's dev server and `vite preview` fall back to the page
+for any unknown path by default, so a missing `config.js` (single-device mode) arrived as HTML: a syntax error instead
+of the 404 Netlify gives. `appType: 'mpa'` in `vite.config.mts` turns the fallback off. *Rule:* local servers should
+answer like the real host, or tests and manual checks see a different app.
+
+**Everything in `public/` is published.** Moving `sounds/` there whole would have put `CREDITS.md` on the site; it
+stays at `sounds/CREDITS.md`. *Rule:* after a build change, list `dist/` and check nothing private or dev-only is in it.
+
+**Moving a classic script into a module changes two things.** Module code is strict mode (an undeclared variable or a
+function declared inside a block behaves differently) and it runs deferred. Before the move the script was linted for
+both (`no-undef`, `no-inner-declarations`); the deferred start runs at the same point the old end-of-body script did.
+
 ## Testing
 
 **Single-device mode can't catch sync bugs.** It shares one database between all seats on one phone. The
@@ -131,6 +145,11 @@ never re-ran the app. Open the invite link directly.
 **A scripted find-and-replace that matches nothing fails silently.** A changelog edit looked for text that an
 earlier, blocked commit would have written; it matched nothing, and the changelog stayed wrong for a release.
 *Rule:* every scripted replacement asserts it matched exactly once.
+
+**A stylesheet with the wrong content type is ignored without an error.** After the move to Vite the test server sent
+`.css` as `application/octet-stream`; every screen rendered unstyled, with no page error. The other tests check the DOM,
+not the styles; the pixel comparison failed on all ten screens at once. *Rule:* compare pixels, not just "no page errors", after any change to how files are
+built or served.
 
 **Background processes don't survive between commands in some environments.** The local test server kept
 disappearing between tool calls. The test scripts now start their own server in-process.

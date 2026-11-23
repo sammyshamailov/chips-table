@@ -5,7 +5,12 @@ development branch.
 
 ## Not yet live
 
-_Nothing yet._
+### Changed
+- **The app is now built with Vite** (R-005, step 1 of the code foundations). For players nothing changes: the
+  same screens pixel for pixel, the same sounds, and phones update themselves into the new version as usual. For us:
+  the code lives in `src/` (still one script for now), Netlify runs `npm run build` and publishes `dist/`, the
+  service worker's file list comes from the build, and there are lint, type and unit checks, a pixel comparison of
+  ten screens (`tests/visual.js`) and a test of a phone upgrading from the old version (`tests/upgrade.test.js`).
 
 ## 2026-11-22 (2)
 

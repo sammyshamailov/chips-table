@@ -1,6 +1,31 @@
 # Architecture
 
-## `index.html`, top to bottom
+## Where things are
+
+R-005 is moving the app from one hand-written `index.html` to modules built by Vite, in phases (see `ROADMAP.md`).
+After phase 1 the code is where it was, only in other files:
+
+| Path | What |
+|---|---|
+| `index.html` | The shell: the same `<head>` (manifest, icons, metas, fonts), the elements the script expects (`#app`, `#sheet`, `#toast`, `#fx`, `#rot`, `#fin`, the two file inputs), `config.js` and the two Firebase compat scripts as classic scripts, then `<script type="module" src="/src/main.ts">` |
+| `src/main.ts` | Imports the styles and `legacy.ts` in order, and registers `sw.js` on `load` (in a build only: the dev server has no `sw.js`) |
+| `src/legacy.ts` | The app script, byte for byte as it was in `index.html`, with `// @ts-nocheck` on top. Sections below |
+| `src/styles/*.css` | The old `<style>`, split at its section comments: `base`, `brand` (also cards, fields, buttons), `room` (header, table, seats, host panel, dock), `sheet` (also the toast), `blackjack`, `layout` (portrait/landscape), `rotate`, `end` |
+| `public/` | Copied to the site root as is, so the URLs didn't change: `icons/`, `manifest.webmanifest`, `sounds/amb/`, `sounds/voice/` |
+| `src/sw-template.js`, `scripts/sw-plugin.mts` | The service worker and the build step that writes `dist/sw.js` from it (see Updates) |
+
+**Start-up.** `config.js` and the Firebase scripts are classic scripts in `<head>`, so they have run before the module
+starts. The module is deferred: it runs once the body is parsed, before `DOMContentLoaded`, which is where the old inline
+script at the end of `<body>` ran. Module code is strict mode; the script was checked for anything strict mode treats
+differently (undeclared variables, function declarations inside blocks) and has none. Rule 2 still holds: `render()`
+runs synchronously inside the `dbReady` IIFE while `legacy.ts` is being evaluated.
+
+**Build.** `npm run build` (`vite build`) writes `dist/`: `index.html` with the hashed `assets/index-*.js` and
+`assets/index-*.css` (relative URLs, `base: './'`), the `public/` files and the generated `sw.js`. `config.js` is not
+part of the bundle: Netlify writes it afterwards with `node scripts/build-config.js dist`, because the self-update
+fetches it by name and it must stay un-hashed.
+
+## `src/legacy.ts`, top to bottom
 
 The script is one IIFE. Sections are marked with `/* ---------- name ---------- */` comments, in this order:
 
@@ -48,7 +73,7 @@ them missing.
 | `closed` *added* | The game is over; the table shows the final standings |
 | `final {at, list:[{pid, name, stack}]}` *added* | Standings frozen when the dealer ended the game, highest first |
 
-**Guard for unknown table types.** `tableUnsupported(room)` (index.html, next to `now`) is true when `appMin > FEATURE_LEVEL`
+**Guard for unknown table types.** `tableUnsupported(room)` (`src/legacy.ts`, next to `now`) is true when `appMin > FEATURE_LEVEL`
 or `mode` is present and not in `KNOWN_MODES`. For such a room `roomView` shows `updateView()` (title, an "עדכון" button
 that runs `checkUpdate` and reloads, and a way home) instead of the table; the sheet is not shown; the room and
 players listeners keep running (so the table renders once the phone is updated) but skip the effects; `w()` refuses
@@ -159,3 +184,13 @@ reveal) and the `finclose` action (`closed`). Nothing is stored for this; it is 
 On a different build it reloads as soon as the player has no chips in hand, no sheet open and isn't typing;
 otherwise it shows a "יש גרסה חדשה" button. Phones running a version from before this existed need one
 manual restart.
+
+**Service worker.** `dist/sw.js` is generated at build time from `src/sw-template.js` by `scripts/sw-plugin.mts`:
+`SHELL` (cached at install) is `./`, `index.html`, `config.js`, the manifest, three icons and every built JS/CSS file
+with its hashed name; `CACHE` is `chips-` plus a hash of that list and the template, so every build that changes a
+file gets a new cache and the old one (including the hand-written version's `chips-v6`) is deleted on activate.
+Strategy as before: network first for the app's own files and for gstatic and Google Fonts, the cache when offline,
+Firestore straight to the network. Netlify serves `sw.js` and `config.js` with `no-cache`, and `assets/*` as
+immutable (their names change with their content). A phone on the old single-file version upgrades like this: its
+update check sees the new `APP_BUILD` and reloads; the old worker fetches the new `index.html` from the network; the
+browser installs the new worker, which caches the new shell and drops `chips-v6` (`tests/upgrade.test.js`).

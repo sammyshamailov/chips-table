@@ -95,7 +95,150 @@ they change.
 
 ## In progress
 
-_Nothing yet._
+### R-005 Code foundations: modules, layers, tooling
+
+| | |
+|---|---|
+| Type | Chore |
+| Status | In progress |
+| Priority | P1 |
+| Size | L (six phases, each shippable) |
+| Games | Both |
+| Branch | `ccr-dea3e462-4e0h73` |
+| Added | 2026-11-22 |
+| Done | — |
+
+**Problem / goal.** Everything is one 1,850-line `index.html`: styles, data, rules, views, sounds and
+animations share one scope. It works, but each new feature touches everything, and the start-up order
+trap (rule 2) has bitten three times. Before adding languages, a second game mode and voice, split the
+app into small modules with clear jobs, so each feature lives in its own place and the game rules can be
+tested without a browser. Players must see no difference.
+
+**Decision (Q2).** Vite + TypeScript + Preact. Reasons: types catch the "field is missing
+or wrong" class of bug that rule 1 guards against; Preact updates the page instead of replacing it, which
+removes the causes behind rule 3 (lost scroll, restarted animations, detached file inputs); Vite gives
+module bundling, hashed file names for caching, and a dev server. Netlify already runs a build command.
+
+**Target structure.**
+
+```
+src/
+  main.ts                 composition root: builds the store, i18n, audio, mounts the app (no work at import time)
+  domain/                 pure TypeScript: no DOM, no Firebase, no timers. Fully unit tested
+    chips.ts              denominations, chipsOf, exact-stack helpers
+    blackjack/            rules.ts (payouts, eligibility), actions.ts (bet, double, split… → patches)
+    holdem/               rules.ts (blinds, turn, min raise), pots.ts (side pots = today's computeAward)
+    cards/                deck, shuffle, hand values (R-010)
+    stats/                counters per game and mode (R-008)
+  data/
+    store.ts              Store interface: doc(), collection(), onSnapshot, update, increment
+    firestore-store.ts    adapter over the Firebase compat SDK
+    local-store.ts        today's LocalDB (single-device mode)
+    schema.ts             types for room and player documents + normalize(): every fallback in one place
+    writes.ts             the per-document write queue (today's w())
+  sync/
+    room-session.ts       listeners for the room and its players, connection state
+    diff.ts               old/new documents → domain events (BetPlaced, HandPaid, StreetEnded…)
+    events.ts             a small typed event bus
+  fx/                     chip (and later card) animations, subscribed to domain events; the #fx layer
+  audio/                  synthesized effects, background player, narration (SND.say), (later) voice messages
+  i18n/                   catalogs and t() (R-006)
+  ui/
+    app.tsx, screens/     Home, Room, Closed
+    tables/               BlackjackTable, HoldemTable, Seat, BetCircle, ChipStack, Pot, DealerFigure
+    docks/, sheets/       one component per sheet (Players, Settings, Award, Settle…)
+    components/           Button, Segmented, Field, Avatar, Toast
+  games/
+    registry.ts           { holdem, blackjack } × { chips, cards } → a GameMode object
+```
+
+**Design patterns, and where.**
+- **Ports and adapters** for data: the app talks to a `Store`; Firestore, single-device and the test
+  fake are adapters. Swapping or mocking storage touches one file.
+- **Pure domain functions** (command → patch): `blackjack.double(state, playerId, handIndex)` returns
+  the writes to make, or a refusal reason. No I/O, so every rule gets a unit test.
+- **Strategy** per game and mode: a `GameMode` interface (`view`, `dock`, `hostPanel`, `actions`,
+  `fx`, `statsSpec`). The room screen asks the registry instead of `if (game === 'holdem')` in 20 places.
+- **Observer**: snapshots become typed domain events; animations, sounds, statistics and the dealer's
+  nod subscribe to the events they care about.
+- **Anti-corruption layer**: `normalize()` turns any stored document (old or new version) into a
+  complete typed object with fallbacks, so the rest of the code never checks for missing fields.
+- **Composition root**: `main.ts` creates everything explicitly. No module does work when imported, so
+  the start-up order trap (rule 2) disappears.
+
+**Conventions.**
+- TypeScript `strict`. ESLint (typescript-eslint, recommended rules) + Prettier, run in CI.
+- One concern per file; files under ~300 lines, functions under ~40; no default exports; named,
+  descriptive identifiers; no magic numbers in rules (constants in the domain module).
+- Domain code never imports from `ui/`, `data/`, `fx/` or `audio/` (enforced by an ESLint import rule).
+- Components get data through props; only screens read the session.
+- Comments explain *why*; JSDoc on every exported domain function.
+- Commits: one logical change each, imperative subject (as today).
+
+**Plan.** Each phase ends with every test green and screenshots unchanged, and can go to `main` alone.
+1. **Tooling, same behaviour.** *(Built on the branch.)* Add `package.json`, Vite, TypeScript, ESLint, Prettier, Vitest. Move the
+   CSS to `src/styles/*.css` and the script into `src/legacy.ts` *unchanged* (typed loosely). Netlify
+   build: `npm run build && node scripts/build-config.js dist` (the build empties `dist/`, so `config.js` is written
+   after it); publish `dist/`. `sounds/` (background and
+   narration MP3s) is copied as-is through Vite's `public/` folder, so its paths don't change. `sw.js` gets its file list from
+   the build (hashed names) instead of the hand-written `SHELL`. Keep `config.js` loading as it is so the
+   self-update keeps working. Add a screenshot comparison to `tests/screenshots.js` (pixel diff against
+   images taken before the change) so "looks the same" is checked, not eyeballed.
+   - [x] Pixel baseline first, from the unchanged `index.html`: `tests/visual.js`, ten screens, `tests/baseline/`;
+     two runs on unchanged code differ by zero pixels
+   - [x] `package.json` (no `"type"`, so the CommonJS test scripts keep working; the Vite config and the sw plugin are
+     `.mts`, the ESLint config `.mjs`), strict `tsconfig.json` + `tsconfig.node.json`, ESLint (typescript-eslint
+     recommended), Prettier, Vitest; Preact and its Vite preset installed for phase 5. TypeScript is pinned to 6.0
+     because typescript-eslint doesn't support 7 yet
+   - [x] CSS byte for byte into eight files in `src/styles/`, the script byte for byte into `src/legacy.ts`
+     (`// @ts-nocheck`), the service worker registration into `src/main.ts`; `index.html` is the shell
+   - [x] `icons/`, `manifest.webmanifest`, `sounds/amb/`, `sounds/voice/` moved to `public/`; `sounds/CREDITS.md`
+     stays outside so it isn't published
+   - [x] `dist/sw.js` generated from `src/sw-template.js` (`scripts/sw-plugin.mts`, unit tested)
+   - [x] `scripts/build-config.js` takes the output folder; `netlify.toml` builds and publishes `dist/`, Node 22, the
+     dev-file redirects removed, hashed `assets/*` cached as immutable; `firebase.json` hosting `dist`
+   - [x] Tests build once and serve `dist/`; `tests/upgrade.test.js` proves the upgrade from the old version
+   - [x] Docs: `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/TESTING.md`, `README.md`, `CHANGELOG.md`, `lessons-learned.md`
+2. **Domain out.** Move chips, Hold'em rules, side pots and Blackjack rules into `src/domain/` as pure
+   functions; the old code calls them. Unit tests for each (payouts, side pots with 3+ all-ins, split and
+   double limits, the `paid` hand rules).
+3. **Data layer.** `Store` interface, the three adapters, `schema.ts` with `normalize()`, the write
+   queue, and `increment` (finishes R-004 if not done). Move `tests/fakefs.js` behind the same interface.
+4. **Events and effects.** Replace `fxPlayers` / `fxRoom` branching with `diff.ts` → events → `fx/`
+   subscribers. Same animations, same timings.
+5. **UI components.** Mount Preact at `#app`. Convert screen by screen (home, sheets, Blackjack table,
+   Hold'em table); a temporary `<LegacyHtml>` wrapper lets an unconverted part keep its HTML string.
+   Remove the `FX.rects` measuring hacks only once the component version is proven by the screenshots.
+6. **Clean-up and CI.** GitHub Actions on every push: lint, typecheck, unit tests, two-phone and
+   Hold'em tests, screenshots. Delete `legacy.ts`. Rewrite `docs/ARCHITECTURE.md` for the new layout.
+
+**Stored data.** None. Phones on the old single-file version and the new build share tables.
+
+**Effects and sound.** Unchanged, by design. Phase 4 moves them; the tests and screenshots prove it.
+
+**Risks.**
+- A big refactor of a live app: hence the phases, each shipped separately, each behind the full test set.
+- The self-update and service worker: hashed files change the cache list; test a phone upgrading from the
+  old version to the new build (old service worker → new) before phase 1 reaches `main`.
+- Netlify publish folder changes to `dist/`: the redirects that hide dev files become unnecessary (dev
+  files are no longer published); check `config.js` is still produced next to `index.html`.
+- Phase 5 (UI) is the largest; if it drags, phases 1–4 already deliver most of the value.
+
+**Tests.**
+- [ ] Unit tests (Vitest) for every domain module; aim for full branch coverage of payouts and pots
+- [ ] `node tests/two-phones.test.js` and the Hold'em test (R-003) after each phase (phase 1: passed, with
+  `race`, `guard` and `audio`)
+- [ ] Screenshot comparison shows no difference after each phase (phase 1: zero pixels on all ten screens)
+- [x] Upgrade path: a phone on today's version updates itself into the new build (automated in
+  `tests/upgrade.test.js`: old service worker and cache, self-update reload, new worker drops `chips-v6`, offline start)
+- [ ] Single-device mode by hand (phase 1: `npm run dev` and the build, home and a new table, no page errors)
+
+**Docs to update.** `CLAUDE.md` (files, rules 2 and 3 rewritten for the new structure, running locally
+with `npm run dev`), `docs/ARCHITECTURE.md` (rewritten), `docs/TESTING.md`, `README.md` (deploy),
+`lessons-learned.md`, `CHANGELOG.md`.
+
+**Done when.** `index.html` is a shell, the app is built from `src/`, CI runs every test on every push,
+and no player notices anything changed.
 
 ---
 
@@ -180,133 +323,6 @@ Nothing at the moment.
 
 In the order to build them, most important first (see [Version 2](#version-2)). R-003 and R-004 were
 found by reading the code.
-
-### R-005 Code foundations: modules, layers, tooling
-
-| | |
-|---|---|
-| Type | Chore |
-| Status | Planned |
-| Priority | P1 |
-| Size | L (six phases, each shippable) |
-| Games | Both |
-| Branch | — |
-| Added | 2026-11-22 |
-| Done | — |
-
-**Problem / goal.** Everything is one 1,850-line `index.html`: styles, data, rules, views, sounds and
-animations share one scope. It works, but each new feature touches everything, and the start-up order
-trap (rule 2) has bitten three times. Before adding languages, a second game mode and voice, split the
-app into small modules with clear jobs, so each feature lives in its own place and the game rules can be
-tested without a browser. Players must see no difference.
-
-**Decision (Q2).** Vite + TypeScript + Preact. Reasons: types catch the "field is missing
-or wrong" class of bug that rule 1 guards against; Preact updates the page instead of replacing it, which
-removes the causes behind rule 3 (lost scroll, restarted animations, detached file inputs); Vite gives
-module bundling, hashed file names for caching, and a dev server. Netlify already runs a build command.
-
-**Target structure.**
-
-```
-src/
-  main.ts                 composition root: builds the store, i18n, audio, mounts the app (no work at import time)
-  domain/                 pure TypeScript: no DOM, no Firebase, no timers. Fully unit tested
-    chips.ts              denominations, chipsOf, exact-stack helpers
-    blackjack/            rules.ts (payouts, eligibility), actions.ts (bet, double, split… → patches)
-    holdem/               rules.ts (blinds, turn, min raise), pots.ts (side pots = today's computeAward)
-    cards/                deck, shuffle, hand values (R-010)
-    stats/                counters per game and mode (R-008)
-  data/
-    store.ts              Store interface: doc(), collection(), onSnapshot, update, increment
-    firestore-store.ts    adapter over the Firebase compat SDK
-    local-store.ts        today's LocalDB (single-device mode)
-    schema.ts             types for room and player documents + normalize(): every fallback in one place
-    writes.ts             the per-document write queue (today's w())
-  sync/
-    room-session.ts       listeners for the room and its players, connection state
-    diff.ts               old/new documents → domain events (BetPlaced, HandPaid, StreetEnded…)
-    events.ts             a small typed event bus
-  fx/                     chip (and later card) animations, subscribed to domain events; the #fx layer
-  audio/                  synthesized effects, background player, narration (SND.say), (later) voice messages
-  i18n/                   catalogs and t() (R-006)
-  ui/
-    app.tsx, screens/     Home, Room, Closed
-    tables/               BlackjackTable, HoldemTable, Seat, BetCircle, ChipStack, Pot, DealerFigure
-    docks/, sheets/       one component per sheet (Players, Settings, Award, Settle…)
-    components/           Button, Segmented, Field, Avatar, Toast
-  games/
-    registry.ts           { holdem, blackjack } × { chips, cards } → a GameMode object
-```
-
-**Design patterns, and where.**
-- **Ports and adapters** for data: the app talks to a `Store`; Firestore, single-device and the test
-  fake are adapters. Swapping or mocking storage touches one file.
-- **Pure domain functions** (command → patch): `blackjack.double(state, playerId, handIndex)` returns
-  the writes to make, or a refusal reason. No I/O, so every rule gets a unit test.
-- **Strategy** per game and mode: a `GameMode` interface (`view`, `dock`, `hostPanel`, `actions`,
-  `fx`, `statsSpec`). The room screen asks the registry instead of `if (game === 'holdem')` in 20 places.
-- **Observer**: snapshots become typed domain events; animations, sounds, statistics and the dealer's
-  nod subscribe to the events they care about.
-- **Anti-corruption layer**: `normalize()` turns any stored document (old or new version) into a
-  complete typed object with fallbacks, so the rest of the code never checks for missing fields.
-- **Composition root**: `main.ts` creates everything explicitly. No module does work when imported, so
-  the start-up order trap (rule 2) disappears.
-
-**Conventions.**
-- TypeScript `strict`. ESLint (typescript-eslint, recommended rules) + Prettier, run in CI.
-- One concern per file; files under ~300 lines, functions under ~40; no default exports; named,
-  descriptive identifiers; no magic numbers in rules (constants in the domain module).
-- Domain code never imports from `ui/`, `data/`, `fx/` or `audio/` (enforced by an ESLint import rule).
-- Components get data through props; only screens read the session.
-- Comments explain *why*; JSDoc on every exported domain function.
-- Commits: one logical change each, imperative subject (as today).
-
-**Plan.** Each phase ends with every test green and screenshots unchanged, and can go to `main` alone.
-1. **Tooling, same behaviour.** Add `package.json`, Vite, TypeScript, ESLint, Prettier, Vitest. Move the
-   CSS to `src/styles/*.css` and the script into `src/legacy.ts` *unchanged* (typed loosely). Netlify
-   build: `node scripts/build-config.js && vite build`; publish `dist/`. `sounds/` (background and
-   narration MP3s) is copied as-is through Vite's `public/` folder, so its paths don't change. `sw.js` gets its file list from
-   the build (hashed names) instead of the hand-written `SHELL`. Keep `config.js` loading as it is so the
-   self-update keeps working. Add a screenshot comparison to `tests/screenshots.js` (pixel diff against
-   images taken before the change) so "looks the same" is checked, not eyeballed.
-2. **Domain out.** Move chips, Hold'em rules, side pots and Blackjack rules into `src/domain/` as pure
-   functions; the old code calls them. Unit tests for each (payouts, side pots with 3+ all-ins, split and
-   double limits, the `paid` hand rules).
-3. **Data layer.** `Store` interface, the three adapters, `schema.ts` with `normalize()`, the write
-   queue, and `increment` (finishes R-004 if not done). Move `tests/fakefs.js` behind the same interface.
-4. **Events and effects.** Replace `fxPlayers` / `fxRoom` branching with `diff.ts` → events → `fx/`
-   subscribers. Same animations, same timings.
-5. **UI components.** Mount Preact at `#app`. Convert screen by screen (home, sheets, Blackjack table,
-   Hold'em table); a temporary `<LegacyHtml>` wrapper lets an unconverted part keep its HTML string.
-   Remove the `FX.rects` measuring hacks only once the component version is proven by the screenshots.
-6. **Clean-up and CI.** GitHub Actions on every push: lint, typecheck, unit tests, two-phone and
-   Hold'em tests, screenshots. Delete `legacy.ts`. Rewrite `docs/ARCHITECTURE.md` for the new layout.
-
-**Stored data.** None. Phones on the old single-file version and the new build share tables.
-
-**Effects and sound.** Unchanged, by design. Phase 4 moves them; the tests and screenshots prove it.
-
-**Risks.**
-- A big refactor of a live app: hence the phases, each shipped separately, each behind the full test set.
-- The self-update and service worker: hashed files change the cache list; test a phone upgrading from the
-  old version to the new build (old service worker → new) before phase 1 reaches `main`.
-- Netlify publish folder changes to `dist/`: the redirects that hide dev files become unnecessary (dev
-  files are no longer published); check `config.js` is still produced next to `index.html`.
-- Phase 5 (UI) is the largest; if it drags, phases 1–4 already deliver most of the value.
-
-**Tests.**
-- [ ] Unit tests (Vitest) for every domain module; aim for full branch coverage of payouts and pots
-- [ ] `node tests/two-phones.test.js` and the Hold'em test (R-003) after each phase
-- [ ] Screenshot comparison shows no difference after each phase
-- [ ] Upgrade path checked by hand: a phone on today's version updates itself into the new build
-- [ ] Single-device mode by hand
-
-**Docs to update.** `CLAUDE.md` (files, rules 2 and 3 rewritten for the new structure, running locally
-with `npm run dev`), `docs/ARCHITECTURE.md` (rewritten), `docs/TESTING.md`, `README.md` (deploy),
-`lessons-learned.md`, `CHANGELOG.md`.
-
-**Done when.** `index.html` is a shell, the app is built from `src/`, CI runs every test on every push,
-and no player notices anything changed.
 
 ### R-006 English and Hebrew
 

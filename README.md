@@ -2,7 +2,7 @@
 
 הקלפים אמיתיים, הצ'יפים בטלפון. כל שחקן משחק מהטלפון שלו, והדילר מנהל את השולחן. יש טקסס הולדם ובלאק ג'ק.
 
-האפליקציה היא קבצים סטטיים. Firebase מסנכרן את השולחן בין הטלפונים בזמן אמת, בחינם (תוכנית Spark).
+האפליקציה היא קבצים סטטיים, שנבנים עם Vite מהתיקייה `src`. Firebase מסנכרן את השולחן בין הטלפונים בזמן אמת, בחינם (תוכנית Spark).
 מפתחים? ראו `CLAUDE.md`, `docs/ARCHITECTURE.md` ו־`docs/TESTING.md`. מה השתנה: `CHANGELOG.md`.
 
 ## 1. פרויקט Firebase (בערך 5 דקות)
@@ -13,11 +13,11 @@
 5. מעתיקים את הערכים מ־`firebaseConfig` למשתני סביבה ב־Netlify (Project configuration ← Environment variables):
    `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_MESSAGING_SENDER_ID`, `FIREBASE_APP_ID`.
    בזמן ה־deploy הסקריפט `scripts/build-config.js` יוצר מהם את `config.js` (כולל מספר הגרסה שמשמש לעדכון אוטומטי). הקובץ לא נשמר בריפו.
-   לבדיקה מקומית: מעתיקים את `config.example.js` ל־`config.js` וממלאים.
+   לבדיקה מקומית: `npm install` ואז `npm run dev`. בלי `config.js` האפליקציה עובדת במצב מכשיר אחד; עם Firebase מעתיקים את `config.example.js` ל־`config.js` וממלאים.
 
 ## 2. העלאה לאוויר
-- **Netlify מחובר לריפו (מה שמשמש עכשיו):** כל push ל־`main` עולה לאוויר תוך דקה־שתיים. הפיתוח נעשה בענף צדדי, ול־`main` דוחפים רק כשמוכנים, כדי שאפשר יהיה להמשיך לשחק בגרסה היציבה.
-- **אחרות (Netlify Drop, Firebase Hosting, GitHub Pages):** עובדות, אבל לא מריצות את סקריפט ה־build. צריך ליצור `config.js` ידנית לפני ההעלאה, ובלעדיו אין עדכון אוטומטי.
+- **Netlify מחובר לריפו (מה שמשמש עכשיו):** כל push ל־`main` עולה לאוויר תוך דקה־שתיים. Netlify בונה את האתר (`npm run build`), כותב את `config.js` ומעלה את התיקייה `dist`. הכל כתוב ב־`netlify.toml`, אז אין מה לשנות בהגדרות של Netlify. הפיתוח נעשה בענף צדדי, ול־`main` דוחפים רק כשמוכנים, כדי שאפשר יהיה להמשיך לשחק בגרסה היציבה.
+- **אחרות (Netlify Drop, Firebase Hosting, GitHub Pages):** עובדות, אבל לא בונות את האתר. בונים במחשב (`npm install` ואז `npm run build`), יוצרים את `config.js` בתוך `dist` (`node scripts/build-config.js dist` עם משתני הסביבה, או ידנית), ומעלים את התיקייה `dist`. בלי `config.js` אין סנכרון בין טלפונים ואין עדכון אוטומטי.
 
 האתר חייב לרוץ על https כדי שההתקנה כאפליקציה, המצלמה והצלילים יעבדו. כל האפשרויות למעלה נותנות https.
 
