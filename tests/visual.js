@@ -1,12 +1,15 @@
-// Pixel comparison of the main screens against tests/baseline/*.png, so "looks the same" is checked, not eyeballed.
-//   node tests/visual.js            compare; a screen that differs fails and leaves tests/out/visual-<name>-{actual,diff}.png
-//   node tests/visual.js --update   take new baseline images (only after looking at them: they are the reference)
-// Also run by tests/screenshots.js. Single-device mode (no config.js), one fresh browser context per screen.
+// Pixel comparison of the screens against tests/baseline/*.png, so "looks the same" is checked, not eyeballed.
+//   node tests/visual.js                 compare; a screen that differs fails and leaves tests/out/visual-<name>-{actual,diff}.png
+//   node tests/visual.js --update        take new baseline images (only after looking at them: they are the reference)
+//   node tests/visual.js --only a,b      only these screens (ONLY=a,b works too); --jobs n screens at a time (default 4)
+// Also run by tests/screenshots.js. Single-device mode (no config.js) unless a screen says `cloud` (the two-phone fake
+// Firestore) or `build` (a config.js whose APP_BUILD changes: the "new version" button). One fresh context per screen.
 // Made deterministic: seeded Math.random and crypto.getRandomValues (room codes, player ids), a fixed start date,
 // CSS animations and transitions jumped to their end, no caret, web fonts blocked, deviceScaleFactor 1.
 const fs = require('fs');
 const path = require('path');
 const { OUT, requirePlaywright, serve, setPending } = require('./lib');
+const FAKE = fs.readFileSync(path.join(__dirname, 'fakefs.js'), 'utf8');
 
 const BASE = path.join(__dirname, 'baseline');
 const MAX_DIFF = 0;            // differing pixels allowed per screen (after pixelmatch's own anti-aliasing tolerance)
@@ -58,27 +61,153 @@ async function holdemScenario(pg){
   await setPending(pg, 30); await pg.waitForTimeout(100); await pg.click('[data-a=hgo]'); await pg.waitForTimeout(1500);
 }
 
-const P = [390, 844];
+const P = [390, 844], L = [844, 390];
+const w = (pg, ms = 200) => pg.waitForTimeout(ms);
+
+// Set-ups for the screens below. "Me" is the phone's own player (the dealer, who sits at the table unless `play` is off).
+async function holdemTable(pg, { play = true, players = ['דנה', 'יוסי', 'מיכל'] } = {}){
+  await pg.fill('#name', 'סמי'); if (!play) await pg.click('#cplay'); await pg.click('[data-a=create]'); await w(pg, 300);
+  await addPlayers(pg, players);
+}
+async function bjTable(pg, { play = true, players = ['דנה', 'יוסי'] } = {}){
+  await pg.fill('#name', 'סמי'); await pg.click('[data-a=cgame][data-v=blackjack]'); if (play) await pg.click('#cplay'); await pg.click('[data-a=create]'); await w(pg, 300);
+  await addPlayers(pg, players);
+}
+async function claimFirstOther(pg){ const v = await pg.$eval('[data-a=claim]', e => e.dataset.v); await pg.click(`[data-a=claim][data-v="${v}"]`); await w(pg); }
+const hostId = pg => pg.evaluate(() => { const db = JSON.parse(localStorage.getItem('chips.localdb')); for (const k in db) if (k.split('/').length === 2) return db[k].hostId; });
+async function asHost(pg){ const h = await hostId(pg); await pg.click(`.st[data-v="${h}"]`).catch(() => {}); await w(pg, 300); }
+const seatIds = pg => pg.$$eval('.st[data-a=claim]', els => els.map(e => e.dataset.v));
+// Sit as `pid` (single-device mode's "play as"), or back as the dealer.
+async function as(pg, pid){ await pg.click(`.st[data-v="${pid}"]`); await w(pg, 120); }
+// Wait for the toast ("… נוסף לשולחן") to go, so it isn't in the picture depending on timing.
+const noToast = pg => pg.waitForFunction(() => document.getElementById('toast').hidden, null, { timeout: 6000 }).catch(() => {});
+async function bet(pg, amt){ await setPending(pg, amt); await pg.click('[data-a=bjbet]'); await w(pg, 150); }
+// The Blackjack scenario with one player's insurance taken, back as the dealer.
+async function bjWithIns(pg){
+  await bjScenario(pg);
+  const one = await pg.evaluate(() => { const db = JSON.parse(localStorage.getItem('chips.localdb')); const ps = Object.entries(db).filter(([k]) => k.includes('/players/')); const host = Object.entries(db).find(([k]) => k.split('/').length === 2)[1].hostId; const p = ps.find(([k, v]) => v.hands && v.hands.length === 1 && !v.hands[0].doubled && k.split('/').pop() !== host); return p[0].split('/').pop(); });
+  await pg.click(`.st[data-v="${one}"]`); await w(pg, 150); await pg.click('[data-a=bj][data-v="ins:0"]'); await w(pg, 1200);
+  await asHost(pg);
+}
+async function endGame(pg){
+  await pg.click('[data-a=sheet][data-v=end]'); await w(pg); await pg.click('[data-a=endgame]'); await w(pg, 4500);
+}
+// Blackjack mid-round: the dealer bets 100 and is paid a blackjack at once, דנה 50 with insurance, יוסי 30 surrenders,
+// אבי 20 waits. Back as the dealer.
+async function bjMidRound(pg){
+  await bjTable(pg, { players: ['דנה', 'יוסי', 'אבי'] });
+  const me = await pg.evaluate(() => localStorage.getItem('chips.pid')), [dana, yossi, avi] = await seatIds(pg);
+  await bet(pg, 100); await as(pg, dana); await bet(pg, 50); await as(pg, yossi); await bet(pg, 30); await as(pg, avi); await bet(pg, 20);
+  await as(pg, me); await pg.click('[data-a=deal]'); await w(pg, 400);
+  await as(pg, dana); await pg.click('[data-a=bj][data-v="ins:0"]'); await w(pg, 1000);
+  await as(pg, yossi); await pg.click('[data-a=bj][data-v="surrender:0"]'); await w(pg, 1000);
+  await as(pg, me); await pg.click('[data-a=sheet][data-v=bjnow]'); await w(pg);
+  await pg.click(`[data-a=bjnow][data-v="${me}"]`); await pg.click(`[data-a=bjnow][data-v="${me}"]`); await w(pg, 2500);
+  await pg.click('[data-a=close]').catch(() => {}); await w(pg); await noToast(pg);
+}
+// ...then paid: דנה loses, אבי wins; the result badges over the seats, the next round open.
+async function bjPaid(pg){
+  await bjMidRound(pg);
+  await pg.click('[data-a=sheet][data-v=settle]'); await w(pg);
+  await pg.click('[data-a=res][data-v$="|lose"] >> nth=0'); await pg.click('[data-a=allwin]'); await w(pg);
+  await pg.click('[data-a=payout]'); await w(pg, 3500);
+}
+
 const SCREENS = [
+  // The first ten, from before the Vite build (phase 1).
   { name: 'home-empty', size: P, full: true, run: async () => {} },
   { name: 'home-name', size: P, full: true, run: async pg => { await pg.fill('#name', 'סמי'); } },
   { name: 'create-blackjack', size: P, full: true, run: async pg => { await pg.fill('#name', 'סמי'); await pg.click('[data-a=cgame][data-v=blackjack]'); await pg.click('#cplay'); } },
   { name: 'bj-portrait', size: P, run: bjScenario },
-  { name: 'bj-landscape', size: [844, 390], run: bjScenario },
+  { name: 'bj-landscape', size: L, run: bjScenario },
   { name: 'bj-small-portrait', size: [375, 667], run: bjScenario },
   { name: 'holdem-hand', size: P, full: true, run: holdemScenario },
-  { name: 'holdem-landscape', size: [844, 390], run: holdemScenario },
+  { name: 'holdem-landscape', size: L, run: holdemScenario },
   { name: 'sheet-players', size: P, run: async pg => { await holdemScenario(pg); await pg.click('[data-a=sheet][data-v=players]'); } },
-  { name: 'sheet-settings', size: P, run: async pg => { await holdemScenario(pg); await pg.click('[data-a=sheet][data-v=settings]'); } }
+  { name: 'sheet-settings', size: P, run: async pg => { await holdemScenario(pg); await pg.click('[data-a=sheet][data-v=settings]'); } },
+  // Every sheet and its states, home variants, the closed table, the update screens (R-005 phase 5, part A).
+  { name: 'home-rooms', size: P, full: true, run: async pg => { await holdemTable(pg); await pg.click('[data-a=sheet][data-v=settings]'); await pg.click('#sheet [data-a=home]'); await w(pg, 300); } },
+  { name: 'home-unsupported', size: P, full: true, run: async pg => {
+    await bjTable(pg); await pg.click('[data-a=sheet][data-v=settings]'); await pg.click('#sheet [data-a=home]'); await w(pg, 300);
+    await pg.evaluate(() => { const db = JSON.parse(localStorage.getItem('chips.localdb')); for (const k in db) if (k.split('/').length === 2) db[k].appMin = 99; localStorage.setItem('chips.localdb', JSON.stringify(db)); });
+    await pg.reload(); await w(pg, 500);
+  } },
+  { name: 'update-view', size: P, full: true, run: async pg => {
+    await bjTable(pg); await pg.click('[data-a=sheet][data-v=settings]'); await pg.click('#sheet [data-a=home]'); await w(pg, 300);
+    await pg.evaluate(() => { const db = JSON.parse(localStorage.getItem('chips.localdb')); for (const k in db) if (k.split('/').length === 2) db[k].appMin = 99; localStorage.setItem('chips.localdb', JSON.stringify(db)); });
+    await pg.reload(); await w(pg, 500); await pg.click('[data-a=open]'); await w(pg, 500);
+  } },
+  { name: 'not-found', size: P, full: true, url: '#ZZZZ', run: async pg => { await w(pg, 500); } },
+  { name: 'join-holdem', size: P, full: true, run: async pg => { await holdemTable(pg, { play: false }); } },
+  { name: 'join-holdem-land', size: L, run: async pg => { await holdemTable(pg, { play: false }); } },
+  { name: 'join-bj-host', size: P, full: true, run: async pg => { await bjTable(pg, { play: false }); } },
+  { name: 'sheet-avatar-empty', size: P, run: async pg => { await pg.click('[data-a=sheet][data-v=avatar]'); } },
+  { name: 'sheet-avatar-set', size: P, run: async pg => { await pg.fill('#name', 'סמי'); await pg.click('[data-a=sheet][data-v=avatar]'); await pg.click('[data-a=avset][data-v=tex]'); await w(pg); } },
+  { name: 'home-avatar-set', size: P, full: true, run: async pg => { await pg.fill('#name', 'סמי'); await pg.click('[data-a=sheet][data-v=avatar]'); await pg.click('[data-a=avset][data-v=diva]'); await w(pg); await pg.click('[data-a=close]'); } },
+  { name: 'sheet-settle', size: P, run: async pg => { await bjWithIns(pg); await pg.click('[data-a=sheet][data-v=settle]'); await w(pg); await pg.click('[data-a=res] >> nth=1'); await pg.click('[data-a=dbj]'); await w(pg); } },
+  { name: 'sheet-settle-all', size: P, run: async pg => { await bjWithIns(pg); await pg.click('[data-a=sheet][data-v=settle]'); await w(pg); await pg.click('[data-a=res] >> nth=3'); await pg.click('[data-a=allwin]'); await w(pg); } },
+  { name: 'sheet-settle-land', size: L, run: async pg => { await bjWithIns(pg); await pg.click('[data-a=sheet][data-v=settle]'); await w(pg); } },
+  { name: 'sheet-bjnow', size: P, run: async pg => { await bjScenario(pg); await asHost(pg); await pg.click('[data-a=sheet][data-v=bjnow]'); await w(pg); await pg.click('[data-a=bjnow] >> nth=1'); await w(pg); } },
+  { name: 'sheet-end-busy', size: P, run: async pg => { await bjScenario(pg); await asHost(pg); await pg.click('[data-a=sheet][data-v=end]'); await w(pg); } },
+  { name: 'sheet-end', size: P, run: async pg => { await holdemTable(pg); await pg.click('[data-a=sheet][data-v=end]'); await w(pg); } },
+  { name: 'sheet-cancel-bj', size: P, run: async pg => { await bjScenario(pg); await asHost(pg); await pg.click('[data-a=sheet][data-v=cancel]'); await w(pg); } },
+  { name: 'sheet-cancel-holdem', size: P, run: async pg => { await holdemScenario(pg); await pg.click('[data-a=sheet][data-v=cancel]'); await w(pg); } },
+  { name: 'sheet-award', size: P, run: async pg => { await holdemScenario(pg); await pg.click('[data-a=sheet][data-v=award]'); await w(pg); await pg.click('[data-a=pick] >> nth=1'); await w(pg); } },
+  { name: 'sheet-award-two', size: P, run: async pg => { await holdemScenario(pg); await pg.click('[data-a=sheet][data-v=award]'); await w(pg); await pg.click('[data-a=pick] >> nth=0'); await pg.click('[data-a=pick] >> nth=2'); await w(pg); } },
+  { name: 'ceremony', size: P, run: async pg => { await holdemScenario(pg); await pg.click('[data-a=sheet][data-v=cancel]'); await pg.click('[data-a=cancelhand]'); await w(pg, 1200); await endGame(pg); } },
+  { name: 'final-card', size: P, full: true, run: async pg => { await holdemTable(pg); await endGame(pg); await pg.click('[data-a=finclose]'); await w(pg, 2200); } },
+  { name: 'final-card-bj-land', size: L, run: async pg => { await bjTable(pg); await endGame(pg); await pg.click('[data-a=finclose]'); await w(pg, 2200); } },
+  { name: 'final-card-guest', size: P, full: true, run: async pg => { await holdemTable(pg); await endGame(pg); await pg.click('[data-a=finclose]'); await w(pg, 300); await claimFirstOther(pg); await w(pg, 2000); } },
+  { name: 'settings-guest', size: P, run: async pg => { await holdemScenario(pg); await claimFirstOther(pg); await pg.click('[data-a=sheet][data-v=settings]'); await w(pg); } },
+  { name: 'players-guest', size: P, run: async pg => { await holdemScenario(pg); await claimFirstOther(pg); await pg.click('[data-a=sheet][data-v=players]'); await w(pg); } },
+  { name: 'players-bj-remove', size: P, run: async pg => { await bjTable(pg); await pg.click('[data-a=sheet][data-v=players]'); await w(pg); await pg.click('[data-a=remove] >> nth=1'); await w(pg); } },
+  { name: 'settings-bj', size: P, run: async pg => { await bjTable(pg); await pg.click('[data-a=sheet][data-v=settings]'); await w(pg); } },
+  { name: 'settings-bj-busy-land', size: L, run: async pg => { await bjScenario(pg); await pg.click('[data-a=sheet][data-v=settings]'); await w(pg); } },
+  { name: 'snd-off', size: P, run: async pg => { await holdemScenario(pg); await pg.click('[data-a=snd]'); await w(pg, 300); } },
+  { name: 'toast-home', size: P, run: async pg => { await pg.click('[data-a=join]'); await w(pg, 200); } },
+  { name: 'install', size: P, full: true, run: async pg => { await pg.evaluate(() => { const e = new Event('beforeinstallprompt', { cancelable: true }); window.dispatchEvent(e); }); await w(pg); } },
+  { name: 'cloud-home', size: P, full: true, cloud: true, run: async pg => { await pg.fill('#name', 'סמי'); } },
+  { name: 'cloud-table', size: P, full: true, cloud: true, run: async pg => { await holdemTable(pg); } },
+  { name: 'cloud-table-land', size: L, cloud: true, run: async pg => { await bjTable(pg); } },
+  { name: 'update-available', size: P, build: true, run: async pg => { await bjTable(pg); await setPending(pg, 50); await w(pg); await pg.evaluate(() => window.dispatchEvent(new Event('focus'))); await w(pg, 600); } },
+  { name: 'update-available-settings', size: P, build: true, run: async pg => { await bjTable(pg); await setPending(pg, 50); await w(pg); await pg.evaluate(() => window.dispatchEvent(new Event('focus'))); await w(pg, 600); await pg.click('[data-a=sheet][data-v=settings]'); await w(pg); } },
+  { name: 'update-available-land', size: L, build: true, run: async pg => { await bjTable(pg); await setPending(pg, 50); await w(pg); await pg.evaluate(() => window.dispatchEvent(new Event('focus'))); await w(pg, 600); } },
+  // Blackjack states (R-005 phase 5, part B): chips in hand on your spot, insurance, a surrender, a blackjack paid at
+  // once, the result badges after a payout, no bet this round, a crowded table, an empty one, the closed table.
+  { name: 'bj-chips-in-hand', size: P, run: async pg => {
+    await bjTable(pg); const [dana] = await seatIds(pg), me = await pg.evaluate(() => localStorage.getItem('chips.pid'));
+    await as(pg, dana); await bet(pg, 40); await as(pg, me); await noToast(pg);
+    for (const n of [3, 3, 1, 0]){ await pg.click(`.tray .chip >> nth=${n}`); await w(pg, 450); }
+  } },
+  { name: 'bj-mid-round', size: P, run: bjMidRound },
+  { name: 'bj-mid-round-land', size: L, run: bjMidRound },
+  { name: 'bj-paid', size: P, run: bjPaid },
+  { name: 'bj-paid-land', size: L, run: bjPaid },
+  { name: 'bj-no-bet-land', size: L, run: async pg => {
+    await bjTable(pg); const [dana] = await seatIds(pg), me = await pg.evaluate(() => localStorage.getItem('chips.pid'));
+    await as(pg, dana); await bet(pg, 40); await as(pg, me); await pg.click('[data-a=deal]'); await w(pg, 600); await noToast(pg);
+  } },
+  { name: 'bj-crowded', size: P, run: async pg => { await bjTable(pg, { players: ['דנה', 'יוסי', 'מיכל', 'אבי', 'רונית', 'שלומי', 'נועה', 'עידו'] }); await noToast(pg); } },
+  { name: 'bj-empty-land', size: L, run: async pg => { await bjTable(pg, { play: false, players: [] }); } },
+  { name: 'bj-closed', size: P, full: true, run: async pg => { await bjTable(pg); await endGame(pg); await pg.click('[data-a=finclose]'); await w(pg, 2200); } },
 ];
 
 async function shoot(browser, url, s, errors){
   const ctx = await browser.newContext({ viewport: { width: s.size[0], height: s.size[1] }, deviceScaleFactor: 1, serviceWorkers: 'block', locale: 'he-IL', timezoneId: 'Asia/Jerusalem', reducedMotion: 'no-preference' });
   await ctx.addInitScript(FREEZE);
   await ctx.route(/gstatic|googleapis/, r => r.abort());
+  if (s.cloud){
+    await ctx.route(/\/config\.js(\?|$)/, r => r.fulfill({ contentType: 'text/javascript', body: 'window.FIREBASE_CONFIG={apiKey:"test",projectId:"test"};window.APP_BUILD="abcdef123";' }));
+    await ctx.route(/firebase-app-compat\.js/, r => r.fulfill({ contentType: 'text/javascript', body: FAKE }));
+    await ctx.route(/firebase-firestore-compat\.js/, r => r.fulfill({ contentType: 'text/javascript', body: '' }));
+  }
+  if (s.build){
+    let n = 0;
+    await ctx.route(/\/config\.js(\?|$)/, r => r.fulfill({ contentType: 'text/javascript', body: `window.APP_BUILD="${n++ ? 'bbbb2222' : 'aaaa1111'}";` }));
+  }
   const pg = await ctx.newPage();
   pg.on('pageerror', e => errors.push(`${s.name}: ${e.message}`));
-  await pg.goto(url); await pg.waitForTimeout(300);
+  await pg.goto(url + (s.url || '')); await pg.waitForTimeout(300);
   await s.run(pg);
   await settle(pg);
   await pg.mouse.move(0, 0);
@@ -101,21 +230,33 @@ async function compare(name, actual){
   return { ok: n <= MAX_DIFF, n };
 }
 
-// Returns the number of failed screens (or page errors).
-async function run({ update = false, browser: given, url: givenUrl } = {}){
+const arg = name => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : null; };
+
+// Returns the number of failed screens (or page errors). `only`: screen names; `jobs`: screens shot at the same time.
+async function run({ update = false, browser: given, url: givenUrl, only = null, jobs = 4 } = {}){
   fs.mkdirSync(OUT, { recursive: true }); fs.mkdirSync(BASE, { recursive: true });
   const { chromium } = requirePlaywright();
   const srv = givenUrl ? null : await serve(), url = givenUrl || srv.url;
   const browser = given || await chromium.launch(), errors = [];
-  let failed = 0;
-  for (const s of SCREENS){
-    const png = await shoot(browser, url, s, errors);
-    fs.writeFileSync(path.join(OUT, `visual-${s.name}.png`), png);
-    if (update){ fs.writeFileSync(path.join(BASE, s.name + '.png'), png); console.log('baseline', s.name); continue; }
-    const r = await compare(s.name, png);
-    console.log(`${r.ok ? 'PASS' : 'FAIL'}  visual ${s.name}${r.n != null ? ` (${r.n} px differ)` : ''}${r.ok ? '' : '  ' + (r.detail || 'see tests/out/visual-' + s.name + '-diff.png')}`);
-    if (!r.ok) failed++;
-  }
+  const list = only ? SCREENS.filter(s => only.includes(s.name)) : SCREENS;
+  if (only) only.filter(n => !SCREENS.some(s => s.name === n)).forEach(n => { console.log(`FAIL  visual ${n}  no such screen`); errors.push(n + ': no such screen'); });
+  const lines = new Array(list.length);
+  let failed = 0, next = 0;
+  const worker = async () => {
+    while (next < list.length){
+      const i = next++, s = list[i];
+      const png = await shoot(browser, url, s, errors);
+      fs.writeFileSync(path.join(OUT, `visual-${s.name}.png`), png);
+      if (update){ fs.writeFileSync(path.join(BASE, s.name + '.png'), png); lines[i] = 'baseline ' + s.name; }
+      else {
+        const r = await compare(s.name, png);
+        lines[i] = `${r.ok ? 'PASS' : 'FAIL'}  visual ${s.name}${r.n != null ? ` (${r.n} px differ)` : ''}${r.ok ? '' : '  ' + (r.detail || 'see tests/out/visual-' + s.name + '-diff.png')}`;
+        if (!r.ok) failed++;
+      }
+      console.log(lines[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, jobs) }, worker));
   if (!given) await browser.close();
   if (srv) srv.close();
   if (errors.length){ console.log('page errors:\n' + errors.join('\n')); failed += errors.length; }
@@ -125,5 +266,7 @@ async function run({ update = false, browser: given, url: givenUrl } = {}){
 module.exports = { run, SCREENS };
 
 if (require.main === module){
-  run({ update: process.argv.includes('--update') }).then(f => { console.log(f ? `${f} visual check(s) failed` : 'visual: all screens match'); process.exit(f ? 1 : 0); }, e => { console.error(e); process.exit(1); });
+  const only = (arg('--only') || process.env.ONLY || '').split(',').filter(Boolean);
+  run({ update: process.argv.includes('--update'), only: only.length ? only : null, jobs: Number(arg('--jobs')) || 4 })
+    .then(f => { console.log(f ? `${f} visual check(s) failed` : 'visual: all screens match'); process.exit(f ? 1 : 0); }, e => { console.error(e); process.exit(1); });
 }

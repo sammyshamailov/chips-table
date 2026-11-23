@@ -306,6 +306,10 @@ src/
      sheets keep their scroll on a re-render (they used to jump to the top), a fresh sheet starts at the top
    - [x] Part A: all browser tests, flight counts, upgrade, unit tests (257), lint, typecheck; dev server checked
    - [ ] Part B: Blackjack table, dock, dealer controls; registered in `games/registry.ts`
+     - [x] First, the extra screens made permanent: part A's 37 screens and 9 new Blackjack states (chips in hand,
+       mid-round with insurance, surrender and a paid blackjack, paid with the result badges, no bet, crowded, empty,
+       closed) are in `tests/visual.js` (56 in all, `--only`, four at a time), baselines from the code before part B
+       (part A's 37 equal to the pre-phase-5 build); part A's behaviour checks are `tests/behaviour.test.js`
    - [ ] Part C: Hold'em table, dock, dealer controls; remove the string views and `LegacyHtml`; CLAUDE.md rule 3
 6. **Clean-up and CI.** GitHub Actions on every push: lint, typecheck, unit tests, two-phone and
    Hold'em tests, screenshots. Delete `legacy.ts`. Rewrite `docs/ARCHITECTURE.md` for the new layout.

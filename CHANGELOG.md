@@ -30,7 +30,9 @@ development branch.
   (marking the 8th hand in "סיום סיבוב" kept scrolling you up). For us: `src/ui/` holds the screens (home, the room's
   shell, the update screen, the final card) and one component per sheet, mounted by `main.ts`; the tables, the docks
   and the dealer controls are still HTML strings shown inside the components until parts B and C convert them.
-  `src/games/registry.ts` holds what differs between Hold'em and Blackjack on those screens.
+  `src/games/registry.ts` holds what differs between Hold'em and Blackjack on those screens. The pixel comparison now
+  covers 56 screens (every sheet, the tables in their states, home, the update and closed screens), and
+  `tests/behaviour.test.js` checks what a render must keep (the caret, scroll positions, typed amounts).
 
 ## 2026-11-22 (2)
 

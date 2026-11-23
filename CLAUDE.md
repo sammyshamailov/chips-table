@@ -89,9 +89,9 @@ table) runs the round. Hebrew, right-to-left, phone first.
    Measure before shipping (`node tests/audio.js`): background about −38 dBFS average, narration about
    −20 dBFS, both under the chip sounds.
 7. **Hebrew copy**: short, plain, gender-neutral where it matters (`את/ה`, `ניצח/ה`).
-8. **Test before pushing**: `npm run lint`, `npm run typecheck`, `npm test` (unit tests; `npm run coverage` after a rule or data-layer change), `node tests/two-phones.test.js`, `node tests/race.test.js`, `node tests/holdem.test.js` (any Hold'em change), `node tests/guard.test.js` (anything about room fields or opening a table), `node tests/upgrade.test.js` (anything about start-up, the service worker, `config.js` or the build), `node tests/screenshots.js`, and look at the
+8. **Test before pushing**: `npm run lint`, `npm run typecheck`, `npm test` (unit tests; `npm run coverage` after a rule or data-layer change), `node tests/two-phones.test.js`, `node tests/race.test.js`, `node tests/holdem.test.js` (any Hold'em change), `node tests/guard.test.js` (anything about room fields or opening a table), `node tests/upgrade.test.js` (anything about start-up, the service worker, `config.js` or the build), `node tests/behaviour.test.js` (anything on screen: what a render must keep), `node tests/screenshots.js`, and look at the
    screenshots. The browser tests build the app first (`SKIP_BUILD=1` reuses `dist/`). `screenshots.js` also compares
-   ten screens with `tests/baseline/` pixel by pixel; take a new baseline (`--update`) only for an intended visual
+   56 screens (`tests/visual.js`: every sheet, both tables in their states, home, the update and closed screens) with `tests/baseline/` pixel by pixel; take a new baseline (`--update`) only for an intended visual
    change, after looking at the new images. A single-device test can't catch sync bugs; use the two-phone harness
    for anything that other players see.
 9. Keep `CHANGELOG.md`, `docs/ARCHITECTURE.md` and `lessons-learned.md` up to date in the same change.
