@@ -1,7 +1,9 @@
 // A stand-in for the Firebase compat SDK, for tests only.
-// It implements the small part of the Firestore API that index.html uses (doc, collection,
-// orderBy, limit, get, set, update, delete, onSnapshot). Every browser in a test holds a copy of
-// the whole database; tests/lib.js relays each write to the other browsers, the way the server would.
+// It implements the part of the compat API that src/data/firestore-store.ts uses (the Store port in
+// src/data/store.ts): doc (get, set, update, delete, onSnapshot), collection (orderBy, limit, where '==',
+// get, onSnapshot) and FieldValue.increment. Every browser in a test holds a copy of the whole database;
+// tests/lib.js relays each write to the other browsers, the way the server would. The same file runs in
+// Node in the store contract tests (src/data/store.contract.test.ts), with a plain object as `window`.
 (function(){
   let docs = {};
   const listeners = new Set();
@@ -39,12 +41,14 @@
     const depth = p.split('/').length + 1;
     const run = () => {
       let ds = Object.keys(docs).filter(k => k.startsWith(p + '/') && k.split('/').length === depth).map(snap);
+      for (const [f, v] of o.where || []) ds = ds.filter(s => s.data()[f] === v);
       if (o.order){ const [f, dir] = o.order; ds.sort((a, b) => ((a.data()[f] || 0) - (b.data()[f] || 0)) * (dir === 'desc' ? -1 : 1)); }
       if (o.limit) ds = ds.slice(0, o.limit);
       return { docs: ds, size: ds.length, empty: !ds.length, metadata: meta };
     };
     return { path: p, doc: id => docRef(p + '/' + id),
       orderBy: (f, dir) => colRef(p, { ...o, order: [f, dir] }), limit: n => colRef(p, { ...o, limit: n }),
+      where: (f, op, v) => colRef(p, { ...o, where: [...(o.where || []), [f, v]] }),
       get: async () => run(),
       onSnapshot(next){ const l = () => next(run()); listeners.add(l); setTimeout(l, 0); return () => listeners.delete(l); } };
   }

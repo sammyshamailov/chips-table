@@ -47,26 +47,27 @@ export interface RoomDoc {
   hostName?: string;
   createdAt?: number;
   updatedAt?: number;
-  lastEvent?: { t: string; ts: number };
+  lastEvent?: { t: string; ts: number } | null;
   // Hold'em
   handId?: number;
   streetId?: number;
   stage?: HoldemStage | string;
   potLevel?: number;
   buttonPid?: string | null;
-  sbPid?: string;
-  bbPid?: string;
+  sbPid?: string | null;
+  bbPid?: string | null;
   // Blackjack
   roundId?: number;
   phase?: 'betting' | 'playing' | string;
   house?: number;
   dealerBJ?: boolean;
-  roundEnd?: 'paid' | 'cancelled';
+  /** `'paid'` or `'cancelled'`; a newer phone may write other values. */
+  roundEnd?: string;
   // Guards and the end of the game
   mode?: string;
   appMin?: number;
   closed?: boolean;
-  final?: { at: number; list: { pid: string; name: string; stack: number }[] };
+  final?: { at: number; list: { pid: string; name: string; stack: number }[] } | null;
 }
 
 /** `rooms/{CODE}/players/{pid}`. */
@@ -87,7 +88,7 @@ export interface PlayerDoc {
   hands?: BjHand[];
   insurance?: number;
   surrendered?: boolean;
-  bjPaidRound?: number;
+  bjPaidRound?: number | null;
   lastAction?: LastAction | null;
   ts?: number;
   avatar?: unknown;

@@ -6,6 +6,12 @@ import * as Pots from './domain/holdem/pots';
 import * as BJ from './domain/blackjack/rules';
 import * as BJA from './domain/blackjack/actions';
 import * as BJR from './domain/blackjack/round';
+// Storage is behind the Store port in src/data/ (R-005 phase 3): the adapters, the write queue, and normalize*(),
+// which fills in every missing field of a stored document when it is read.
+import { connect } from './data/connect';
+import { createLocalStore } from './data/local-store';
+import { createWriter } from './data/writes';
+import { normalizeRoom, normalizePlayer } from './data/schema';
 (() => {
 const app = document.getElementById('app'), sheetEl = document.getElementById('sheet'), toastEl = document.getElementById('toast'), rotEl = document.getElementById('rot'), finEl = document.getElementById('fin');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -459,43 +465,15 @@ async function loadAvatarFile(file){
 }
 ['avcam', 'avfile'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', () => { const f = el.files && el.files[0]; el.value = ''; loadAvatarFile(f); }); });
 
-/* ---------- local single-device store (same surface as db) ---------- */
-function LocalDB(){
-  const KEY = 'chips.localdb'; let docs = {};
-  try { docs = JSON.parse(ls.get(KEY) || '{}') || {}; } catch(e){}
-  const listeners = new Set(); const meta = { fromCache:false, hasPendingWrites:false };
-  const clone = o => JSON.parse(JSON.stringify(o));
-  const snap = p => ({ id: p.split('/').pop(), exists: p in docs, data: () => docs[p] ? clone(docs[p]) : undefined, metadata: meta });
-  const notify = () => { ls.set(KEY, JSON.stringify(docs)); setTimeout(() => listeners.forEach(l => l()), 0); };
-  const isInc = v => v && typeof v === 'object' && typeof v.__inc === 'number';
-  const resolve = (cur, d) => { const o = {}; for (const k in d) o[k] = isInc(d[k]) ? (Number(cur && cur[k]) || 0) + d[k].__inc : d[k]; return o; };
-  const merge = (a,b) => { for (const k in b){ const v=b[k]; if (v && typeof v==='object' && !Array.isArray(v) && a[k] && typeof a[k]==='object' && !Array.isArray(a[k])) merge(a[k], v); else a[k]=v; } return a; };
-  function docRef(p){ return { id:p.split('/').pop(), path:p,
-    get: async () => snap(p),
-    set: async d => { docs[p] = resolve(null, clone(d)); notify(); },
-    update: async d => { if (!(p in docs)) throw { code:'invalid_argument', message:'missing' }; merge(docs[p], resolve(docs[p], clone(d))); notify(); },
-    delete: async () => { delete docs[p]; notify(); },
-    onSnapshot(next){ const l = () => next(snap(p)); listeners.add(l); setTimeout(l,0); return () => listeners.delete(l); },
-    collection: s => colRef(p + '/' + s) }; }
-  function colRef(p, o={}){ const depth = p.split('/').length + 1;
-    const run = () => { let ds = Object.keys(docs).filter(k => k.startsWith(p + '/') && k.split('/').length === depth).map(snap);
-      if (o.order){ const [f,dir]=o.order; ds.sort((a,b) => ((a.data()[f]||0)-(b.data()[f]||0)) * (dir==='desc'?-1:1)); }
-      if (o.limit) ds = ds.slice(0, o.limit);
-      return { docs:ds, size:ds.length, empty:!ds.length, metadata:meta, docChanges:()=>[] }; };
-    return { path:p, doc: id => docRef(p + '/' + (id || rid(12))),
-      orderBy: (f,dir) => colRef(p, {...o, order:[f,dir]}), limit: n => colRef(p, {...o, limit:n}), where: () => colRef(p,o),
-      get: async () => run(), onSnapshot(next){ const l = () => next(run()); listeners.add(l); setTimeout(l,0); return () => listeners.delete(l); } }; }
-  return { doc: docRef, collection: colRef };
-}
-
-/* ---------- connect ---------- */
+/* ---------- connect: the store (Firestore or this phone only, src/data/connect.ts), then the last table ----------
+   dbReady renders synchronously while this script is still loading (rule 2): what it reaches is declared above. */
+// One write at a time per document (src/data/writes.ts). Never writes to a table this build doesn't understand.
+const writer = createWriter({ store: () => S.db, onError: e => handleErr(e),
+  refuse: path => !!(S.code && S.room && tableUnsupported(S.room) && (path === 'rooms/' + S.code || path.startsWith('rooms/' + S.code + '/'))) });
 let roomsUnsub = null;
 const dbReady = (async () => {
-  let db = null;
-  const cfg = window.FIREBASE_CONFIG;
-  try { if (cfg && cfg.projectId && !String(cfg.apiKey).startsWith('PASTE') && window.firebase){ firebase.initializeApp(cfg); db = firebase.firestore(); try { db.settings({ ignoreUndefinedProperties: true, experimentalAutoDetectLongPolling: true, merge: true }); } catch(e){} } } catch(e){ console.error(e); }
-  if (db){ S.db = db; S.mode = 'cloud'; }
-  else { S.db = LocalDB(); S.mode = 'local'; }
+  const c = connect(window.FIREBASE_CONFIG, window.firebase, ls);
+  S.db = c.store; S.mode = c.mode;
   subRooms();
   const hash = (location.hash || '').replace('#', '').toUpperCase();
   const last = /^[A-Z]{4}$/.test(hash) ? hash : ls.get('chips.room');
@@ -505,24 +483,16 @@ const dbReady = (async () => {
 function subRooms(){
   if (roomsUnsub) roomsUnsub();
   roomsUnsub = S.db.collection('rooms').orderBy('updatedAt','desc').limit(6).onSnapshot(s => {
-    S.rooms = s.docs.filter(d => d.exists).map(d => d.data()).filter(r => !r.closed && now() - (r.updatedAt||0) < 1000*60*60*48);
+    S.rooms = s.docs.filter(d => d.exists).map(d => normalizeRoom(d.data())).filter(r => !r.closed && now() - (r.updatedAt||0) < 1000*60*60*48);
     if (!S.code) renderRooms();
   }, () => {});
 }
 function useLocal(){
-  leaveSubs(); S.db = LocalDB(); S.mode = 'local'; S.readOnly = false; S.code = null; ls.del('chips.room'); subRooms(); render();
+  leaveSubs(); S.db = createLocalStore(ls); S.mode = 'local'; S.readOnly = false; S.code = null; ls.del('chips.room'); subRooms(); render();
 }
 
-/* ---------- writes, one at a time per document ---------- */
-const queues = {};
-function w(path, op, data){
-  // Never write to a table this build doesn't understand (see tableUnsupported).
-  if (S.code && S.room && tableUnsupported(S.room) && (path === 'rooms/' + S.code || path.startsWith('rooms/' + S.code + '/'))) return Promise.resolve(false);
-  const ref = S.db.doc(path); const prev = queues[path] || Promise.resolve();
-  const p = prev.catch(() => {}).then(() => op === 'delete' ? ref.delete() : ref[op](data));
-  queues[path] = p;
-  return p.then(() => true, e => { handleErr(e); return false; });
-}
+/* ---------- writes, one at a time per document (the queue is src/data/writes.ts; `writer` is made above dbReady) ---------- */
+function w(path, op, data){ return writer.write(path, op, data); }
 function handleErr(e){
   const code = e && e.code;
   if (code === 'permission-denied') toast('השרת חסם את העדכון. בדקו שהדבקתם את חוקי האבטחה של Firestore.');
@@ -532,7 +502,7 @@ function handleErr(e){
 }
 // A stack change made by the dealer is an increment, so it adds to whatever the player's document holds on the
 // server instead of overwriting it with a number worked out from a possibly stale copy.
-function inc(n){ return S.mode === 'cloud' ? firebase.firestore.FieldValue.increment(n) : { __inc: n }; }
+function inc(n){ return writer.inc(n); }
 const roomPath = () => 'rooms/' + S.code;
 const pPath = (id = S.myId) => 'rooms/' + S.code + '/players/' + id;
 const setEvent = t => ({ lastEvent: { t, ts: now() }, updatedAt: now() });
@@ -549,13 +519,13 @@ function enterRoom(code){
   S.unsubs.push(S.db.doc('rooms/' + code).onSnapshot(s => {
     if (S.code !== mine) return;
     if (!s.exists){ if (!s.metadata.fromCache){ S.room = null; S.roomLoaded = true; render(); } return; }
-    const nr = s.data(); let run = null; try { run = tableUnsupported(nr) ? null : fxRoom(S.room, nr); } catch(e){ console.error(e); }
+    const nr = normalizeRoom(s.data()); let run = null; try { run = tableUnsupported(nr) ? null : fxRoom(S.room, nr); } catch(e){ console.error(e); }
     S.room = nr; S.roomLoaded = true; S.synced = !s.metadata.fromCache; render();
     if (run) try { run(); } catch(e){ console.error(e); }
   }, onErr));
   S.unsubs.push(S.db.collection('rooms/' + code + '/players').onSnapshot(s => {
     if (S.code !== mine) return;
-    const m = {}; s.docs.forEach(d => { if (d.exists) m[d.id] = d.data(); });
+    const m = {}; s.docs.forEach(d => { if (d.exists) m[d.id] = normalizePlayer(d.data()); });
     let runs = []; try { runs = tableUnsupported(S.room) ? [] : fxPlayers(S.players, m); } catch(e){ console.error(e); }
     S.players = m; S.pSynced = !s.metadata.fromCache; render();
     runs.forEach(f => { try { f(); } catch(e){ console.error(e); } });
