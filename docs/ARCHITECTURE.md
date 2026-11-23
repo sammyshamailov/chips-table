@@ -5,8 +5,9 @@
 R-005 is moving the app from one hand-written `index.html` to modules built by Vite, in phases (see `ROADMAP.md`).
 After phase 4 the game rules are in `src/domain/`, storage in `src/data/`, the document diff and its events in
 `src/sync/`, the effects in `src/fx/` and the sound in `src/audio/`. Phase 5 part A made home, the room's shell and
-every sheet Preact components in `src/ui/` (see "Screens" below); the state, the room session, the tables, docks and
-dealer controls (as HTML strings) and the actions are still in `src/legacy.ts`:
+every sheet Preact components in `src/ui/` (see "Screens" below), part B the Blackjack table, dock and dealer controls;
+the state, the room session, Hold'em's table, dock and dealer controls (as HTML strings) and the actions are still in
+`src/legacy.ts`:
 
 | Path | What |
 |---|---|
@@ -18,7 +19,7 @@ dealer controls (as HTML strings) and the actions are still in `src/legacy.ts`:
 | `src/sync/` | `events.ts` (the two-phase event bus), `domain-events.ts` (the event types), `diff.ts` (old/new documents → events, pure). See "Effects" below |
 | `src/fx/` | `layer.ts` (`#fx`, `fly`, `floatText`, `pulse`, `measure`, `rectOf`, the overrides `FX`), and the subscribers `blackjack.ts`, `holdem.ts`, `room.ts` (lock, new hand, `dealerNod`) |
 | `src/audio/` | `synth.ts` (the engine `SND`: AudioContext, synthesized effects, settings), `ambience.ts` (the casino background), `narration.ts` (the dealer's voice and its triggers), `control.ts` (`ambiSync`, the first-touch unlock, the ambient chips). See "Sound" below |
-| `src/ui/` | The screens as Preact components (see "Screens"), plus `format.ts` (`fmt`) and `chips-html.ts` (`chipStyle`, `stackHTML`), HTML helpers shared by the string views and the effects |
+| `src/ui/` | The screens as Preact components (see "Screens"), plus `format.ts` (`fmt`) and `chips-html.ts` (`chipStyle`, `stackHTML`, `stackColumns`), HTML helpers shared by the string views and the effects |
 | `src/games/registry.ts` | `GAMES` / `gameMode(game)`: one `GameMode` per game (Strategy), what differs between Hold'em and Blackjack on the screens |
 | `src/styles/*.css` | The old `<style>`, split at its section comments: `base`, `brand` (also cards, fields, buttons), `room` (header, table, seats, host panel, dock), `sheet` (also the toast), `blackjack`, `layout` (portrait/landscape), `rotate`, `end` |
 | `public/` | Copied to the site root as is, so the URLs didn't change: `icons/`, `manifest.webmanifest`, `sounds/amb/`, `sounds/voice/` |
@@ -54,7 +55,7 @@ The script is one function, `createLegacyApp(deps)` (it was an IIFE until phase 
 |---|---|
 | state (`S`) | Everything the UI needs: identity (`myId`, `name`, `avatar`), current table (`code`, `room`, `players`), chips in hand (`pending`, `pendChips`), open sheet |
 | sound | A pointer: the engine `SND` and `ambiSync` are handed in (`src/audio/`) |
-| effects | `FX`, `fly`, `pulse`, `rectOf`, `ov`, `shownStack`… taken from the layer it is given (`src/fx/layer.ts`); the chips in hand (`ghostChips`, `paintGhost`) and the table scale (`setU`) stay here |
+| effects | `FX`, `fly`, `pulse`, `rectOf`, `ov`, `shownStack`… taken from the layer it is given (`src/fx/layer.ts`); the chips in hand (`ghostChips`; `paintGhost` redraws the components when one lands) and the table scale (`setU`) stay here |
 | staying up to date | Compares `APP_BUILD` with the live `config.js` and reloads when idle |
 | avatars | Prepared characters (`AV_SET`, drawn by `avSVG`), photo processing, `avInner()` for every avatar circle |
 | connect | Creates the write queue (`writer`) and `connectStore()`, which `start()` (at the end) runs as `dbReady`: `connect()` picks Firestore or single-device mode, `subRooms()` lists the open tables (normalised), and the last table is entered or the home screen rendered, synchronously |
@@ -65,8 +66,8 @@ The script is one function, `createLegacyApp(deps)` (it was an IIFE until phase 
 | create / join | New table, join, claim a seat |
 | turn-the-phone prompt | Shown inside a table on a phone held upright |
 | end of the game | Standings, `endGame`, `ceremony`, final card, closed sign |
-| dealer figure | `dealerSVG` (the nod is `dealerNod` in `src/fx/room.ts`) |
-| views | `session` (what the screens read), `legacyParts()` (the table, dock and dealer controls as HTML strings: `holdemView`, `bjView`, `holdemDock`, `bjDock`, `holdemHost`, `bjHost`, with `seatRow`, `bjSeat`, `GEO`…), `render()` and `paint()` (see "Screens") |
+| dealer figure | `dealerSVG`, the `DealerFigure` component as HTML for the Hold'em view (the nod is `dealerNod` in `src/fx/room.ts`) |
+| views | `session` (what the screens read), `legacyParts()` (Hold'em's table, dock and dealer controls as HTML strings: `holdemView`, `holdemDock`, `holdemHost`, with `seatRow`, `dealerRow`, `pendingBox`; nothing for Blackjack, whose views are components), `render()` and `paint()` (see "Screens") |
 | events | `A` (all `data-a` actions), click/input handlers; then `start()` and the handle `main.ts` gets back (`start`, `render`, `ceremony`, `myId`, `inTable`) |
 
 ## The domain (`src/domain/`)
@@ -205,28 +206,36 @@ A phone that loads an already-closed table shows the final card without the cere
 ## Screens (`src/ui/`)
 
 R-005 phase 5 moves the views to Preact components in three parts. Part A (done): the shell, home and every sheet.
-Parts B (Blackjack table, dock, dealer controls) and C (Hold'em, then removing the string views) follow; until then
-those parts are HTML strings from `src/legacy.ts`, shown inside the components by `LegacyHtml`.
+Part B (done): the Blackjack table, dock and dealer controls. Part C (Hold'em, then removing the string views) follows;
+until then Hold'em's table, dock and dealer controls are HTML strings from `src/legacy.ts`, shown inside the
+components by `LegacyHtml`.
 
 | File | What |
 |---|---|
 | `app.tsx` | `App` (home, or the room screen when a table code is set) and `createUi(el)` → `paint(session, legacy)` (renders `App` into `#app` and sets `#app`'s class), `paintSheet(session, open)` (renders `SheetScreen` into `#sheet`, or empties it, and sets `hidden`), `toast(text)` |
-| `session.ts` | `Session`: the state (`S`) and the questions screens ask (`me`, `players`, `isHost`, `holdem`, `award`, `bjCurrent`, `chipsOnTable`, `standings`, `looksClosed`, `newBuild`, `sound`…); `LegacyParts` (`table`, `dock`, `host` strings) |
+| `session.ts` | `Session`: the state (`S`) and the questions screens ask (`me`, `players`, `isHost`, `holdem`, `award`, `bjCurrent`, `chipsOnTable`, `standings`, `looksClosed`, `newBuild`, `sound`, `denoms`…), and `fx` (`TableFx`: what the table shows while chips fly: `ov`, `shownStack`, `ghost` (your chips in hand that have landed), `signDrop`); `LegacyParts` (Hold'em's `table`, `dock`, `host` strings; `{}` for a game with `views`) |
 | `screens/home.tsx` | `Home`: name and avatar, join by code, `RoomsList` (marks tables the guard refuses "צריך עדכון"), `CreateCard` |
-| `screens/room.tsx` | `RoomScreen`: loading, not found, `UpdateView` (R-009), or the room: `RoomHeader`, the mode banner, the "new version" button, the event line, `JoinCard`, the dealer controls (`LegacyHtml`), `FinalCard`, the dock (`LegacyHtml`) and the table (`LegacyHtml` in `.stage`). `appClass()`: `in-room`/`has-dock`, nothing, or unchanged while loading (as before) |
+| `screens/room.tsx` | `RoomScreen`: loading, not found, `UpdateView` (R-009), or the room: `RoomHeader`, the mode banner, the "new version" button, the event line, `JoinCard`, the dealer controls (in `.o-host`), `FinalCard`, the dock (in `.dock` › `.dock-in`, when you sit at an open table) and the table (in `.stage`): the game's `views` components, or `LegacyHtml` with the strings. `appClass()`: `in-room`/`has-dock`, nothing, or unchanged while loading (as before) |
 | `screens/update.tsx` | `UpdateView`, the R-009 guard screen |
 | `sheets/index.tsx` | `SheetScreen`: the `.sheet` panel, keyed by the sheet's name (a re-render keeps it and its scroll; another sheet starts fresh), and the sheet named by `state.sheet` |
 | `sheets/*.tsx` | One per sheet: `players`, `settings`, `award`, `settle`, `avatar`, `bj-now`, `end`, `cancel`. Each is a pure component and a selector (`playersProps(session)`…); only `SheetScreen` calls the selectors |
+| `tables/chip-stack.tsx` | `ChipStack`: a stack seen from the side (`.stk` › `.col` › `.cd`), from exact chips or an amount; the same markup as `stackHTML`, which the chips in the air still use |
+| `tables/dealer-figure.tsx` | `DealerFigure`: the dealer's SVG. The blink's phase (`blinkDelay`, a negative `animation-delay` from the clock) is taken once when the figure appears: Preact keeps the element, so the animation runs on; changing the delay of a running animation would make it jump |
+| `tables/closed-sign.tsx` | `ClosedSign` (`drop` while it falls in after the ceremony) |
+| `tables/blackjack/` | `table.tsx` (`BlackjackTable`: the felt and its printed arcs, the dealer and her rack, the placards, the round's state, the seats; `.dense` over 7 players), `seat.tsx` (`BjSeat`: a player's `BetCircle`s, insurance spot and seat; `BjSeatView`), `geometry.ts` (`GEO`, `ept`, `seatLayout`, `arcPath`, `spotsAt`: see Layout), `select.ts` (the selectors `blackjackTableProps`, `blackjackDockProps`, `blackjackHostProps`: the only Blackjack view code that reads the session), `index.tsx` (`blackjackViews`, registered in the registry) |
+| `docks/` | `parts.tsx` (`DockHead` with your chip count, `PendingBox`, `ChipTray`), `blackjack.tsx` (`BlackjackDock`: while bets are open the chips in hand, the tray, clear/minimum and bet; once dealt each hand with double and split, then insurance and surrender; the buttons' enabled rules are the view's own, as before) |
+| `host/blackjack.tsx` | `BlackjackHost`: deal while bets are open; settle, pay a blackjack now, cancel the round; end the game |
 | `components/` | `avatar.tsx` (`Avatar`, `AvatarArt`: the characters as SVG, `AvatarButton`), `header.tsx` (`RoomHeader`, `ConnStatus`, the sound icon), `final-card.tsx`, `rank.tsx` (`Rank`, `places`), `crown.tsx`, `join-card.tsx`, `mode-banner.tsx`, `option.tsx`, `field.tsx` (`NumField`), `sheet-head.tsx`, `toast.tsx` (`createToaster`) |
 | `avatars.ts` | `AV_SET` (the characters), `validAv`, `hue`, `avatarBg`, `initial` |
 | `labels.ts` | `RESULT_HE` (how a Blackjack hand ended) |
-| `legacy-html.tsx` | `LegacyHtml` (a string part inside the tree; Preact sets its content only when the string changed), `toHtml(vnode)` (a component as a string, for the string views: `avatarArtHtml` cached per character, `crownHtml`, `rankHtml` for the ceremony) |
+| `legacy-html.tsx` | `LegacyHtml` (a string part inside the tree; Preact sets its content only when the string changed), `toHtml(vnode)` (a component as a string, for the string views: `avatarArtHtml` cached per character, `crownHtml`, `rankHtml` for the ceremony, `dealerFigureHtml` and `closedSignHtml` for the Hold'em view) |
 
 **Render.** `render()` in `src/legacy.ts`: measure `[data-k]` into `FX.rects`; build the string parts
 (`legacyParts()`, *before* Preact renders: `toHtml` must never run inside a render); `ui.paint()`; `setU()`,
 `renderRot()`, `ambiSync()`; `ui.paintSheet()`; restore the focused input. Preact's top-level `render` is synchronous,
 so the effects' contract holds (before → render → after). `paint()` re-renders only the components, with the last
-string parts: the avatar letter while you type your name, the home list of tables.
+string parts: the avatar letter while you type your name, the home list of tables, and a chip from the tray landing on
+your Blackjack spot (`paintGhost`, which used to write the ghost stack's HTML into the element directly).
 
 **Events.** Every control keeps its `data-a`/`data-v`; the one delegated click listener runs the `A` action map, and
 `data-bind` inputs write the state through the one `input`/`change` listener. Inputs are controlled (`value` from the
@@ -237,10 +246,16 @@ one run of text, the component builds one string (two adjacent text nodes are ke
 landscape side panel have `overflow-anchor: none` (`base.css`): the browser's scroll anchoring would otherwise start
 moving the page once elements are kept rather than replaced. The side panel's scroll save/restore is gone (the panel is
 kept). One visible change: a sheet keeps its scroll when it re-renders (it used to jump to the top on every tap).
+Part B: the Blackjack table's elements are kept too (each seat keyed by its player, so a seat stays with its player
+when someone sits down), so animations on them run to the end instead of being cut by the next render: the dealer's
+nod, the bump of a spot, the glow of your empty spot and the blink, whose rhythm no longer jumps on each update.
 
 **Per game.** `gameMode(room.game)` (`src/games/registry.ts`) answers the screens' per-game questions: the name, the
 form's limit fields and "I play too" default, whether the dealer is the house (Blackjack join card), break (Hold'em
-players sheet), the cancel sheet's wording and action, and what to settle before ending the game.
+players sheet), the cancel sheet's wording and action, and what to settle before ending the game. `views` holds the
+game's `Table`, `Dock` and `HostPanel` (`GameViews`): components that read the session through their selectors, like
+the sheets. Blackjack has them (`src/ui/tables/blackjack/index.tsx`); Hold'em has none yet, so the room screen draws its
+strings.
 
 ## Effects
 
@@ -297,8 +312,8 @@ ceremony's timeline, the closed sign dropping, and the `closed` line on "לשו�
 
 The blackjack table is a box with `aspect-ratio: 100/98`. `--u` is 1% of its width, set from JS (`setU`),
 so the whole table scales as one picture. Seats, betting circles and the printed text sit on ellipses with
-one shared centre near the dealer (`GEO`); seats are spaced by arc length (`ARC`, `seatLayout`) so circles
-never overlap. In landscape (`@media (orientation: landscape)`) the room becomes two columns: a side panel
+one shared centre near the dealer (`GEO` in `src/ui/tables/blackjack/geometry.ts`); seats are spaced by arc length
+(the arc measured once, `seatLayout`) so circles never overlap; split hands sit side by side, smaller (`spotsAt`). In landscape (`@media (orientation: landscape)`) the room becomes two columns: a side panel
 (header, your chips, dealer controls) and the table sized by the screen height.
 
 ## Sound

@@ -33,6 +33,14 @@ development branch.
   `src/games/registry.ts` holds what differs between Hold'em and Blackjack on those screens. The pixel comparison now
   covers 56 screens (every sheet, the tables in their states, home, the update and closed screens), and
   `tests/behaviour.test.js` checks what a render must keep (the caret, scroll positions, typed amounts).
+- **The Blackjack table, your controls and the dealer's are Preact components** (R-005, step 5, part B). The table
+  looks the same pixel for pixel in every state we test (portrait, landscape, a small phone, chips in hand, insurance,
+  a split and a double, a blackjack paid at once, the payout's results, a crowded and an empty table, the closed
+  table). A few things are smoother: the table is updated rather than rebuilt, so the dealer's nod, a spot's bump and
+  the glow of your empty spot play to the end instead of being cut off when someone else acts, and the dealer's blink
+  keeps its rhythm. For us: `src/ui/tables/` (`BlackjackTable`, seats and betting circles, `ChipStack`,
+  `DealerFigure`, the geometry with unit tests), `src/ui/docks/` and `src/ui/host/`, registered in
+  `src/games/registry.ts`; Hold'em is still drawn from HTML strings until part C.
 
 ## 2026-11-22 (2)
 

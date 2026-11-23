@@ -49,6 +49,23 @@ as the picture.
 the first letters four pixels differently from the single text the string view made. *Rule:* where the old HTML had
 one run of text, the component builds one string (`{name + ' · '}`).
 
+**A kept element can be drawn from Chrome's caches.** After the Blackjack dock became a component, the split scenario
+differed from the baseline by 499 pixels: the first hand's buttons were 1 px lower, although every element's box was
+the same to a thousandth of a pixel. The dock is fixed to the bottom, so when a split adds a row the whole dock moves up
+by a fractional amount; the string view rebuilt the first row, Preact kept it, and Chrome reused its layout and paint,
+snapped to the old sub-pixel position. Replacing that one row with a clone made the picture match. Nobody can see it on
+a phone, so the pixel comparison now lays out `#app` and `#sheet` afresh before each picture, and the old build still
+matches every baseline with that step. *Rule:* when pixels differ but the boxes don't, look for something kept rather
+than rebuilt before changing the code; and a check that kept elements stay (`tests/behaviour.test.js`) belongs next
+to the picture.
+
+**A running animation is not restarted by a new delay; it jumps.** The dealer's blink took its phase from the clock in
+every render (a negative `animation-delay`), which was right while each render built a new figure. Once Preact keeps
+the figure, writing a new delay into a running animation shifts it instead: the blink would have jumped on every
+update. The phase is now taken once, when the figure appears. *Rule:* anything a string view recomputed per render to
+survive being rebuilt (phases, `scrollTop`, a class that replays an animation) needs a second look once the element is
+kept.
+
 **Wire everything, then start.** Moving the effects into event subscribers meant they had to exist before the first
 snapshot, and the sound engine and the effects layer need the app (`render`, `myId`, "inside a table") while the app
 needs them. Rendering while the script was still loading would have made that a new start-up trap. Instead the app is

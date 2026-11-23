@@ -305,11 +305,31 @@ src/
    - [x] Part A: removed the side panel's scrollTop save/restore and the avatar letter's DOM poke (now a re-render);
      sheets keep their scroll on a re-render (they used to jump to the top), a fresh sheet starts at the top
    - [x] Part A: all browser tests, flight counts, upgrade, unit tests (257), lint, typecheck; dev server checked
-   - [ ] Part B: Blackjack table, dock, dealer controls; registered in `games/registry.ts`
+   - [x] Part B: Blackjack table, dock, dealer controls; registered in `games/registry.ts`
      - [x] First, the extra screens made permanent: part A's 37 screens and 9 new Blackjack states (chips in hand,
        mid-round with insurance, surrender and a paid blackjack, paid with the result badges, no bet, crowded, empty,
        closed) are in `tests/visual.js` (56 in all, `--only`, four at a time), baselines from the code before part B
        (part A's 37 equal to the pre-phase-5 build); part A's behaviour checks are `tests/behaviour.test.js`
+     - [x] `src/ui/tables/`: `BlackjackTable` (felt print, dealer and rack, placards, round state, seats), `BjSeat`
+       (`BetCircle`s, insurance, the seat), `ChipStack`, `DealerFigure` (blink phase taken once, as the element is now
+       kept), `ClosedSign`, `geometry.ts` (`GEO`, `seatLayout`, `arcPath`, `spotsAt`); `src/ui/docks/` (`DockHead`,
+       `PendingBox`, `ChipTray`, `BlackjackDock`), `src/ui/host/blackjack.tsx`. Pure components with selectors
+       (`select.ts`); `Session` gained `denoms` and `fx` (overrides, shown stack, the chips in hand that have landed,
+       the sign's drop). `GameMode.views` (`Table`, `Dock`, `HostPanel`) for Blackjack; the room screen uses them, or
+       Hold'em's strings
+     - [x] Removed from `legacy.ts`: `bjView`, `bjSeat`, `bjVis`, `bjDock`, `bjHost`, `GEO`/`ARC`/`seatLayout`/`arc`.
+       `paintGhost` no longer writes HTML into the ghost element; it redraws the components. The dealer figure and the
+       closed sign are components (the Hold'em view gets them as HTML through `toHtml`). The dock's enabled rules for
+       double, split, insurance and surrender stay the view's own (moving them to the domain would change what players
+       see in edge cases)
+     - [x] Same pixels: all 56 screens, including the nine Blackjack states, zero pixels; the DOM (elements, classes,
+       attributes, text, boxes) compared with the old build on eleven Blackjack screens is the same. The pixel
+       comparison now lays `#app` and `#sheet` out afresh before each picture (kept elements are drawn from Chrome's
+       caches, 1 px off after the fixed dock moves; see lessons-learned); the old build still matches every baseline
+     - [x] Unit tests: geometry (same seats and arcs as the string view, 0–12 players) and the selectors (16 with the registry, 273 in
+       all); `tests/behaviour.test.js`: the table, dealer and seats kept across renders, the blink's phase, chips in
+       hand landing (seen failing on the old build); flight counts in the two-phone and Hold'em tests; all browser
+       tests, upgrade, lint, typecheck; dev server checked
    - [ ] Part C: Hold'em table, dock, dealer controls; remove the string views and `LegacyHtml`; CLAUDE.md rule 3
 6. **Clean-up and CI.** GitHub Actions on every push: lint, typecheck, unit tests, two-phone and
    Hold'em tests, screenshots. Delete `legacy.ts`. Rewrite `docs/ARCHITECTURE.md` for the new layout.
@@ -332,9 +352,10 @@ src/
 - [ ] `node tests/two-phones.test.js` and the Hold'em test (R-003) after each phase (phase 1: passed, with
   `race`, `guard` and `audio`; phase 2: passed, with `race`, `guard` and `upgrade`; phase 3: passed, with `race` three
   times, `guard` and `upgrade`; phase 4: passed, with the new flight counts, `race` three times, `guard`, `upgrade` and
-  `audio`; phase 5 part A: passed, with the flight counts, `race`, `guard` and `upgrade`)
+  `audio`; phase 5 part A: passed, with the flight counts, `race`, `guard` and `upgrade`; part B: passed, with the flight counts,
+  `race`, `guard`, `upgrade` and `behaviour`)
 - [ ] Screenshot comparison shows no difference after each phase (phases 1, 2, 3 and 4: zero pixels on all ten screens; phase 5 part A: zero on the ten and on 37 more
-  screens compared with the old build)
+  screens compared with the old build; part B: zero on all 56 screens of `tests/visual.js`)
 - [x] Upgrade path: a phone on today's version updates itself into the new build (automated in
   `tests/upgrade.test.js`: old service worker and cache, self-update reload, new worker drops `chips-v6`, offline start)
 - [ ] Single-device mode by hand (phase 1: `npm run dev` and the build, home and a new table, no page errors; phase 2:
