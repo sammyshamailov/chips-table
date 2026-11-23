@@ -73,8 +73,9 @@ happen, what happens, what should happen.
 wrong. "None" if nothing stored changes. Never rename, remove or change the meaning of a field. If
 `firestore.rules` would have to change, say so: the owner must paste the rules in the Firebase console.
 
-**Effects and sound.** Does a player write set `lastAction` and `ts`? Which `fxBJ` / `fxHold` / `fxRoom`
-handler animates it? New sounds: measured with `node tests/audio.js`. "None" if nothing changes.
+**Effects and sound.** Does a player write set `lastAction` and `ts`? Which event in `src/sync/diff.ts` does it
+become, and which subscriber in `src/fx/` (or `src/audio/narration.ts`) plays it? New sounds: measured with
+`node tests/audio.js`. "None" if nothing changes.
 
 **Risks.** What could break: start-up order (rule 2), state kept in the DOM (rule 3), money moved twice
 (search every function that sums `hands` or refunds bets), phones on an older version sharing the table.
@@ -252,8 +253,42 @@ src/
      `null` where the normalised documents use it (`lastEvent`, `sbPid`/`bbPid`, `final`, `bjPaidRound`) and `roundEnd`
      became any text. Not done on purpose: a separate in-memory adapter (local-store on `memoryStorage()` is that, and
      fakefs behind the Firestore adapter is the more useful second run of the contract)
-4. **Events and effects.** Replace `fxPlayers` / `fxRoom` branching with `diff.ts` → events → `fx/`
+4. **Events and effects.** *(Built on the branch.)* Replace `fxPlayers` / `fxRoom` branching with `diff.ts` → events → `fx/`
    subscribers. Same animations, same timings.
+   - [x] `src/sync/events.ts`: a typed two-phase bus, `on(type, { before, after }) → unsubscribe` and
+     `emit(events, render)`: every `before` (may set overrides; its return value goes to `after`), then the render, then
+     every `after`. A subscriber that throws is logged and skipped
+   - [x] `src/sync/diff.ts` (pure, domain types only) and `domain-events.ts`: `diffRoom` / `diffPlayers` → 24 event
+     types, one per branch the old `fxBJ`/`fxHold`/`fxRoom` had and nothing else: Blackjack `BetPlaced`, `BetCleared`,
+     `HandDoubled`, `HandSplit`, `InsuranceTaken`, `Surrendered`, `BlackjackPaid`, `HandsSettled`, `RoundRefunded`
+     (cancelled round), `Refunded` (dealer's correction); Hold'em `BlindPosted`, `Called`, `BetMade`, `Raised`,
+     `WentAllIn`, `Checked`, `Folded`, `PotWon`, `HandRefunded`; room `GameEnded`, `BetsLocked`, `RoundPaid`,
+     `HandStarted`, `StreetDealt`. No `RoundCancelled` or `Reopened`: nothing reacted to them, so nothing new was added.
+     `BetsLocked` carries the spots to bump (the diff gets the players), `WentAllIn` is sent even when no chips moved
+     (the narration), `BlackjackPaid` even without a spot. The guard moved to `src/domain/guard.ts` so the diff can
+     refuse unsupported tables
+   - [x] `src/fx/`: `layer.ts` (`#fx`, `fly`, `floatText`, `pulse`, `measure`, `rectOf`, `oldRect`, `seatTarget`, `FX`,
+     `setOv`/`clearOv`), `blackjack.ts`, `holdem.ts`, `room.ts` (lock, new hand, `dealerNod`), moved almost verbatim;
+     chip HTML in `src/ui/chips-html.ts`, `fmt` in `src/ui/format.ts`
+   - [x] `src/audio/`: `synth.ts` (`SND`, with the settings `ambiOn`/`voiceOn`), `ambience.ts` (`Ambience`,
+     `loopBounds`, manifest), `narration.ts` (the voice queue, `playLine`, and the triggers as subscribers),
+     `control.ts` (`ambiSync`, first-touch unlock, the ambient chips loop). `tests/audio.js` unchanged (`main.ts` sets
+     its hooks); `AUDIO_SEED` added
+   - [x] Start-up: `legacy.ts` is `createLegacyApp(deps)`; `main.ts` creates everything, wires the subscribers (effects
+     before narration, as the old code ran them), then `app.start()` (the old `dbReady` + first render). Nothing does
+     work at import time
+   - [x] ESLint purity rules for `src/sync/` (proven by a deliberate violation); `src/sync/` in `npm run coverage`
+   - [x] Unit tests: 40 (`diff.test.ts`, `events.test.ts`), 4 for the guard, 2 for `browser-storage.ts`; 250 in all,
+     coverage 100% statements, lines and functions over `src/domain/`, `src/data/` and `src/sync/`
+   - [x] Browser tests: a bet on one phone flies exactly once on the other (two-phone test, Blackjack) and on each other
+     phone (Hold'em test); both checks seen failing with a doubled and with a missing subscription
+   - [x] Proof of "same effects": with `Math.random` seeded, every Web Animation, flying chip, floating text, oscillator and
+     audio buffer started on every phone was recorded for the two-phone test, the Hold'em test and a scenario with every
+     Blackjack effect, on the old and the new build: the same counts on every phone, the narration lines in the same
+     order (only the interleaving of tray taps and observer callbacks differs by timing). `AUDIO_SEED=7 node
+     tests/audio.js` prints the same numbers on both builds
+   - [x] Docs: `CLAUDE.md` (files, rules 2, 4, 6, 10), `docs/ARCHITECTURE.md` (start-up, Effects with the event table,
+     Sound), `docs/TESTING.md`, `CHANGELOG.md`, `lessons-learned.md`
 5. **UI components.** Mount Preact at `#app`. Convert screen by screen (home, sheets, Blackjack table,
    Hold'em table); a temporary `<LegacyHtml>` wrapper lets an unconverted part keep its HTML string.
    Remove the `FX.rects` measuring hacks only once the component version is proven by the screenshots.
@@ -277,8 +312,9 @@ src/
   tests, pots and payouts at 100% branches)
 - [ ] `node tests/two-phones.test.js` and the Hold'em test (R-003) after each phase (phase 1: passed, with
   `race`, `guard` and `audio`; phase 2: passed, with `race`, `guard` and `upgrade`; phase 3: passed, with `race` three
-  times, `guard` and `upgrade`)
-- [ ] Screenshot comparison shows no difference after each phase (phases 1, 2 and 3: zero pixels on all ten screens)
+  times, `guard` and `upgrade`; phase 4: passed, with the new flight counts, `race` three times, `guard`, `upgrade` and
+  `audio`)
+- [ ] Screenshot comparison shows no difference after each phase (phases 1, 2, 3 and 4: zero pixels on all ten screens)
 - [x] Upgrade path: a phone on today's version updates itself into the new build (automated in
   `tests/upgrade.test.js`: old service worker and cache, self-update reload, new worker drops `chips-v6`, offline start)
 - [ ] Single-device mode by hand (phase 1: `npm run dev` and the build, home and a new table, no page errors; phase 2:
@@ -624,8 +660,8 @@ the knocks. If several players press at once, several hands drum together.
 **Stored data.** Optional player `tap` (number, time of the last press). Fallback: missing = never tapped.
 Document in `docs/ARCHITECTURE.md`.
 
-**Effects and sound.** New `tap` handler next to `fxBJ` (diff on `tap`, not `lastAction`): the hand
-animation and the knocks.
+**Effects and sound.** A new event in `src/sync/diff.ts` (diff on `tap`, not `lastAction`) and its subscriber in
+`src/fx/blackjack.ts` (since R-005 phase 4; before, a handler next to `fxBJ`): the hand animation and the knocks.
 
 **Risks.** A slow phone that receives many taps at once: cap at 4 hands on screen, skip the rest. A phone
 that opens the table later must not replay old taps: only taps newer than the moment it joined play.
@@ -679,7 +715,7 @@ Give Hold'em the same treatment. (Absorbs R-002, the turn indicator.)
 5. **Dealer tools.** Award by tapping the winning seats on the table; if everyone but one folded, a
    one-tap "pot to X"; split pots by selecting several winners (existing `computeAward`).
 6. **Landscape** side panel and small-phone layout, as Blackjack has.
-7. **Animations** (`fxHold` + `fxRoom`): blinds fly from seats to their bet spot (not straight to the
+7. **Animations** (events in `src/sync/diff.ts`, subscribers in `src/fx/holdem.ts` and `room.ts`; before R-005 phase 4 `fxHold` + `fxRoom`): blinds fly from seats to their bet spot (not straight to the
    pot); each bet/call/raise flies to the seat's bet spot with a floating label ("Raise 200"); when the
    dealer moves to the next street, every bet spot sweeps into the pot; award: the pot (and each side
    pot) flies to its winner(s), split pots divide in the air; fold: a soft fold sound and the seat dims;
@@ -688,8 +724,8 @@ Give Hold'em the same treatment. (Absorbs R-002, the turn indicator.)
 
 **Stored data.** None. Everything is derived from existing fields.
 
-**Effects and sound.** Player writes already set `lastAction` and `ts`. New handler for the street
-change in `fxRoom` (diff of `streetId`), using `FX.ov` to keep bet stacks visible until the sweep lands.
+**Effects and sound.** Player writes already set `lastAction` and `ts`. New event for the street
+change in `diffRoom` (diff of `streetId`) with its subscriber in `src/fx/`, using `FX.ov` to keep bet stacks visible until the sweep lands.
 
 **Risks.** The street sweep is triggered by the room document while the bets live on player documents:
 the two snapshots can arrive in either order. Hold the old bet stacks via `FX.ov` until both have

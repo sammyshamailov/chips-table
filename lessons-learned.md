@@ -37,6 +37,13 @@ fields overlapped. It showed in my own test screenshots and I didn't notice; the
 *Rule:* look at every screenshot for edges that don't line up, not only the feature being tested; the
 overflow check in a test (every input inside its card, page no wider than the screen) catches it in numbers.
 
+**Wire everything, then start.** Moving the effects into event subscribers meant they had to exist before the first
+snapshot, and the sound engine and the effects layer need the app (`render`, `myId`, "inside a table") while the app
+needs them. Rendering while the script was still loading would have made that a new start-up trap. Instead the app is
+created first and started last (`createLegacyApp()`, the subscribers, then `app.start()` in `main.ts`), and the engine
+and the layer call back into the app only from a touch, a timer or an event. *Rule:* creating a module never renders,
+listens to the store or plays anything; `main.ts` decides when.
+
 ## Stored data and sync
 
 **Store what the player did, not something derived from it.** Bets were stored as amounts and drawn by
@@ -157,6 +164,13 @@ domain config is now standalone. *Rule:* when adding a lint rule or a type check
 throwaway file that breaks it and see it fail (the ESLint purity rules were checked the same way).
 
 ## Testing
+
+**A random level is not a level.** After the sound code moved to `src/audio/`, `tests/audio.js` printed a background
+3.6 dB quieter and its loudest moment 8.5 dB lower than before. Nothing was wrong: which slot machine plays, when, and
+panned how far left are random, and the test measures the left channel. Running the old and the new build with the same
+seeded `Math.random` gave the same numbers to the decimal. *Rule:* when code moves, compare with `AUDIO_SEED=<n>` (or any
+seeded run), not two random runs; and a count check (exactly one flight per bet on the other phone) only proves something
+once it has been seen to fail (it was: two flights with a doubled subscription, none with a missing one).
 
 **Single-device mode can't catch sync bugs.** It shares one database between all seats on one phone. The
 two-phone harness (separate browser contexts, writes relayed between them) is the only local way to see what

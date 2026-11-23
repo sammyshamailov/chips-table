@@ -12,9 +12,10 @@ npm i -g playwright
 npx playwright install chromium
 ```
 
-Checks without a browser: `npm run lint` (ESLint, including the domain purity rules), `npm run typecheck` (TypeScript,
-strict: the app, the build tooling, and `src/domain/` alone without DOM types), `npm test` (Vitest: `src/**/*.test.ts`,
-`scripts/**/*.test.mts`: the game rules in `src/domain/`, the data layer in `src/data/` and the service worker plugin).
+Checks without a browser: `npm run lint` (ESLint, including the purity rules for `src/domain/` and `src/sync/`),
+`npm run typecheck` (TypeScript, strict: the app, the build tooling, and `src/domain/` alone without DOM types),
+`npm test` (Vitest: `src/**/*.test.ts`, `scripts/**/*.test.mts`: the game rules in `src/domain/`, the data layer in
+`src/data/`, the document diff and event bus in `src/sync/`, and the service worker plugin).
 
 ## Unit tests for the game rules
 
@@ -55,18 +56,35 @@ A rule change needs a unit test first; the browser tests then prove the app stil
   *added* field), today's documents (unchanged), nothing at all, damaged values, values and fields from a newer phone,
   and the guard fields (`mode`, `appMin`) read exactly as the guard always read them.
 
+## Unit tests for the events
+
+`src/sync/` has its tests next to it, and `npm run coverage` covers it (100% statements and lines; the branches left are
+`|| 0` fallbacks the normalised documents never hit):
+
+- `diff.test.ts`: old/new document pairs for every event (each Blackjack and Hold'em `lastAction.k`, each room change)
+  and every case that must stay silent: the same `ts`, no `lastAction`, a phone's first copy (old = empty: joining
+  mid-hand replays nothing), a player who left, a table the guard refuses, an unknown action. Also the exact chips
+  added to a bet, the split and double spot, the settled spots and totals, the payout read from `roundEnd` or from the
+  event text, the lock's spots in seat order, and several room events in their old order.
+- `events.test.ts`: before → render → after, event and subscription order, the value handed from `before` to `after`,
+  unsubscribing (only that subscription), a subscriber added during an emit, a subscriber that throws.
+
+The effects themselves (`src/fx/`, DOM and Web Animations) are checked in the browser: the two-phone and Hold'em tests
+count the flying chips another phone shows for one bet (exactly one; two would mean a doubled subscription, none a lost
+event), and the pixel comparison and screenshots wait for them to land.
+
 ## The scripts
 
 | Command | What it checks |
 |---|---|
 | `node tests/race.test.js` | Money conservation (stacks + bets + house) when the dealer's player writes reach the server late and a player bets the moment the next round opens; for a paid and a cancelled round. Uses `hub.delay` in `tests/lib.js` |
-| `node tests/two-phones.test.js` | A blackjack table on **two separate phones** that sync: avatars (character and photo), exact chip stacks seen by the other phone, deal, paying a blackjack mid-round, the payout not paying it twice, house balance, ending the game, the ceremony on the other phone, and a reloaded phone seeing the closed table. Prints PASS/FAIL per check and exits 1 on any failure |
-| `node tests/holdem.test.js` | Texas Hold'em on **three phones** (dealer who also plays + two players), driving the real buttons. After every step it checks, on every phone, each stack as shown on the seats, the pot (`data-k="pot"`) and the stage label, plus that stacks + pot equal the chips at the table. Hand 1: blinds, preflop call/check, flop bet/call/fold, turn, river, award. Hand 2: the button and blinds moved; three unequal stacks all-in, main pot and side pot awarded to different players through the award sheet, the excess returned. Hand 3 and 4: a cancelled hand (and a cancel right after the blinds) returns exactly what each player put in. Hand 5: a tied showdown on an odd pot (25) split between two winners, the odd chip goes to the first winner in seat order (13 and 12), chips at the table unchanged. Page errors on any phone fail it |
+| `node tests/two-phones.test.js` | A blackjack table on **two separate phones** that sync: avatars (character and photo), one bet flying exactly once on the other phone and not at all on the bettor's (`watchFlies` in `tests/lib.js`), exact chip stacks seen by the other phone, deal, paying a blackjack mid-round, the payout not paying it twice, house balance, ending the game, the ceremony on the other phone, and a reloaded phone seeing the closed table. Prints PASS/FAIL per check and exits 1 on any failure |
+| `node tests/holdem.test.js` | Texas Hold'em on **three phones** (dealer who also plays + two players), driving the real buttons. After every step it checks, on every phone, each stack as shown on the seats, the pot (`data-k="pot"`) and the stage label, plus that stacks + pot equal the chips at the table. Hand 1: blinds, preflop call/check, flop bet/call/fold (the flop bet flies exactly once on each other phone), turn, river, award. Hand 2: the button and blinds moved; three unequal stacks all-in, main pot and side pot awarded to different players through the award sheet, the excess returned. Hand 3 and 4: a cancelled hand (and a cancel right after the blinds) returns exactly what each player put in. Hand 5: a tied showdown on an odd pot (25) split between two winners, the odd chip goes to the first winner in seat order (13 and 12), chips at the table unchanged. Page errors on any phone fail it |
 | `node tests/screenshots.js` | Seven players, a split and a double, in portrait, landscape and a small phone. Writes `tests/out/table-*.png`. **Look at them**: layout problems don't throw errors. Then runs the pixel comparison below and fails if a screen differs |
 | `node tests/visual.js` | The pixel comparison on its own: ten screens (home empty and with a name, the Blackjack create form, the Blackjack scenario in portrait, landscape and small portrait, a Hold'em hand in portrait and landscape, the Players and Settings sheets) compared with `tests/baseline/*.png` using pixelmatch. A screen that differs leaves `tests/out/visual-<name>-actual.png` and `-diff.png`. `--update` (also on `screenshots.js`) writes a new baseline: only for an intended visual change, after looking at the new images, and commit them |
 | `node tests/upgrade.test.js` | A phone on the old single-file version (commit `568fddc`, extracted into `tests/out/old-app/`) with its service worker installed and a table open; the same origin then serves `dist/` with a new `APP_BUILD`. Checks that the old app's update check reloads it into the new build, the table is still there, a new table can be created, the new service worker replaced `chips-v6` with its own cache of the hashed files, and the app opens offline |
 | `node tests/guard.test.js` | The R-009 guard: a room with `appMin: 99` or an unknown `mode` shows the update screen (no controls, nothing but home/update acts), the phone makes **zero writes** to it (`hub.writes` in `tests/lib.js` logs every write the server received), it appears in the home list as "צריך עדכון" and renders normally once supported. `mode: 'chips'` plays as usual. Legacy proof: on a Blackjack room with `phase: 'cards'` and a Hold'em room with `stage: 'cards'` a player's taps cause no writes (the same taps on normal tables do write, as controls) |
-| `node tests/audio.js` | Renders 60 s of the random casino one-shots offline through the app's master chain and prints the average level, the loudest 50 ms and the number of events (`tests/out/ambience.wav`), plus 10 s of three narration lines over the background (`tests/out/narration.wav`). Files that don't exist yet print `missing: …`. `AUDIO_PLACEHOLDERS=1` serves generated tones instead of the real files |
+| `node tests/audio.js` | Renders 60 s of the random casino one-shots offline through the app's master chain and prints the average level, the loudest 50 ms and the number of events (`tests/out/ambience.wav`), plus 10 s of three narration lines over the background (`tests/out/narration.wav`). Files that don't exist yet print `missing: …`. `AUDIO_PLACEHOLDERS=1` serves generated tones instead of the real files. The background's numbers vary by a few dB from run to run (which machine plays, when, panned where); `AUDIO_SEED=<n>` makes them repeatable, so two builds can be compared number for number |
 
 `tests/out/` is git-ignored.
 
@@ -98,7 +116,10 @@ real phones against the real project.
   a check for the new behaviour.
 - Layout: `tests/screenshots.js` and look at the images; also open the app at phone size in a browser. A
   refactor must keep the pixel comparison at zero; an intended change takes a new baseline (`--update`).
-- New or changed sounds: `tests/audio.js`; compare levels with the chip sounds, then listen.
+- New or changed sounds: `tests/audio.js`; compare levels with the chip sounds, then listen. Moving sound code without
+  changing it: `AUDIO_SEED=1 node tests/audio.js` before and after must print the same numbers.
+- A new effect or event: a case in `src/sync/diff.test.ts` for the document change, and the two-phone (or Hold'em)
+  test for what the other phone shows.
 - Start-up changes: open the home screen and a table fresh (cleared storage). A start-up crash shows as a
   page error in every script.
 - The build, the service worker, `config.js` or anything about loading: `tests/upgrade.test.js`, and

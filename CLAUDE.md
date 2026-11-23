@@ -24,10 +24,14 @@ table) runs the round. Hebrew, right-to-left, phone first.
 | Path | What |
 |---|---|
 | `index.html` | The shell: head, the elements the script needs, `config.js` and the Firebase compat scripts (classic scripts), then `src/main.ts` |
-| `src/main.ts` | Entry point: imports the styles and the app, registers the service worker (build only) |
-| `src/legacy.ts` | The app script (state, room session, views, sounds, animations), moved from `index.html`; it calls the game rules in `src/domain/` and stores through `src/data/`. `// @ts-nocheck` until later phases |
+| `src/main.ts` | Composition root: imports the styles, creates the storage, event bus, sound engine and effects layer, creates the app, wires the event subscribers, then `app.start()`; registers the service worker (build only) |
+| `src/legacy.ts` | `createLegacyApp()`: the app script (state, room session, views, actions), moved from `index.html`; it calls the game rules in `src/domain/`, stores through `src/data/` and diffs snapshots into events with `src/sync/`. `// @ts-nocheck` until later phases |
 | `src/domain/` | The game rules as pure, typed functions with unit tests beside them: `chips.ts`, `holdem/` (`rules.ts`, `pots.ts`), `blackjack/` (`rules.ts`, `actions.ts`, `round.ts`), `types.ts` (the stored documents). Commands return the fields to write or a refusal code |
 | `src/data/` | Storage behind the `Store` port (`store.ts`): `firestore-store.ts` (compat SDK), `local-store.ts` (single-device mode), `connect.ts` (picks one at start-up), `writes.ts` (one write at a time per document, `inc`), `schema.ts` (`Room`/`Player` and `normalizeRoom`/`normalizePlayer`: every fallback for stored fields). Contract tests run the same cases against `local-store` and `tests/fakefs.js` |
+| `src/sync/` | `diff.ts` (old/new documents → domain events, pure, unit tested), `domain-events.ts` (the event types), `events.ts` (the two-phase event bus: before → render → after) |
+| `src/fx/` | `layer.ts` (`#fx`, `fly`, `floatText`, `pulse`, the overrides `FX`), and the effects subscribed to events: `blackjack.ts`, `holdem.ts`, `room.ts` |
+| `src/audio/` | `synth.ts` (`SND`: AudioContext, synthesized effects, settings), `ambience.ts` (casino background), `narration.ts` (dealer's voice and its triggers), `control.ts` (`ambiSync`, first-touch unlock) |
+| `src/ui/` | Small HTML helpers shared by the views and the effects (`fmt`, `stackHTML`, `chipStyle`) |
 | `src/styles/*.css` | The styles, split at their old section comments, imported in order by `main.ts` |
 | `src/sw-template.js` | Service worker: network-first for the app's own files, cache as offline fallback. `dist/sw.js` is generated from it |
 | `scripts/sw-plugin.mts` | Vite plugin that writes `dist/sw.js`: the install list is the built files (hashed names), the cache name follows the build. Unit tested |
@@ -54,26 +58,28 @@ table) runs the round. Hebrew, right-to-left, phone first.
    unit test for a document from before the field (example: `hands[i].chips` is dropped there when it doesn't
    add up, so readers fall back to the amount). Normalise on read only; writes stay patches. Document new
    fields in `docs/ARCHITECTURE.md`.
-2. **Start-up order.** `render()` runs synchronously while `src/legacy.ts` is still loading (inside the
-   `dbReady` IIFE). Anything a render touches must be declared above the
-   `/* ---------- connect` section, or be a hoisted `function` declaration or an import.
-   A `const`/`let` declared later throws "Cannot access X before initialization" and the app stays on
-   the home screen. This has happened three times.
+2. **Start-up order.** No module does work when it is imported. `main.ts` creates everything, wires the event
+   subscribers, and only then calls `app.start()`, which connects and renders the first screen. Keep it that way: a
+   render (or a snapshot) that can happen before everything is created brings back "Cannot access X before
+   initialization", which left the app stuck on the home screen three times when the script rendered while it was
+   still loading. Callbacks into the app (`render`, `myId`, `inTable`) may only run from a touch, a timer or an event.
 3. **Rendering replaces `#app` and `#sheet` wholesale** (`innerHTML`). Never keep state in the DOM.
    Anything that must survive a re-render (file inputs, the ceremony overlay, flying chips, the rotate
    prompt) lives outside `#app`. CSS animations restart on every render: use a phase offset
    (negative `animation-delay`, see the dealer's blink) or WAAPI from the effects layer.
-4. **Animations come from document changes.** Every player write sets `lastAction` and `ts`; the
-   snapshot handler diffs old and new documents (`fxPlayers`, `fxRoom`) and plays the matching effect.
-   A new player action must set both, and if chips move, add a handler in `fxBJ`/`fxHold`. Positions
-   from before the render are in `FX.rects`; `FX.ov` holds what a spot showed before until chips land.
+4. **Animations come from document changes, as events.** Every player write sets `lastAction` and `ts`; each
+   snapshot is diffed (`src/sync/diff.ts`) into domain events, and subscribers in `src/fx/` (animations) and
+   `src/audio/narration.ts` play them: `before(event)` (set the override `FX.ov`, read old positions) → render →
+   `after(event)` (animate). A new player action sets `lastAction` and `ts`, gets an event in `diff.ts` (with a unit
+   test) and a subscriber in `fx/`. Positions from before the render are in `FX.rects`; `FX.ov` holds what a spot
+   showed before until chips land.
 5. **Chips only.** No card visuals or card sounds. The cards are physical.
 6. **Sound**: effects (chips, bell, fanfare…) are synthesized with Web Audio. Anything that should sound
    like real people or a real place uses a recording: synthesized voices sounded like aliens. Only CC0 or
    clearly licensed audio; record the source in `sounds/CREDITS.md`. The background is a very quiet
    looped crowd murmur (`crowd-bed.mp3`, about −41 dBFS) plus a slot machine every 10–25 s. Keep the bed quiet and
    speech-like: a louder or noisier bed reads as noise. The
-   dealer's narration (`SND.say`) is triggered from the change→animation code so every phone says it.
+   dealer's narration (`SND.say`) is triggered by the table's events (`subscribeNarration`) so every phone says it.
    Measure before shipping (`node tests/audio.js`): background about −38 dBFS average, narration about
    −20 dBFS, both under the chip sounds.
 7. **Hebrew copy**: short, plain, gender-neutral where it matters (`את/ה`, `ניצח/ה`).
@@ -86,7 +92,8 @@ table) runs the round. Hebrew, right-to-left, phone first.
 10. **Game rules are pure, in `src/domain/`.** No DOM, Firebase, timers, clock (`Date.now`: pass `now` in), randomness,
     `S`, or imports from outside `src/domain/` (ESLint and `tsconfig.domain.json` enforce it). A rule returns the fields
     to write or a refusal code; the caller writes (dealer stack changes as `inc(n)`) and shows the text. Every rule
-    change gets a unit test; keep side pots and payouts at full branch coverage.
+    change gets a unit test; keep side pots and payouts at full branch coverage. The document diff (`src/sync/`) is
+    pure the same way (ESLint), importing only the domain, so every phone gets the same events from the same documents.
 11. **Plan in `ROADMAP.md` first.** Every update or fix gets an entry with a full plan before code is
     written; keep its status and steps current while building, and move it to Done when it reaches `main`.
 

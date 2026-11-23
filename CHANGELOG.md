@@ -19,6 +19,12 @@ development branch.
   there too, and every fallback for a missing or damaged stored field is in `normalizeRoom` / `normalizePlayer`, applied
   when a table is read. Contract tests run the same cases against single-device mode and the browser tests' Firestore
   stand-in.
+- **Effects come from events** (R-005, step 4). Nothing changes for players: the same flying chips, timings, sounds
+  and dealer lines, on every phone. For us: each table change is turned into named events (a bet placed, a hand
+  split, a pot won, bets locked…) by a pure, unit-tested diff in `src/sync/`; the animations in `src/fx/` and the
+  narration in `src/audio/` subscribe to them. The sound engine and the casino background moved to `src/audio/`, and
+  the app now starts from `main.ts` after everything is wired. The two-phone and Hold'em tests check that a bet flies
+  exactly once on the other phones; `AUDIO_SEED` makes `tests/audio.js` repeatable.
 
 ## 2026-11-22 (2)
 

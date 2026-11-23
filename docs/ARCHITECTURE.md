@@ -3,16 +3,21 @@
 ## Where things are
 
 R-005 is moving the app from one hand-written `index.html` to modules built by Vite, in phases (see `ROADMAP.md`).
-After phase 3 the game rules are in `src/domain/` and storage is in `src/data/`; everything else is still in
-`src/legacy.ts`:
+After phase 4 the game rules are in `src/domain/`, storage in `src/data/`, the document diff and its events in
+`src/sync/`, the effects in `src/fx/` and the sound in `src/audio/`; the state, the room session, the views and the
+actions are still in `src/legacy.ts`:
 
 | Path | What |
 |---|---|
 | `index.html` | The shell: the same `<head>` (manifest, icons, metas, fonts), the elements the script expects (`#app`, `#sheet`, `#toast`, `#fx`, `#rot`, `#fin`, the two file inputs), `config.js` and the two Firebase compat scripts as classic scripts, then `<script type="module" src="/src/main.ts">` |
-| `src/main.ts` | Imports the styles and `legacy.ts` in order, and registers `sw.js` on `load` (in a build only: the dev server has no `sw.js`) |
-| `src/legacy.ts` | The app script as it was in `index.html`, with `// @ts-nocheck` on top, except that it imports the game rules from `src/domain/` and stores through `src/data/`. Sections below |
+| `src/main.ts` | The composition root (see Start-up): imports the styles, creates the storage, the event bus, the sound engine and the effects layer, creates the app, wires the subscribers, calls `app.start()`, and registers `sw.js` on `load` (in a build only: the dev server has no `sw.js`) |
+| `src/legacy.ts` | The app script as it was in `index.html`, with `// @ts-nocheck` on top, now `createLegacyApp(deps)`: it imports the game rules from `src/domain/`, stores through `src/data/`, diffs snapshots with `src/sync/diff.ts` and uses the sound engine and the effects layer it is given. Sections below |
 | `src/domain/` | The game rules as pure, typed functions with unit tests next to them. See "The domain" below |
-| `src/data/` | Storage: the `Store` port and its adapters, the write queue, and `normalize*()`. See "The data layer" below |
+| `src/data/` | Storage: the `Store` port and its adapters, the write queue, and `normalize*()`; `browser-storage.ts` (localStorage with errors swallowed). See "The data layer" below |
+| `src/sync/` | `events.ts` (the two-phase event bus), `domain-events.ts` (the event types), `diff.ts` (old/new documents → events, pure). See "Effects" below |
+| `src/fx/` | `layer.ts` (`#fx`, `fly`, `floatText`, `pulse`, `measure`, `rectOf`, the overrides `FX`), and the subscribers `blackjack.ts`, `holdem.ts`, `room.ts` (lock, new hand, `dealerNod`) |
+| `src/audio/` | `synth.ts` (the engine `SND`: AudioContext, synthesized effects, settings), `ambience.ts` (the casino background), `narration.ts` (the dealer's voice and its triggers), `control.ts` (`ambiSync`, the first-touch unlock, the ambient chips). See "Sound" below |
+| `src/ui/` | `format.ts` (`fmt`), `chips-html.ts` (`chipStyle`, `stackHTML`): HTML helpers shared by the views and the effects |
 | `src/styles/*.css` | The old `<style>`, split at its section comments: `base`, `brand` (also cards, fields, buttons), `room` (header, table, seats, host panel, dock), `sheet` (also the toast), `blackjack`, `layout` (portrait/landscape), `rotate`, `end` |
 | `public/` | Copied to the site root as is, so the URLs didn't change: `icons/`, `manifest.webmanifest`, `sounds/amb/`, `sounds/voice/` |
 | `src/sw-template.js`, `scripts/sw-plugin.mts` | The service worker and the build step that writes `dist/sw.js` from it (see Updates) |
@@ -20,8 +25,18 @@ After phase 3 the game rules are in `src/domain/` and storage is in `src/data/`;
 **Start-up.** `config.js` and the Firebase scripts are classic scripts in `<head>`, so they have run before the module
 starts. The module is deferred: it runs once the body is parsed, before `DOMContentLoaded`, which is where the old inline
 script at the end of `<body>` ran. Module code is strict mode; the script was checked for anything strict mode treats
-differently (undeclared variables, function declarations inside blocks) and has none. Rule 2 still holds: `render()`
-runs synchronously inside the `dbReady` IIFE while `legacy.ts` is being evaluated.
+differently (undeclared variables, function declarations inside blocks) and has none.
+
+No module does work when it is imported. `main.ts`, in order: `browserStorage()`, `createEventBus()`, `createSound()`
+and `createAmbiSync()`, `startAudioControl()` (first-touch unlock, screen on/off, the ambient chips loop),
+`createFxLayer()`, `createLegacyApp({ bus, snd, layer, storage, ambiSync })` (builds the app's state, listeners and
+views; renders nothing), the subscribers (`GameEnded` → `app.ceremony()`, then `subscribeBlackjackFx`,
+`subscribeHoldemFx`, `subscribeRoomFx`, then `subscribeNarration`), the `window.ChipsAmbience`/`ChipsLine`/`CHIPS_BG`
+hooks for `tests/audio.js`, and finally `app.start()`: connect (`connect()`), list the open tables, enter the last table
+or render home, synchronously, as `dbReady` always did. Because `start()` runs after `createLegacyApp()` has returned,
+every `const` in `legacy.ts` is initialised before the first render (rule 2), and the subscribers exist before the first
+snapshot. The sound engine and the layer call back into the app (`render`, `myId`, `inTable`) only from a touch, a timer
+or an event, never while they are being created.
 
 **Build.** `npm run build` (`vite build`) writes `dist/`: `index.html` with the hashed `assets/index-*.js` and
 `assets/index-*.css` (relative URLs, `base: './'`), the `public/` files and the generated `sw.js`. `config.js` is not
@@ -30,29 +45,26 @@ fetches it by name and it must stay un-hashed.
 
 ## `src/legacy.ts`, top to bottom
 
-The script is one IIFE. Sections are marked with `/* ---------- name ---------- */` comments, in this order:
+The script is one function, `createLegacyApp(deps)` (it was an IIFE until phase 4). Sections are marked with `/* ---------- name ---------- */` comments, in this order:
 
 | Section | What it does |
 |---|---|
 | state (`S`) | Everything the UI needs: identity (`myId`, `name`, `avatar`), current table (`code`, `room`, `players`), chips in hand (`pending`, `pendChips`), open sheet |
-| casino background (`Ambience`, `playLine`) | Plays a looped crowd-murmur bed and schedules random slot-machine one-shots from `sounds/amb/`. Works on any AudioContext (also offline for `tests/audio.js`) |
-| sounds (`SND`) | Chip clacks, slides, bell, drumroll, fanfare, applause, results, and the dealer narration `SND.say`. Unlocked on first touch |
-| ambience control | `ambiSync()`: the background runs only inside an open table, screen on, sound on, setting on; it also starts loading the narration files |
-| effects (`FX`, `fly`, `floatText`, `pulse`) | Flying chips on the `#fx` layer, overrides that hold the old picture until chips land |
+| sound | A pointer: the engine `SND` and `ambiSync` are handed in (`src/audio/`) |
+| effects | `FX`, `fly`, `pulse`, `rectOf`, `ov`, `shownStack`… taken from the layer it is given (`src/fx/layer.ts`); the chips in hand (`ghostChips`, `paintGhost`) and the table scale (`setU`) stay here |
 | staying up to date | Compares `APP_BUILD` with the live `config.js` and reloads when idle |
 | avatars | Prepared characters (`AV_SET`, drawn by `avSVG`), photo processing, `avInner()` for every avatar circle |
-| connect | Creates the write queue (`writer`), then `dbReady`: `connect()` picks Firestore or single-device mode, `subRooms()` lists the open tables (normalised), and the last table is entered or the home screen rendered, synchronously (rule 2: everything this reaches is declared above this section) |
+| connect | Creates the write queue (`writer`) and `connectStore()`, which `start()` (at the end) runs as `dbReady`: `connect()` picks Firestore or single-device mode, `subRooms()` lists the open tables (normalised), and the last table is entered or the home screen rendered, synchronously |
 | writes | `w(path, op, data)` (hoisted) hands the write to `writer` (`src/data/writes.ts`); `handleErr` turns a failure into a toast. `inc(n)` (hoisted) is the store's increment for the dealer's stack changes: `FieldValue.increment(n)` on Firestore, `{__inc: n}` in single-device mode |
-| room session | Snapshot listeners for the room and its players. Each snapshot is normalised (`normalizeRoom`, `normalizePlayer`) before it reaches `S.room` / `S.players` and the effects, so the rest of the script sees complete documents; this is where effects are triggered |
-| chips | `denoms()` (the room's chip set, from `domain/chips.ts`), `chipStyle`, `stackHTML`, `pendChips()`. The chip rules are imported from `src/domain/chips.ts` |
-| change → animation | `fxPlayers`, `fxBJ`, `fxHold`, `fxRoom`, `lockFx` |
+| room session | Snapshot listeners for the room and its players. Each snapshot is normalised (`normalizeRoom`, `normalizePlayer`), diffed against what the phone had (`diffRoom`, `diffPlayers`) and handed to `bus.emit(events, () => { store it in S; render(); })` (see Effects) |
+| chips | `denoms()` (the room's chip set, from `domain/chips.ts`), `pendChips()`. The chip rules are in `src/domain/chips.ts`, `chipStyle`/`stackHTML` in `src/ui/chips-html.ts` |
 | Hold'em model / Blackjack model | Each action: read `S`, call the domain command, write the patch it returns (adding `ts`, wrapping dealer stack amounts in `inc()`), map a refusal to its toast, write the Hebrew event line. `H()`, `cur`, `bjStake`, `bjEligible`, `canAct`, `computeAward` are thin wrappers over the domain |
 | create / join | New table, join, claim a seat |
 | turn-the-phone prompt | Shown inside a table on a phone held upright |
 | end of the game | Standings, `endGame`, `ceremony`, final card, closed sign |
-| dealer figure | `dealerSVG`, `dealerNod` |
+| dealer figure | `dealerSVG` (the nod is `dealerNod` in `src/fx/room.ts`) |
 | views | `render()`, home, room, Hold'em and Blackjack tables, docks, host panels, sheets |
-| events | `A` (all `data-a` actions), click/input handlers |
+| events | `A` (all `data-a` actions), click/input handlers; then `start()` and the handle `main.ts` gets back (`start`, `render`, `ceremony`, `myId`, `inTable`) |
 
 ## The domain (`src/domain/`)
 
@@ -68,6 +80,7 @@ return what to write. `legacy.ts` imports them (`HR`, `Pots`, `BJ`, `BJA`, `BJR`
 | `blackjack/rules.ts` | `isCurrent` (the old `cur`), `stake`, `betLimitError`, `handReturn` (what each result gives back), `handRefund`, `insuranceCost`, `surrenderReturn`, `blackjackEligible`, `hasOpenBets` (paid spots are done), `alreadySettled` (`bjPaidRound`), `nextRoundId`, constants (`MAX_HANDS`, `BLACKJACK_PAYS`, `INSURANCE_RETURN`) |
 | `blackjack/actions.ts` | A player's `placeBet`, `clearBet`, `play` (double, split, insurance, surrender), and the dealer's `payBlackjackNow` |
 | `blackjack/round.ts` | The end of a round: `settleRound` (payout totals, house delta) and `cancelRound` (refunds) |
+| `guard.ts` | `FEATURE_LEVEL`, `KNOWN_MODES`, `tableUnsupported(room)`: the guard against table types this build doesn't play (R-009; moved from `legacy.ts` in phase 4 so the diff can use it) |
 
 **Command → patch.** A command takes the documents (and what the player is holding, such as the chips in hand) and
 returns `{ ok: true, patch, … }` with the fields to write, or `{ ok: false, reason }` with a string code
@@ -133,7 +146,7 @@ damaged values, are in `normalizeRoom` / `normalizePlayer` (above); a new field 
 | `closed` *added* | The game is over; the table shows the final standings |
 | `final {at, list:[{pid, name, stack}]}` *added* | Standings frozen when the dealer ended the game, highest first |
 
-**Guard for unknown table types.** `tableUnsupported(room)` (`src/legacy.ts`, next to `now`) is true when `appMin > FEATURE_LEVEL`
+**Guard for unknown table types.** `tableUnsupported(room)` (`src/domain/guard.ts`) is true when `appMin > FEATURE_LEVEL`
 or `mode` is present and not in `KNOWN_MODES`. For such a room `roomView` shows `updateView()` (title, an "עדכון" button
 that runs `checkUpdate` and reloads, and a way home) instead of the table; the sheet is not shown; the room and
 players listeners keep running (so the table renders once the phone is updated) but skip the effects; `w()` (the `refuse` option of the write queue) refuses
@@ -188,14 +201,54 @@ A phone that loads an already-closed table shows the final card without the cere
 
 ## Effects
 
-1. A snapshot arrives. Before rendering, `fxPlayers(old, new)` / `fxRoom(old, new)` decide what happened
-   and may set `FX.ov[pid]` (what that player's spots and stack should still look like).
-2. `render()` measures every `[data-k]` element into `FX.rects` (positions *before* this render), then
-   redraws.
-3. The returned functions run: `fly()` moves chip stacks on `#fx` (page coordinates) from old to new
-   positions, and on landing clears the override and renders again.
+Every animation, sound effect and narration line that follows a table change comes from the change itself, on every
+phone: documents → events → subscribers (Observer). Nothing is stored for it.
+
+1. **Diff.** A snapshot arrives and is normalised. `diffRoom(oldRoom, newRoom, { myId, players })` or
+   `diffPlayers(oldPlayers, newPlayers, room, { myId })` (`src/sync/diff.ts`, pure, unit tested) returns the
+   `DomainEvent[]` (`src/sync/domain-events.ts`). A player whose `ts` changed did `lastAction.k`, read with the rules of
+   the room's game; the room's events come from `closed`, `phase`, `roundId`, `roundEnd`, `handId`, `stage`. Nothing is
+   sent for a phone's first copy of a document (old = empty: a phone joining mid-hand doesn't replay it), when `ts` is
+   unchanged, or for a table the guard refuses. Each event carries what its effect needs (pid, `mine` = it is this
+   phone's player, amounts, spot index, the chips before and after).
+2. **Before.** `bus.emit(events, commit)` (`src/sync/events.ts`) runs every subscriber's `before(event)`: this is where
+   an effect sets `FX.ov[pid]` (what that player's spots and stack should still look like, `setOv`) and reads
+   positions from before the render (`oldRect`). What `before` returns is handed to `after`.
+3. **Render.** `commit` stores the new documents in `S` and calls `render()`, which first measures every `[data-k]`
+   element into `FX.rects` (positions *before* this render), then redraws (the views draw the overrides).
+4. **After.** Every subscriber's `after(event, prepared)` runs: `fly()` moves chip stacks on `#fx` (page coordinates)
+   from old to new positions, and on landing clears the override (`clearOv`) and renders again; sounds and narration
+   play.
+
+Events run in order (the room's: the ceremony first), and for one event the subscribers in the order `main.ts`
+subscribed them: animations and their sounds (`src/fx/`) before the narration (`src/audio/narration.ts`). A subscriber
+that throws is logged and skipped; the others run.
+
+| Event | From | Effect (`src/fx/`) | Narration |
+|---|---|---|---|
+| `BetPlaced` | Blackjack `bet`, the spot grew | Others: chips (just the added ones when the stored stacks allow) fly seat → spot 0, the spot shows the old bet until they land. Yours: the spot bumps | |
+| `BetCleared` | `clear` | Spot → seat, fading | |
+| `HandDoubled` | `double` | The second half flies next to the spot, `×2` | |
+| `HandSplit` | `split` | One half slides over, the other comes from the seat, `ספליט` | |
+| `InsuranceTaken` | `ins` | Seat → insurance spot | |
+| `Surrendered` | `surrender` | Half the bet spot → seat | |
+| `BlackjackPaid` | `bjpay` (always sent) | Dealer nod, `בלאק ג'ק!`, 3:2 from the dealer, all to the seat | `blackjack` (400 ms) |
+| `HandsSettled` | `bjres` | Lost bets to the dealer, wins from the dealer, everything to the seat, the net over the seat; your result sound | |
+| `RoundRefunded` | `refund` with the spots emptied (cancelled round) | Every unpaid bet and the insurance back to the seat | |
+| `Refunded` | `refund` otherwise (the dealer's correction) | Dealer → seat (or seat → dealer when taken) | |
+| `BlindPosted`, `Called`, `BetMade`, `Raised`, `WentAllIn` | Hold'em `blind`, `call`, `bet`, `raise`, `allin` | Seat → pot when the stack went down (`WentAllIn` is sent even when it didn't) | `allin`, once per hand (350 ms) |
+| `Checked`, `Folded` | `check`, `fold` | Knock; fold sound | |
+| `PotWon`, `HandRefunded` | `won`, `refund` (stack went up) | Pot → seat; a win bumps the seat and plays your win sound | |
+| `GameEnded` | `closed` on with `final` | The ceremony (`ceremony()` in `legacy.ts`) | `winner` at the reveal (inside the ceremony) |
+| `BetsLocked` | Blackjack `betting` → `playing`, same round | Bell, dealer nod, every spot in the round bumps | `locked` |
+| `RoundPaid` | `playing` → `betting`, next round, `roundEnd: 'paid'` (or the event text when an older phone paid) | | `payout`, `open` 2.5 s later |
+| `HandStarted` | Hold'em `handId` up | Bell, dealer nod | `newhand` |
+| `StreetDealt` | `stage` became `flop`, `turn` or `river` | | the street |
 
 `data-k` keys: `seat:<pid>`, `spot:<pid>:<i>`, `ins:<pid>`, `dealer`, `pot`, `mystack`, `pend`, `ghost`.
+
+Effects that aren't document changes stay with the app: the chip flying from the tray into your hand (`A.add`), the
+ceremony's timeline, the closed sign dropping, and the `closed` line on "לשולחן".
 
 ## Layout
 
@@ -207,9 +260,12 @@ never overlap. In landscape (`@media (orientation: landscape)`) the room becomes
 
 ## Sound
 
-`SND` owns one AudioContext created on the first touch (browsers require it). Effects are synthesized:
+The sound is in `src/audio/`. `createSound()` (`synth.ts`, the `SND` the app is given) owns one AudioContext created on
+the first touch (browsers require it; `startAudioControl()` in `control.ts` listens for it). Effects are synthesized:
 clay-chip clacks are short band-passed noise plus a click; the bell, drumroll, fanfare and applause are
-oscillators and filtered noise.
+oscillators and filtered noise. The settings live there too (`chips.sound`, `chips.ambi` → `SND.ambiOn`/`setAmbi`,
+`chips.voice` → `SND.voiceOn`/`setVoice`). `ambiSync()` (`control.ts`, called on every render and when the screen
+turns on or off) starts or stops the background.
 
 **Background.** A quiet steady murmur of people plus a slot machine now and then. `AMB_MANIFEST` lists
 `sounds/amb/crowd-bed.mp3` (kind `bed`, a generated ~39 s murmur already looped and filtered, see
@@ -224,18 +280,22 @@ starts the bed as soon as it is loaded and schedules the machines.
 - *Machines:* one random machine every 10–25 s (the first after 4–8 s), never the same twice running, one at a time,
   random pan ±0.8, ±3 dB gain jitter, through a 6 kHz lowpass, a light generated reverb (1.2 s, wet 0.25) and a gentle
   compressor (`AMB_LEVEL`).
-Measured by `node tests/audio.js`: bed about −41 dBFS, loudest 50 ms about −23 dBFS. The header speaker, `ambiSync`
+`Ambience`, `loopBounds` and the manifest are in `src/audio/ambience.ts`, the engine's background control
+(`ambiStart`, `ambiStop`, loading the clips) in `synth.ts`. Measured by `node tests/audio.js`: bed about −41 dBFS,
+loudest 50 ms about −23 dBFS. The header speaker, `ambiSync`
 rules and the 6 dB ducking under narration apply to both. Every 45–120 s a synthesized "someone plays with their
 chips" sound plays on top.
 
-**Narration.** `SND.say(key)` plays `sounds/voice/<key>.mp3` (`open locked blackjack payout winner newhand flop turn
-river allin closed`), loaded together the first time a table is open. One line at a time: a new one is dropped while
-one plays, except `winner` and `closed`, which wait. The background bus is ducked 6 dB meanwhile. Level about −20
-dBFS RMS (`VOICE_LEVEL`). Settings has a separate switch (`chips.voice`, default on); the header speaker mutes all.
-Triggers run on every phone from the change→animation code, not only the acting one: `fxRoom` (blackjack bets
-locked → `locked`; round paid, not cancelled → `payout`, 2.5 s later `open`; Hold'em new hand → `newhand`; stage
-flop/turn/river), `fxHold` (`allin`, once per hand), `fxBJ` (`bjpay` → `blackjack`), `ceremony` (`winner` at the
-reveal) and the `finclose` action (`closed`). Nothing is stored for this; it is all local.
+**Narration.** `SND.say(key)` (the voice is `createVoice()` in `src/audio/narration.ts`) plays
+`sounds/voice/<key>.mp3` (`open locked blackjack payout winner newhand flop turn river allin closed`), loaded together
+the first time a table is open. One line at a time: a new one is dropped while one plays, except `winner` and `closed`,
+which wait. The background bus is ducked 6 dB meanwhile. Level about −20 dBFS RMS (`VOICE_LEVEL`). Settings has a
+separate switch (`chips.voice`, default on); the header speaker mutes all.
+Triggers run on every phone, not only the acting one: `subscribeNarration()` subscribes to the events (see the table in
+Effects): `BetsLocked` → `locked`; `RoundPaid` → `payout`, 2.5 s later `open`; `HandStarted` → `newhand`;
+`StreetDealt` → the street; `WentAllIn` → `allin`, once per hand (the hand is remembered on the phone);
+`BlackjackPaid` → `blackjack`. The ceremony says `winner` at the reveal and the `finclose` action says `closed`.
+Nothing is stored for this; it is all local.
 
 ## Updates
 
