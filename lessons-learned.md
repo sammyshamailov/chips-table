@@ -15,7 +15,8 @@ the `local single-device store` section) or is a `function` declaration. Every t
 **A full re-render resets the DOM.** `#app` is rebuilt with `innerHTML` on every update. Consequences
 we hit:
 - The landscape side panel jumped back to the top whenever another player acted. Fix: save and restore
-  its `scrollTop` around the render.
+  its `scrollTop` around the render. (Since R-005 phase 5 the panel is a Preact element that stays, so the
+  save/restore is gone; sheets keep their scroll too.)
 - CSS animations restart; the dealer would never blink during busy play. Fix: a negative
   `animation-delay` computed from the clock, so the phase continues across renders.
 - A file input inside a sheet is detached if a table update arrives while the photo picker is open, and
@@ -36,6 +37,17 @@ wider than their cards from the first version: the name and chips fields stuck o
 fields overlapped. It showed in my own test screenshots and I didn't notice; the user did. Now global.
 *Rule:* look at every screenshot for edges that don't line up, not only the feature being tested; the
 overflow check in a test (every input inside its card, page no wider than the screen) catches it in numbers.
+
+**Keeping elements turns on the browser's scroll anchoring.** The string views replaced every element on each render,
+so Chrome never adjusted the page's scroll to follow one. Once Preact kept the room's shell, Chrome started moving the
+page to keep an element in place when the table above it changed size: a Hold'em screenshot came out 51 px lower and
+the pixel comparison failed by 47,517 pixels. `overflow-anchor: none` on `#app` and the side panel keeps scrolling
+exactly as before. *Rule:* when a render starts keeping elements it used to replace, compare scroll positions as well
+as the picture.
+
+**Two text nodes are not one.** `טקסס הולדם · ` written in JSX as `{name} · ` is two adjacent text nodes; Chrome kerned
+the first letters four pixels differently from the single text the string view made. *Rule:* where the old HTML had
+one run of text, the component builds one string (`{name + ' · '}`).
 
 **Wire everything, then start.** Moving the effects into event subscribers meant they had to exist before the first
 snapshot, and the sound engine and the effects layer need the app (`render`, `myId`, "inside a table") while the app

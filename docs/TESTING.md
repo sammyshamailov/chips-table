@@ -73,6 +73,16 @@ The effects themselves (`src/fx/`, DOM and Web Animations) are checked in the br
 count the flying chips another phone shows for one bet (exactly one; two would mean a doubled subscription, none a lost
 event), and the pixel comparison and screenshots wait for them to land.
 
+## The screens
+
+The components in `src/ui/` (R-005 phase 5) are checked in the browser: the pixel comparison (zero pixels on all ten
+screens) and every browser test click them by their `data-a` attributes. When converting a screen that the ten don't
+show, compare it too: screenshot it on the old build and the new one with the same frozen set-up as `tests/visual.js`
+and require zero differing pixels (part A did this for 37 more screens: every sheet and its states, the closed table and
+the ceremony, the update screen, the not-found screen, the join cards, the cloud header, the "new version" button, a
+toast). Their pure parts have unit tests: `src/ui/avatars.test.ts` (which stored avatars are shown, the letter and its
+colour), `src/ui/components/rank.test.ts` (shared places), `src/games/registry.test.ts`.
+
 ## The scripts
 
 | Command | What it checks |

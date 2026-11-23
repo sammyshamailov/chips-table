@@ -4,8 +4,9 @@
 
 R-005 is moving the app from one hand-written `index.html` to modules built by Vite, in phases (see `ROADMAP.md`).
 After phase 4 the game rules are in `src/domain/`, storage in `src/data/`, the document diff and its events in
-`src/sync/`, the effects in `src/fx/` and the sound in `src/audio/`; the state, the room session, the views and the
-actions are still in `src/legacy.ts`:
+`src/sync/`, the effects in `src/fx/` and the sound in `src/audio/`. Phase 5 part A made home, the room's shell and
+every sheet Preact components in `src/ui/` (see "Screens" below); the state, the room session, the tables, docks and
+dealer controls (as HTML strings) and the actions are still in `src/legacy.ts`:
 
 | Path | What |
 |---|---|
@@ -17,7 +18,8 @@ actions are still in `src/legacy.ts`:
 | `src/sync/` | `events.ts` (the two-phase event bus), `domain-events.ts` (the event types), `diff.ts` (old/new documents → events, pure). See "Effects" below |
 | `src/fx/` | `layer.ts` (`#fx`, `fly`, `floatText`, `pulse`, `measure`, `rectOf`, the overrides `FX`), and the subscribers `blackjack.ts`, `holdem.ts`, `room.ts` (lock, new hand, `dealerNod`) |
 | `src/audio/` | `synth.ts` (the engine `SND`: AudioContext, synthesized effects, settings), `ambience.ts` (the casino background), `narration.ts` (the dealer's voice and its triggers), `control.ts` (`ambiSync`, the first-touch unlock, the ambient chips). See "Sound" below |
-| `src/ui/` | `format.ts` (`fmt`), `chips-html.ts` (`chipStyle`, `stackHTML`): HTML helpers shared by the views and the effects |
+| `src/ui/` | The screens as Preact components (see "Screens"), plus `format.ts` (`fmt`) and `chips-html.ts` (`chipStyle`, `stackHTML`), HTML helpers shared by the string views and the effects |
+| `src/games/registry.ts` | `GAMES` / `gameMode(game)`: one `GameMode` per game (Strategy), what differs between Hold'em and Blackjack on the screens |
 | `src/styles/*.css` | The old `<style>`, split at its section comments: `base`, `brand` (also cards, fields, buttons), `room` (header, table, seats, host panel, dock), `sheet` (also the toast), `blackjack`, `layout` (portrait/landscape), `rotate`, `end` |
 | `public/` | Copied to the site root as is, so the URLs didn't change: `icons/`, `manifest.webmanifest`, `sounds/amb/`, `sounds/voice/` |
 | `src/sw-template.js`, `scripts/sw-plugin.mts` | The service worker and the build step that writes `dist/sw.js` from it (see Updates) |
@@ -29,8 +31,9 @@ differently (undeclared variables, function declarations inside blocks) and has 
 
 No module does work when it is imported. `main.ts`, in order: `browserStorage()`, `createEventBus()`, `createSound()`
 and `createAmbiSync()`, `startAudioControl()` (first-touch unlock, screen on/off, the ambient chips loop),
-`createFxLayer()`, `createLegacyApp({ bus, snd, layer, storage, ambiSync })` (builds the app's state, listeners and
-views; renders nothing), the subscribers (`GameEnded` → `app.ceremony()`, then `subscribeBlackjackFx`,
+`createFxLayer()`, `createUi({ app, sheet, toast })` (mounts nothing yet: the screens' renderer on those elements),
+`createLegacyApp({ bus, snd, layer, storage, ambiSync, ui })` (builds the app's state, listeners and views; renders
+nothing), the subscribers (`GameEnded` → `app.ceremony()`, then `subscribeBlackjackFx`,
 `subscribeHoldemFx`, `subscribeRoomFx`, then `subscribeNarration`), the `window.ChipsAmbience`/`ChipsLine`/`CHIPS_BG`
 hooks for `tests/audio.js`, and finally `app.start()`: connect (`connect()`), list the open tables, enter the last table
 or render home, synchronously, as `dbReady` always did. Because `start()` runs after `createLegacyApp()` has returned,
@@ -63,7 +66,7 @@ The script is one function, `createLegacyApp(deps)` (it was an IIFE until phase 
 | turn-the-phone prompt | Shown inside a table on a phone held upright |
 | end of the game | Standings, `endGame`, `ceremony`, final card, closed sign |
 | dealer figure | `dealerSVG` (the nod is `dealerNod` in `src/fx/room.ts`) |
-| views | `render()`, home, room, Hold'em and Blackjack tables, docks, host panels, sheets |
+| views | `session` (what the screens read), `legacyParts()` (the table, dock and dealer controls as HTML strings: `holdemView`, `bjView`, `holdemDock`, `bjDock`, `holdemHost`, `bjHost`, with `seatRow`, `bjSeat`, `GEO`…), `render()` and `paint()` (see "Screens") |
 | events | `A` (all `data-a` actions), click/input handlers; then `start()` and the handle `main.ts` gets back (`start`, `render`, `ceremony`, `myId`, `inTable`) |
 
 ## The domain (`src/domain/`)
@@ -198,6 +201,46 @@ contribution level) or `cancelHand`. The rules of each step are in `src/domain/h
 `closed` switch on and runs `ceremony()` → on "לשולחן" the table renders closed with the sign.
 A phone that loads an already-closed table shows the final card without the ceremony. `reopen` clears
 `closed`.
+
+## Screens (`src/ui/`)
+
+R-005 phase 5 moves the views to Preact components in three parts. Part A (done): the shell, home and every sheet.
+Parts B (Blackjack table, dock, dealer controls) and C (Hold'em, then removing the string views) follow; until then
+those parts are HTML strings from `src/legacy.ts`, shown inside the components by `LegacyHtml`.
+
+| File | What |
+|---|---|
+| `app.tsx` | `App` (home, or the room screen when a table code is set) and `createUi(el)` → `paint(session, legacy)` (renders `App` into `#app` and sets `#app`'s class), `paintSheet(session, open)` (renders `SheetScreen` into `#sheet`, or empties it, and sets `hidden`), `toast(text)` |
+| `session.ts` | `Session`: the state (`S`) and the questions screens ask (`me`, `players`, `isHost`, `holdem`, `award`, `bjCurrent`, `chipsOnTable`, `standings`, `looksClosed`, `newBuild`, `sound`…); `LegacyParts` (`table`, `dock`, `host` strings) |
+| `screens/home.tsx` | `Home`: name and avatar, join by code, `RoomsList` (marks tables the guard refuses "צריך עדכון"), `CreateCard` |
+| `screens/room.tsx` | `RoomScreen`: loading, not found, `UpdateView` (R-009), or the room: `RoomHeader`, the mode banner, the "new version" button, the event line, `JoinCard`, the dealer controls (`LegacyHtml`), `FinalCard`, the dock (`LegacyHtml`) and the table (`LegacyHtml` in `.stage`). `appClass()`: `in-room`/`has-dock`, nothing, or unchanged while loading (as before) |
+| `screens/update.tsx` | `UpdateView`, the R-009 guard screen |
+| `sheets/index.tsx` | `SheetScreen`: the `.sheet` panel, keyed by the sheet's name (a re-render keeps it and its scroll; another sheet starts fresh), and the sheet named by `state.sheet` |
+| `sheets/*.tsx` | One per sheet: `players`, `settings`, `award`, `settle`, `avatar`, `bj-now`, `end`, `cancel`. Each is a pure component and a selector (`playersProps(session)`…); only `SheetScreen` calls the selectors |
+| `components/` | `avatar.tsx` (`Avatar`, `AvatarArt`: the characters as SVG, `AvatarButton`), `header.tsx` (`RoomHeader`, `ConnStatus`, the sound icon), `final-card.tsx`, `rank.tsx` (`Rank`, `places`), `crown.tsx`, `join-card.tsx`, `mode-banner.tsx`, `option.tsx`, `field.tsx` (`NumField`), `sheet-head.tsx`, `toast.tsx` (`createToaster`) |
+| `avatars.ts` | `AV_SET` (the characters), `validAv`, `hue`, `avatarBg`, `initial` |
+| `labels.ts` | `RESULT_HE` (how a Blackjack hand ended) |
+| `legacy-html.tsx` | `LegacyHtml` (a string part inside the tree; Preact sets its content only when the string changed), `toHtml(vnode)` (a component as a string, for the string views: `avatarArtHtml` cached per character, `crownHtml`, `rankHtml` for the ceremony) |
+
+**Render.** `render()` in `src/legacy.ts`: measure `[data-k]` into `FX.rects`; build the string parts
+(`legacyParts()`, *before* Preact renders: `toHtml` must never run inside a render); `ui.paint()`; `setU()`,
+`renderRot()`, `ambiSync()`; `ui.paintSheet()`; restore the focused input. Preact's top-level `render` is synchronous,
+so the effects' contract holds (before → render → after). `paint()` re-renders only the components, with the last
+string parts: the avatar letter while you type your name, the home list of tables.
+
+**Events.** Every control keeps its `data-a`/`data-v`; the one delegated click listener runs the `A` action map, and
+`data-bind` inputs write the state through the one `input`/`change` listener. Inputs are controlled (`value` from the
+state); Preact keeps the element, so focus and the caret stay while a render happens.
+
+**Looks the same.** Same elements, classes, ids, `data-k` keys and attributes as the strings had. Where the strings had
+one run of text, the component builds one string (two adjacent text nodes are kerned differently). The page and the
+landscape side panel have `overflow-anchor: none` (`base.css`): the browser's scroll anchoring would otherwise start
+moving the page once elements are kept rather than replaced. The side panel's scroll save/restore is gone (the panel is
+kept). One visible change: a sheet keeps its scroll when it re-renders (it used to jump to the top on every tap).
+
+**Per game.** `gameMode(room.game)` (`src/games/registry.ts`) answers the screens' per-game questions: the name, the
+form's limit fields and "I play too" default, whether the dealer is the house (Blackjack join card), break (Hold'em
+players sheet), the cancel sheet's wording and action, and what to settle before ending the game.
 
 ## Effects
 

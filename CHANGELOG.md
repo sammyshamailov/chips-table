@@ -25,6 +25,12 @@ development branch.
   narration in `src/audio/` subscribe to them. The sound engine and the casino background moved to `src/audio/`, and
   the app now starts from `main.ts` after everything is wired. The two-phone and Hold'em tests check that a bet flies
   exactly once on the other phones; `AUDIO_SEED` makes `tests/audio.js` repeatable.
+- **Home, the room's header and every sheet are Preact components** (R-005, step 5, part A). For players the screens
+  look the same pixel for pixel; one thing is better: a sheet no longer jumps back to the top when you tap in it
+  (marking the 8th hand in "סיום סיבוב" kept scrolling you up). For us: `src/ui/` holds the screens (home, the room's
+  shell, the update screen, the final card) and one component per sheet, mounted by `main.ts`; the tables, the docks
+  and the dealer controls are still HTML strings shown inside the components until parts B and C convert them.
+  `src/games/registry.ts` holds what differs between Hold'em and Blackjack on those screens.
 
 ## 2026-11-22 (2)
 

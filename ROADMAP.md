@@ -292,6 +292,21 @@ src/
 5. **UI components.** Mount Preact at `#app`. Convert screen by screen (home, sheets, Blackjack table,
    Hold'em table); a temporary `<LegacyHtml>` wrapper lets an unconverted part keep its HTML string.
    Remove the `FX.rects` measuring hacks only once the component version is proven by the screenshots.
+   In three parts: A (shell, home, sheets), B (Blackjack), C (Hold'em, then delete the string views).
+   - [x] Part A: Preact 11 with `@preact/preset-vite` (checked in the build and the dev server); `createUi()` mounts
+     `#app`, `#sheet`, `#toast`, called synchronously from `render()` (measure → strings → Preact → after-effects)
+   - [x] Part A: `src/ui/`: `App`, `Home`, `RoomScreen` (header and connection status, banners, join card, final
+     card, the table/dock/dealer controls as `LegacyHtml`), `UpdateView`, toast, every sheet as a pure component with
+     a selector (`sheets/`); `Session` is what screens read; `src/games/registry.ts` for the per-game differences
+   - [x] Part A: same pixels: the ten baseline screens and 37 more (every sheet and state, closed table, ceremony,
+     update and not-found screens, join cards, cloud header, update button, toast) compared with the old build: zero
+     pixels. Needed `overflow-anchor: none` on `#app` and `.side` (kept elements turned on scroll anchoring) and one
+     text node where the strings had one run of text
+   - [x] Part A: removed the side panel's scrollTop save/restore and the avatar letter's DOM poke (now a re-render);
+     sheets keep their scroll on a re-render (they used to jump to the top), a fresh sheet starts at the top
+   - [x] Part A: all browser tests, flight counts, upgrade, unit tests (257), lint, typecheck; dev server checked
+   - [ ] Part B: Blackjack table, dock, dealer controls; registered in `games/registry.ts`
+   - [ ] Part C: Hold'em table, dock, dealer controls; remove the string views and `LegacyHtml`; CLAUDE.md rule 3
 6. **Clean-up and CI.** GitHub Actions on every push: lint, typecheck, unit tests, two-phone and
    Hold'em tests, screenshots. Delete `legacy.ts`. Rewrite `docs/ARCHITECTURE.md` for the new layout.
 
@@ -313,8 +328,9 @@ src/
 - [ ] `node tests/two-phones.test.js` and the Hold'em test (R-003) after each phase (phase 1: passed, with
   `race`, `guard` and `audio`; phase 2: passed, with `race`, `guard` and `upgrade`; phase 3: passed, with `race` three
   times, `guard` and `upgrade`; phase 4: passed, with the new flight counts, `race` three times, `guard`, `upgrade` and
-  `audio`)
-- [ ] Screenshot comparison shows no difference after each phase (phases 1, 2, 3 and 4: zero pixels on all ten screens)
+  `audio`; phase 5 part A: passed, with the flight counts, `race`, `guard` and `upgrade`)
+- [ ] Screenshot comparison shows no difference after each phase (phases 1, 2, 3 and 4: zero pixels on all ten screens; phase 5 part A: zero on the ten and on 37 more
+  screens compared with the old build)
 - [x] Upgrade path: a phone on today's version updates itself into the new build (automated in
   `tests/upgrade.test.js`: old service worker and cache, self-update reload, new worker drops `chips-v6`, offline start)
 - [ ] Single-device mode by hand (phase 1: `npm run dev` and the build, home and a new table, no page errors; phase 2:

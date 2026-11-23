@@ -31,7 +31,8 @@ table) runs the round. Hebrew, right-to-left, phone first.
 | `src/sync/` | `diff.ts` (old/new documents → domain events, pure, unit tested), `domain-events.ts` (the event types), `events.ts` (the two-phase event bus: before → render → after) |
 | `src/fx/` | `layer.ts` (`#fx`, `fly`, `floatText`, `pulse`, the overrides `FX`), and the effects subscribed to events: `blackjack.ts`, `holdem.ts`, `room.ts` |
 | `src/audio/` | `synth.ts` (`SND`: AudioContext, synthesized effects, settings), `ambience.ts` (casino background), `narration.ts` (dealer's voice and its triggers), `control.ts` (`ambiSync`, first-touch unlock) |
-| `src/ui/` | Small HTML helpers shared by the views and the effects (`fmt`, `stackHTML`, `chipStyle`) |
+| `src/ui/` | The screens as Preact components (R-005 phase 5): `app.tsx` (`App`, `createUi`: mounts `#app`, `#sheet`, `#toast`), `session.ts` (what screens read), `screens/` (home, room shell, update screen), `sheets/` (one per sheet, each a pure component plus a selector), `components/` (avatar, header, final card, rank…), `legacy-html.tsx` (`LegacyHtml` for the parts still drawn as strings, `toHtml`); plus `fmt`, `stackHTML`, `chipStyle` shared with the effects |
+| `src/games/registry.ts` | One `GameMode` per game (Strategy): names, form fields and wording that differ between Hold'em and Blackjack; parts B and C add each game's table, dock and dealer controls |
 | `src/styles/*.css` | The styles, split at their old section comments, imported in order by `main.ts` |
 | `src/sw-template.js` | Service worker: network-first for the app's own files, cache as offline fallback. `dist/sw.js` is generated from it |
 | `scripts/sw-plugin.mts` | Vite plugin that writes `dist/sw.js`: the install list is the built files (hashed names), the cache name follows the build. Unit tested |
@@ -63,10 +64,15 @@ table) runs the round. Hebrew, right-to-left, phone first.
    render (or a snapshot) that can happen before everything is created brings back "Cannot access X before
    initialization", which left the app stuck on the home screen three times when the script rendered while it was
    still loading. Callbacks into the app (`render`, `myId`, `inTable`) may only run from a touch, a timer or an event.
-3. **Rendering replaces `#app` and `#sheet` wholesale** (`innerHTML`). Never keep state in the DOM.
+3. **Rendering redraws `#app` and `#sheet` from the state** (R-005 phase 5 moves this to Preact, part by part). The
+   components (home, the room's shell, sheets) are patched by Preact; the tables, docks and dealer controls are still
+   HTML strings (`LegacyHtml`) whose content is replaced whenever the string changes. Never keep state in the DOM.
    Anything that must survive a re-render (file inputs, the ceremony overlay, flying chips, the rotate
-   prompt) lives outside `#app`. CSS animations restart on every render: use a phase offset
-   (negative `animation-delay`, see the dealer's blink) or WAAPI from the effects layer.
+   prompt) lives outside `#app`. CSS animations inside the string parts restart when they are redrawn: use a phase
+   offset (negative `animation-delay`, see the dealer's blink) or WAAPI from the effects layer. A component's text
+   that the old strings had as one run stays one text node (`{'a ' + b}`, not `a {b}`): Chrome kerns across text
+   nodes differently, and the pixel comparison sees it. Build the legacy strings before Preact renders (`toHtml`
+   must never run inside a render).
 4. **Animations come from document changes, as events.** Every player write sets `lastAction` and `ts`; each
    snapshot is diffed (`src/sync/diff.ts`) into domain events, and subscribers in `src/fx/` (animations) and
    `src/audio/narration.ts` play them: `before(event)` (set the override `FX.ov`, read old positions) → render →
