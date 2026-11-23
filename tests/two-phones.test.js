@@ -2,7 +2,7 @@
 // Covers what has broken before: sync between phones, exact chip stacks, paying a blackjack
 // mid-round without paying it twice, avatars, closing the table, and loading a closed table.
 const path = require('path');
-const { ROOT, requirePlaywright, serve, phones, setPending, players, room, openTable, check, failures } = require('./lib');
+const { ROOT, requirePlaywright, serve, phones, setPending, players, room, openTable, watchFlies, check, failures } = require('./lib');
 
 (async () => {
   const { chromium } = requirePlaywright();
@@ -21,7 +21,14 @@ const { ROOT, requirePlaywright, serve, phones, setPending, players, room, openT
 
     // Exact chips: five 1s stay five 1s; Dana's 25-2-2-1 keeps its order.
     for (let i = 0; i < 5; i++){ await A.click('.tray .chip[data-v="1"]'); await wait(90); }
-    await wait(450); await A.click('[data-a=bjbet]'); await wait(500);
+    await wait(450);
+    const fliesA = await watchFlies(A), fliesB = await watchFlies(B);
+    await A.click('[data-a=bjbet]'); await wait(500);
+    // Effects come from events (src/sync/diff.ts → src/fx/): the other phone flies the bet from the seat exactly once;
+    // the bettor's own chips were already on the spot, so its phone only bumps the stack.
+    const nB = await fliesB(), nA = await fliesA(0);
+    check('the other phone flies the bet once', nB === 1, `saw ${nB} flights`);
+    check('the bettor\'s phone flies nothing for its own bet', nA === 0, `saw ${nA} flights`);
     for (const v of ['25', '2', '2', '1']){ await B.click(`.tray .chip[data-v="${v}"]`); await wait(90); }
     await wait(450); await B.click('[data-a=bjbet]'); await wait(800);
     ps = players(db());

@@ -3,6 +3,8 @@
 // to listen to. Run: node tests/audio.js
 // Files that don't exist yet are reported as "missing: ..." instead of failing.
 // AUDIO_PLACEHOLDERS=1 serves generated tones for sounds/amb and sounds/voice (for developing without the real files).
+// AUDIO_SEED=<number> makes Math.random repeatable (which machine, when, pan, gain), so two builds print the same numbers
+// when their sound code is the same; without it the background's numbers vary by a few dB from run to run.
 const fs = require('fs');
 const path = require('path');
 const { OUT, requirePlaywright, serve } = require('./lib');
@@ -21,6 +23,7 @@ function toneWav(sec, peakDb, f, mod){
   fs.mkdirSync(OUT, { recursive: true });
   const srv = await serve(), browser = await chromium.launch(), pg = await browser.newPage();
   await pg.route(/gstatic|googleapis/, r => r.abort());
+  if (process.env.AUDIO_SEED) await pg.addInitScript(seed => { let x = seed | 0 || 1; Math.random = () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return ((x >>> 0) % 1000000) / 1000000; }; }, Number(process.env.AUDIO_SEED));
   if (process.env.AUDIO_PLACEHOLDERS){
     await pg.route(/\/sounds\/(amb|voice)\//, r => {
       const u = r.request().url(), nm = u.split('/').pop().replace('.mp3', ''), kind = nm.replace(/-\d+$/, '');

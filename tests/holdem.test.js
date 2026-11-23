@@ -8,7 +8,7 @@
 //   Hand 4: a new hand after the cancel starts normally.
 //   Hand 5: a tied showdown on an odd pot (25 = 10 + 5 dead blind + 10) split between two winners: the odd chip goes to the
 //           first winner in seat (joining) order, and the total chips at the table stay the same.
-const { requirePlaywright, serve, phones, players, room, openTable, check, failures } = require('./lib');
+const { requirePlaywright, serve, phones, players, room, openTable, watchFlies, check, failures } = require('./lib');
 
 (async () => {
   const { chromium } = requirePlaywright();
@@ -102,7 +102,11 @@ const { requirePlaywright, serve, phones, players, room, openTable, check, failu
     // flop: small blind bets 20, big blind calls, button folds
     await nextStreet();
     await verify('hand 1 flop opened', { st: S, pot: 30, stage: 'flop' });
+    const others = [bb1, b1].map(p => phoneOf[p]), flies = await Promise.all(others.map(watchFlies));
     await go(sb1, 20); S[sb1] -= 20;
+    // the bet flies from the seat to the pot exactly once on each other phone (a doubled or lost subscription shows here)
+    const seen = await Promise.all(flies.map(f => f()));
+    check('hand 1: one flight for a bet on each other phone', seen.every(n => n === 1), `saw ${seen.join(', ')}`);
     await go(bb1); S[bb1] -= 20;
     await fold(b1);
     await verify('hand 1 flop bet, call, fold', { st: S, pot: 70, stage: 'flop' });

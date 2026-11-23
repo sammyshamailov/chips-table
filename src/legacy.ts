@@ -1,6 +1,7 @@
 // @ts-nocheck
 // The game rules are pure functions in src/domain/ (R-005 phase 2); this script reads S, calls them and writes what they return.
-import { DEN, chipsOf, sumOf, okChips, handStack, handHalves, chipLabel, denoms as denomsFor } from './domain/chips';
+import { DEN, chipsOf, sumOf, handStack, handHalves, chipLabel, denoms as denomsFor } from './domain/chips';
+import { tableUnsupported } from './domain/guard';
 import * as HR from './domain/holdem/rules';
 import * as Pots from './domain/holdem/pots';
 import * as BJ from './domain/blackjack/rules';
@@ -12,23 +13,21 @@ import { connect } from './data/connect';
 import { createLocalStore } from './data/local-store';
 import { createWriter } from './data/writes';
 import { normalizeRoom, normalizePlayer } from './data/schema';
-(() => {
+// Effects come from events (R-005 phase 4): each snapshot is diffed (src/sync/diff.ts) into domain events, and the
+// subscribers in src/fx/ (animations) and src/audio/ (narration), wired in main.ts, play them around the render.
+import { diffPlayers, diffRoom } from './sync/diff';
+import { dealerNod } from './fx/room';
+import { fmt } from './ui/format';
+import { chipStyle, stackHTML } from './ui/chips-html';
+
+// Builds the app around what main.ts created: the event bus, the sound engine (src/audio/synth.ts), the effects
+// layer (src/fx/layer.ts), the phone's storage and the background's on/off rule. Nothing renders until start().
+export function createLegacyApp({ bus, snd: SND, layer, storage: ls, ambiSync }) {
 const app = document.getElementById('app'), sheetEl = document.getElementById('sheet'), toastEl = document.getElementById('toast'), rotEl = document.getElementById('rot'), finEl = document.getElementById('fin');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt = n => Math.round(n || 0).toLocaleString('en-US');
-const ls = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }, del(k){ try { localStorage.removeItem(k); } catch(e){} } };
 const rid = (n=8) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
 const now = () => Date.now();
-/* ---------- table types this build understands (guard for newer phones' tables) ----------
-   Room fields `mode` (missing = 'chips') and `appMin` (missing = 0) are only READ for now. A table that needs a
-   newer build is shown as an update screen and is never written to. Raise FEATURE_LEVEL only when this build
-   can really play tables written with that appMin. */
-const FEATURE_LEVEL = 1, KNOWN_MODES = ['chips'];
-function tableUnsupported(r){
-  if (!r) return false;
-  const min = Number(r.appMin); if (r.appMin != null && !(min <= FEATURE_LEVEL)) return true;   // also catches a non-number
-  return r.mode != null && !KNOWN_MODES.includes(r.mode);
-}
+/* ---------- table types this build understands: tableUnsupported() is in src/domain/guard.ts (R-009) ---------- */
 const buzz = () => { try { navigator.vibrate && navigator.vibrate(12); } catch(e){} };
 
 const S = {
@@ -44,299 +43,16 @@ const S = {
 ls.set('chips.pid', S.myId);
 let installEvt = null;
 
-/* ---------- casino background: a quiet steady murmur of people, plus a slot machine now and then ----------
-   The bed (sounds/amb/crowd-bed.mp3, generated speech-like murmur, no clear words) loops quietly under everything;
-   every 10-25 s one slot-machine one-shot plays on top. The owner liked the style of the generated talk clips,
-   so the bed is made in that style, and it sits 6 dB under how loud those clips were.
-   Files: sounds/amb/*.mp3 (see sounds/CREDITS.md). Works on any AudioContext, including an
-   OfflineAudioContext for tests/audio.js. */
-const AMB_BASE = 'sounds/amb/', AMB_LEVEL = .045, AMB_MAKEUP = 1, AMB_BED = .0753;     // machines peak about -20 dBFS at the master; the bed (-20 dBFS file) sits at about -41 dBFS (both channels)
-const AMB_MANIFEST = [{ kind: 'bed', url: `${AMB_BASE}crowd-bed.mp3` }].concat([1, 2, 3, 4].map(i => ({ kind: 'machine', url: `${AMB_BASE}machine-${i}.mp3` })));
-// Make the decoded bed loop cleanly: skip any silence the MP3 decoder leaves at the ends (some browsers do), then
-// crossfade the last 50 ms into the first 50 ms. MP3 changes the edges slightly, so without this there's a faint
-// click every time the loop repeats. Done once per buffer; returns [loopStart, loopEnd] in seconds.
-const LOOPS = new WeakMap();
-function loopBounds(buf){
-  if (LOOPS.has(buf)) return LOOPS.get(buf);
-  const sr = buf.sampleRate, d0 = buf.getChannelData(0), lim = Math.min(d0.length, Math.floor(sr * .3));
-  let a = 0, b = d0.length; while (a < lim && Math.abs(d0[a]) < 1e-4) a++; while (b > d0.length - lim && Math.abs(d0[b - 1]) < 1e-4) b--;
-  const k = Math.min(Math.floor(sr * .05), Math.floor((b - a) / 4));
-  for (let ch = 0; ch < buf.numberOfChannels; ch++){
-    const d = buf.getChannelData(ch);
-    for (let i = 0; i < k; i++){ const t = (i / k) * Math.PI / 2; d[a + i] = d[a + i] * Math.sin(t) + d[b - k + i] * Math.cos(t); }
-  }
-  const r = [a / sr, (b - k) / sr]; LOOPS.set(buf, r); return r;
-}
-// clips: array of { kind, buf, url }, read on every pick, so clips that finish loading later are used too.
-function Ambience(c, dest, level, clips){
-  const T0 = c.currentTime, sr = c.sampleRate, rnd = (a, b) => a + Math.random() * (b - a);
-  // events are peaky (a coin drop, a laugh): a gentle compressor evens them out so they can be heard without a high peak
-  const bus = c.createGain(), cmp = c.createDynamicsCompressor(), mk = c.createGain(); cmp.threshold.value = -42; cmp.knee.value = 12; cmp.ratio.value = 8; cmp.attack.value = .005; cmp.release.value = .25; mk.gain.value = AMB_MAKEUP;
-  bus.connect(cmp); cmp.connect(mk); mk.connect(dest);
-  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 6000; lp.Q.value = .5;
-  const room = c.createGain(); room.gain.value = 1; const dry = c.createGain(), wet = c.createGain(); dry.gain.value = 1; wet.gain.value = .25;
-  bus.gain.value = 1; room.connect(lp); lp.connect(dry); dry.connect(bus);
-  try {                                                                 // a light generated reverb, about 1.2 s
-    const n = Math.floor(sr * 1.2), ir = c.createBuffer(2, n, sr); let en = 0;
-    for (let ch = 0; ch < 2; ch++){ const d = ir.getChannelData(ch); for (let i = 0; i < n; i++){ d[i] = (Math.random() * 2 - 1) * Math.exp(-5 * i / n); en += d[i] * d[i]; } }
-    const k = 1 / Math.sqrt(en / 2); for (let ch = 0; ch < 2; ch++){ const d = ir.getChannelData(ch); for (let i = 0; i < n; i++) d[i] *= k; }
-    const cv = c.createConvolver(); cv.buffer = ir; lp.connect(cv); cv.connect(wet); wet.connect(bus);
-  } catch(e){}
-  // the bed: one looped source straight to the destination (not through the event compressor), faded in over 3 s
-  let bedG = null, bedSrc = null;
-  function startBed(){
-    const it = clips.find(x => x.kind === 'bed' && x.buf); if (!it || bedSrc || dead) return;
-    const [a, b] = loopBounds(it.buf), t = c.currentTime;
-    bedG = c.createGain(); bedG.gain.setValueAtTime(0, t); bedG.gain.linearRampToValueAtTime(AMB_BED, t + 3); bedG.connect(dest);
-    bedSrc = c.createBufferSource(); bedSrc.buffer = it.buf; bedSrc.loop = true; bedSrc.loopStart = a; bedSrc.loopEnd = b;
-    bedSrc.connect(bedG); bedSrc.start(t, a + Math.random() * Math.max(0, b - a - 1));      // phones at one table don't play in step
-  }
-  let next = T0 + rnd(4, 8), busyUntil = T0, last = null, live = [], dead = false;
-  function pick(){
-    const list = clips.filter(x => x.buf && x.kind === 'machine' && x !== last);
-    return list.length ? list[Math.floor(Math.random() * list.length)] : null;
-  }
-  function sched(until){
-    if (dead) return;
-    startBed();
-    while (next < until){
-      const clip = pick(); if (!clip) return;                           // nothing loaded yet: try again at the next call
-      const t = Math.max(next, busyUntil, c.currentTime), d = clip.buf.duration, quiet = 1;
-      const src = c.createBufferSource(); src.buffer = clip.buf;
-      const g = c.createGain(), peak = level * quiet * Math.pow(10, rnd(-3, 3) / 20);
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + .03); g.gain.setValueAtTime(peak, Math.max(t + .03, t + d - .08)); g.gain.linearRampToValueAtTime(0, t + d);
-      src.connect(g); let n = g;
-      try { const p = c.createStereoPanner(); p.pan.value = rnd(-.8, .8); g.connect(p); n = p; } catch(e){}
-      n.connect(room); src.start(t); live.push(src); src.onended = () => { live = live.filter(x => x !== src); try { n.disconnect(); g.disconnect(); } catch(e){} };
-      last = clip; busyUntil = t + d; next = t + rnd(10, 25);
-      if (next < busyUntil) next = busyUntil;
-      sched.count = (sched.count || 0) + 1;
-    }
-  }
-  function stop(){
-    dead = true; const t = c.currentTime;
-    try { bus.gain.cancelScheduledValues(t); bus.gain.setValueAtTime(bus.gain.value, t); bus.gain.linearRampToValueAtTime(0, t + .4); } catch(e){}
-    try { if (bedG){ bedG.gain.cancelScheduledValues(t); bedG.gain.setValueAtTime(bedG.gain.value, t); bedG.gain.linearRampToValueAtTime(0, t + .6); } } catch(e){}
-    setTimeout(() => { live.forEach(x => { try { x.stop(); } catch(e){} }); live = []; try { bus.disconnect(); } catch(e){} try { if (bedSrc) bedSrc.stop(); } catch(e){} try { if (bedG) bedG.disconnect(); } catch(e){} }, 800);
-  }
-  return { sched, stop, get events(){ return sched.count || 0; } };
-}
-// One dealer line: plays buffer `buf` at time t on `dest`. Shared by SND.say and tests/audio.js.
-const VOICE_KEYS = ['open', 'locked', 'blackjack', 'payout', 'winner', 'newhand', 'flop', 'turn', 'river', 'allin', 'closed'], VOICE_LEVEL = .7;    // speech RMS about -20 dBFS at the master
-function playLine(c, dest, buf, t, level){
-  const s = c.createBufferSource(); s.buffer = buf; const g = c.createGain(); g.gain.value = level; s.connect(g); g.connect(dest); s.start(t); return s;
-}
-window.ChipsAmbience = Ambience; window.ChipsLine = playLine;     // for tests/audio.js
-window.CHIPS_BG = { manifest: AMB_MANIFEST, level: AMB_LEVEL, bedLevel: AMB_BED, loopBounds, voiceKeys: VOICE_KEYS, voiceLevel: VOICE_LEVEL, voiceUrl: k => `sounds/voice/${k}.mp3` };
+/* ---------- sound ----------
+   The engine (SND: effects, background, narration) is src/audio/synth.ts, created by main.ts and handed in; the
+   background's on/off rule (ambiSync) and the first-touch unlock are src/audio/control.ts. */
 
-/* ---------- sounds: synthesized with Web Audio, so nothing to download and it works offline ---------- */
-const SND = (() => {
-  const AC = window.AudioContext || window.webkitAudioContext;
-  let ctx = null, out = null, nbuf = null, on = ls.get('chips.sound') !== '0', lastT = 0, burst = 0, amb = null, ambTimer = 0, bgBus = null, bgClips = [], vox = {}, voxLoading = false, voice = null, voiceQ = [];
-  // Clips load the first time they are wanted (then the service worker keeps them). A missing or broken file
-  // is skipped and tried again at most once a minute.
-  const decode = ab => new Promise((ok, no) => { const p = ctx.decodeAudioData(ab, ok, no); if (p && p.then) p.then(ok, no); });
-  const fetchBuf = url => fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(decode);
-  const BG_ITEMS = AMB_MANIFEST.map(m => ({ kind: m.kind, url: m.url, buf: null, busy: false, failAt: 0 }));
-  function loadBg(){
-    if (!ctx) return;
-    BG_ITEMS.forEach(it => {
-      if (it.buf || it.busy || now() - it.failAt < 60000) return; it.busy = true;
-      fetchBuf(it.url).then(b => { it.buf = b; it.busy = false; if (!bgClips.includes(it)) bgClips.push(it); }, () => { it.busy = true; it.failAt = now(); setTimeout(() => { it.busy = false; }, 60000); });
-    });
-  }
-  const VOX = VOICE_KEYS.map(k => ({ key: k, url: `sounds/voice/${k}.mp3`, buf: null, busy: false, failAt: 0 }));
-  function loadVoice(){
-    if (!ctx) return;
-    VOX.forEach(it => {
-      if (it.buf || it.busy || now() - it.failAt < 60000) return; it.busy = true;
-      fetchBuf(it.url).then(b => { it.buf = b; it.busy = false; vox[it.key] = b; }, () => { it.busy = true; it.failAt = now(); setTimeout(() => { it.busy = false; }, 60000); });
-    });
-  }
-  function duck(on_){ if (!bgBus) return; const t = ctx.currentTime; try { bgBus.gain.cancelScheduledValues(t); bgBus.gain.setValueAtTime(bgBus.gain.value, t); bgBus.gain.linearRampToValueAtTime(on_ ? .5 : 1, t + (on_ ? .15 : .5)); } catch(e){} }
-  function playNext(){
-    if (voice || !voiceQ.length || !ready() || !VOICE_ON) return;
-    const key = voiceQ.shift(), buf = vox[key]; if (!buf){ playNext(); return; }
-    const s = playLine(ctx, out, buf, ctx.currentTime + .02, VOICE_LEVEL); voice = s; duck(true);
-    s.onended = () => { if (voice === s) voice = null; duck(false); setTimeout(playNext, 250); };
-  }
-  function init(){
-    if (!AC || !on) return;
-    try {
-      if (!ctx){
-        ctx = new AC();
-        const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
-        out = ctx.createGain(); out.gain.value = .8; out.connect(comp); comp.connect(ctx.destination);
-        nbuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-        const d = nbuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      }
-      if (ctx.state === 'suspended') ctx.resume().then(() => ambiSync(), () => {});
-    } catch(e){}
-  }
-  const ready = () => on && ctx && ctx.state === 'running';
-  function env(g, t, peak, a, d){ g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
-  function noise(t, d, f, q, peak, type = 'bandpass', f2, dst = out){
-    const s = ctx.createBufferSource(); s.buffer = nbuf;
-    const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.setValueAtTime(f, t); if (f2) fl.frequency.exponentialRampToValueAtTime(f2, t + d); fl.Q.value = q;
-    const g = ctx.createGain(); env(g, t, peak, .002, d);
-    s.connect(fl); fl.connect(g); g.connect(dst); s.start(t, Math.random() * .8); s.stop(t + d + .05);
-  }
-  function tone(t, f, d, peak, type = 'sine', f2, a = .005, dst = out){
-    const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
-    const g = ctx.createGain(); env(g, t, peak, a, d); o.connect(g); g.connect(dst); o.start(t); o.stop(t + a + d + .05);
-  }
-  // one clay chip landing on another: a bright, very short click with a little body
-  function clack(t, v = 1, dst = out, lo = 2800, span = 2400){ const f = lo + Math.random() * span; noise(t, .026, f, 5, .5 * v, 'bandpass', null, dst); tone(t, f * 1.55, .016, .06 * v, 'triangle', null, .005, dst); noise(t + .003, .05, 1300 + Math.random() * 500, 9, .1 * v, 'bandpass', null, dst); }
-  // A player somewhere at the table playing with their chips: quieter, panned to one side, slightly duller.
-  function ambBus(){ const g = ctx.createGain(); g.gain.value = .42; let n = g; try { const p = ctx.createStereoPanner(); p.pan.value = (Math.random() < .5 ? -1 : 1) * (.35 + Math.random() * .45); g.connect(p); n = p; } catch(e){} n.connect(out); return g; }
-  const AMB = [
-    (t, bus) => {                       // riffle: two stacks pushed into each other, chips interleaving fast
-      const n = 14 + Math.floor(Math.random() * 10);
-      for (let i = 0; i < n; i++){ clack(t, .55 + Math.random() * .35, bus, 2200, 1600); t += .022 + Math.random() * .014; }
-      clack(t + .06, .5, bus, 2000, 900); clack(t + .1, .3, bus, 2000, 900);
-    },
-    (t, bus) => {                       // lifting a few chips and letting them drop back on the stack
-      const k = 2 + Math.floor(Math.random() * 3);
-      for (let j = 0; j < k; j++){ let u = t + j * (.34 + Math.random() * .2); for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++){ clack(u, .7 - i * .1, bus); u += .03 + Math.random() * .02; } }
-    },
-    (t, bus) => {                       // counting chips one by one off a stack
-      const n = 5 + Math.floor(Math.random() * 5);
-      for (let i = 0; i < n; i++){ clack(t, .6 + Math.random() * .3, bus, 2600, 2000); t += .16 + Math.random() * .12; }
-    }
-  ];
-  const notes = (t, list, gap, d, peak, type = 'triangle') => list.forEach((f, i) => { tone(t + i * gap, f, d, peak, type); tone(t + i * gap, f * 2, d * .6, peak * .25, 'sine'); });
-  const api = {
-    init,
-    get on(){ return on; },
-    toggle(){ on = !on; ls.set('chips.sound', on ? '1' : '0'); if (on){ init(); setTimeout(() => api.chips(3), 60); } else api.voiceStop(); ambiSync(); return on; },
-    ambiStart(){
-      if (!ready()) return; loadBg(); if (amb) return;
-      try {
-        if (!bgBus){ bgBus = ctx.createGain(); bgBus.connect(out); }
-        const a = Ambience(ctx, bgBus, AMB_LEVEL, bgClips); amb = a; a.sched(ctx.currentTime + 20);
-        ambTimer = setInterval(() => { try { a.sched(ctx.currentTime + 20); } catch(e){} }, 4000);
-      } catch(e){ amb = null; }
-    },
-    ambiStop(){ if (!amb) return; clearInterval(ambTimer); amb.stop(); amb = null; },
-    voiceLoad(){ if (ready()) loadVoice(); },
-    // The dealer's narration. One line at a time: a new line is dropped while one plays, except 'winner' and 'closed',
-    // which wait their turn. The background is ducked 6 dB while a line plays.
-    say(key){
-      if (!ready() || !VOICE_ON || !VOICE_KEYS.includes(key)) return; loadVoice();
-      if (!vox[key]) return;
-      if (voice){ if ((key === 'winner' || key === 'closed') && !voiceQ.includes(key)) voiceQ.push(key); return; }
-      voiceQ.push(key); playNext();
-    },
-    voiceStop(){ voiceQ.length = 0; if (voice){ const s = voice; voice = null; try { s.onended = null; s.stop(); } catch(e){} duck(false); } },
-    chips(n = 3, v = 1){
-      if (!ready()) return; const t0 = ctx.currentTime;
-      if (t0 - lastT < .07){ if (++burst > 4) return; } else burst = 0; lastT = t0;   // many chips at once: keep it pleasant
-      let t = t0; for (let i = 0; i < n; i++){ clack(t, v * (1 - i * .07)); t += .028 + Math.random() * .05; }
-    },
-    ambient(){ if (!ready()) return; AMB[Math.floor(Math.random() * AMB.length)](ctx.currentTime + .05, ambBus()); },
-    tap(){ if (!ready()) return; const t = ctx.currentTime; clack(t, .9); clack(t + .05, .35); },
-    tick(){ if (!ready()) return; tone(ctx.currentTime, 1900, .014, .035, 'triangle'); },
-    slide(){ if (!ready()) return; noise(ctx.currentTime, .24, 700, .7, .14, 'lowpass', 2400); },
-    whoosh(){ if (!ready()) return; noise(ctx.currentTime, .3, 350, 1.3, .22, 'bandpass', 2800); },
-    drumroll(d = 1.8){
-      if (!ready()) return; const t0 = ctx.currentTime; let t = t0;
-      while (t < t0 + d){ const k = (t - t0) / d, v = .12 + .38 * k * k; tone(t, 95 + Math.random() * 15, .05, v, 'sine', 60); noise(t, .04, 260, .9, v * .8, 'lowpass'); t += .034 + Math.random() * .008; }
-      noise(t, 1.4, 6000, .6, .35, 'highpass'); noise(t, .9, 3200, .5, .2, 'bandpass', 9000);    // cymbal
-    },
-    fanfare(){
-      if (!ready()) return; const t = ctx.currentTime + .03;
-      const brass = (s, f, d, g) => { tone(s, f, d, g, 'sawtooth', null, .03); tone(s, f * 2, d * .8, g * .3, 'triangle', null, .03); };
-      [[0, 392], [.13, 392], [.26, 392], [.4, 523.25]].forEach(([d, f]) => brass(t + d, f, .14, .07));
-      [[.62, 659.25], [.62, 523.25], [.62, 783.99], [.62, 1046.5]].forEach(([d, f]) => brass(t + d, f, 1.3, .05));
-    },
-    applause(d = 3.6){
-      if (!ready()) return; const t0 = ctx.currentTime + .05;
-      for (let i = 0; i < 260; i++){
-        const k = Math.pow(Math.random(), 1.6), t = t0 + k * d, v = (.05 + Math.random() * .11) * (1 - k * .7);
-        let dst = out; try { const p = ctx.createStereoPanner(); p.pan.value = Math.random() * 2 - 1; p.connect(out); dst = p; } catch(e){}
-        noise(t, .02 + Math.random() * .025, 900 + Math.random() * 1800, 1.1, v, 'bandpass', null, dst);
-      }
-    },
-    bell(){ if (!ready()) return; const t = ctx.currentTime; [[1318.5, 1], [1975.5, .6]].forEach(([f, g], i) => { tone(t + i * .13, f, .9, .07 * g, 'sine'); tone(t + i * .13, f * 2.76, .3, .018 * g, 'sine'); }); },
-    knock(){ if (!ready()) return; const t = ctx.currentTime; [0, .14].forEach(d => { tone(t + d, 150, .09, .45, 'sine', 70); noise(t + d, .05, 450, 1, .28, 'lowpass'); }); },
-    fold(){ if (!ready()) return; noise(ctx.currentTime, .2, 2400, .8, .17, 'bandpass', 600); },
-    win(){ if (!ready()) return; notes(ctx.currentTime + .05, [659.25, 783.99, 1046.5, 1318.5], .085, .24, .11); },
-    bj(){
-      if (!ready()) return; const t = ctx.currentTime + .05;
-      notes(t, [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98], .075, .22, .1);
-      [1046.5, 1318.5, 1567.98].forEach(f => tone(t + .5, f, .8, .045, 'triangle', null, .02));
-      for (let i = 0; i < 9; i++) tone(t + .45 + i * .07, 2400 + Math.random() * 2400, .07, .03, 'sine');
-    },
-    lose(){ if (!ready()) return; const t = ctx.currentTime + .05; tone(t, 392, .22, .09, 'triangle', 370); tone(t + .22, 311.13, .45, .09, 'triangle', 285); },
-    push(){ if (!ready()) return; const t = ctx.currentTime + .05; tone(t, 587.33, .14, .07, 'triangle'); tone(t + .17, 587.33, .22, .06, 'triangle'); }
-  };
-  return api;
-})();
-['pointerdown', 'touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => SND.init(), { passive: true, capture: true }));
-// The casino in the background runs only inside a table, with the screen on, sound on, and ambience on.
-let AMBI_ON = ls.get('chips.ambi') !== '0', VOICE_ON = ls.get('chips.voice') !== '0';
-function ambiSync(){
-  const inTable = SND.on && !!(S.code && S.room && !S.room.closed) && document.visibilityState === 'visible';
-  if (inTable && AMBI_ON) SND.ambiStart(); else SND.ambiStop();
-  if (inTable && VOICE_ON) SND.voiceLoad();
-}
-document.addEventListener('visibilitychange', () => ambiSync());
-// Casino vibes: now and then someone at the table plays with their chips. Only inside a table, only when the screen is on.
-(function ambLoop(){ setTimeout(() => { if (S.code && S.room && !S.room.closed && document.visibilityState === 'visible') SND.ambient(); ambLoop(); }, 45000 + Math.random() * 75000); })();
-
-/* ---------- effects: flying chips and cards ----------
-   Everything here is derived from changes in the synced documents, so the stored data format is unchanged.
+/* ---------- effects: flying chips ----------
+   The layer (#fx, fly, overrides) is src/fx/layer.ts; the effects of document changes subscribe to events in src/fx/.
    While chips are in the air, FX.ov holds what a player's spot and stack looked like before, and the
    table keeps showing that until the chips land. */
-const RM = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){ return false; } })();
-const FX = { rects: {}, ov: {}, pendFly: 0, n: 0, signDrop: 0, cer: false };      // pendFly: how many of your pending chips are still in the air
-const fxLayer = document.getElementById('fx');
-const pageRect = el => { const b = el.getBoundingClientRect(); return (b.width || b.height) ? { x: b.left + scrollX + b.width / 2, y: b.top + scrollY + b.height / 2, w: b.width, h: b.height } : null; };
-function measure(){ const m = {}; document.querySelectorAll('[data-k]').forEach(el => { const r = pageRect(el); if (r) m[el.dataset.k] = r; }); return m; }
-function rectOf(k){ const el = document.querySelector('[data-k="' + k + '"]'); return el ? pageRect(el) : null; }
-const oldRect = k => FX.rects[k] || rectOf(k);
-const shift = (r, dx, dy = 0) => r && { ...r, x: r.x + dx, y: r.y + dy };
-const unitPx = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--u')) || 3.4;
-function seatTarget(pid){
-  const s = rectOf('seat:' + pid);
-  if (pid !== S.myId) return s;
-  const d = rectOf('mystack');
-  return onScreen(s) ? s : (d || s);
-}
-function setOv(pid, o, ms){ const tok = ++FX.n; FX.ov[pid] = { ...o, tok, until: now() + ms + 600 }; setTimeout(() => clearOv(pid, tok), ms + 650); return tok; }
-function clearOv(pid, tok){ if (FX.ov[pid] && FX.ov[pid].tok === tok){ delete FX.ov[pid]; render(); } }
-const ov = pid => { const o = FX.ov[pid]; return o && o.until > now() ? o : null; };
-const shownStack = p => { const o = ov(p.pid); return o && o.stack != null ? o.stack : p.stack; };
-
-function fly(o){
-  let done = false, el = null;
-  const fin = () => { if (done) return; done = true; if (el) el.remove(); if (o.land) o.land(); };
-  if (!o.from || !o.to || RM){ setTimeout(fin, RM ? Math.min(o.delay || 0, 300) : 0); return; }
-  el = document.createElement('div'); el.className = 'fly';
-  el.style.left = o.from.x + 'px'; el.style.top = o.from.y + 'px';
-  el.innerHTML = `<div class="fly-y"><div class="fly-c">${o.html || stackHTML(o.amt)}</div></div>`;
-  fxLayer.appendChild(el);
-  const dx = o.to.x - o.from.x, dy = o.to.y - o.from.y, dur = o.dur || 540, delay = o.delay || 0;
-  const lift = o.lift ?? Math.min(70, 14 + Math.hypot(dx, dy) * .22);
-  const opt = { duration: dur, delay, fill: 'both' };
-  try {
-    const a = el.animate([{ transform: 'translate(0,0)' }, { transform: `translate(${dx}px,${dy}px)` }], { ...opt, easing: 'cubic-bezier(.5,0,.3,1)' });
-    el.firstChild.animate([{ transform: 'translateY(0) scale(1)', easing: 'ease-out' }, { transform: `translateY(${-lift}px) scale(1.12)`, offset: .45, easing: 'ease-in' }, { transform: `translateY(0) scale(${o.fadeOut ? .7 : 1})` }], opt);
-    if (o.fadeOut || o.fadeIn) el.firstChild.firstChild.animate([{ opacity: o.fadeIn ? 0 : 1 }, { opacity: 1, offset: o.fadeIn ? .25 : .72 }, { opacity: o.fadeOut ? 0 : 1 }], opt);
-    a.onfinish = fin;
-  } catch(e){ fin(); return; }
-  if (o.sound) setTimeout(o.sound, delay);
-  setTimeout(fin, delay + dur + 500);
-}
-function floatText(at, text, cls = ''){
-  if (!at) return;
-  const el = document.createElement('div'); el.className = 'ft ' + cls; el.textContent = text;
-  el.style.left = at.x + 'px'; el.style.top = at.y + 'px'; fxLayer.appendChild(el);
-  const c = 'translate(-50%,-50%)';
-  try { el.animate([{ transform: `${c} translateY(0) scale(.5)`, opacity: 0 }, { transform: `${c} translateY(-8px) scale(1.15)`, opacity: 1, offset: .2 }, { transform: `${c} translateY(-14px) scale(1)`, opacity: 1, offset: .65 }, { transform: `${c} translateY(-40px) scale(1)`, opacity: 0 }], { duration: 1600, easing: 'ease-out', fill: 'both' }); } catch(e){}
-  setTimeout(() => el.remove(), 1700);
-}
-function pulse(k, s = 1.14){ const el = document.querySelector('[data-k="' + k + '"]'); if (!el || RM) return; try { el.animate([{ scale: '1' }, { scale: String(s) }, { scale: '1' }], { duration: 300, easing: 'ease-out' }); } catch(e){} }
+const FX = layer.FX, RM = layer.reduced;      // the effects layer (src/fx/layer.ts): FX.ov, FX.rects, FX.pendFly…
+const { pageRect, measure, rectOf, fly, pulse, onScreen, ov, shownStack } = layer;
 const ghostChips = () => { const c = pendChips(); return c.slice(0, Math.max(0, c.length - FX.pendFly)); };
 function paintGhost(){ const el = document.querySelector('[data-k="ghost"]'); if (el){ const g = ghostChips(); el.innerHTML = g.length ? stackHTML(g) : ''; } }
 const LAND = matchMedia('(orientation: landscape)');
@@ -350,13 +66,6 @@ function setU(){
 window.addEventListener('resize', setU);
 const onTurn = () => { if (S.code) render(); else setU(); };
 [LAND, PORTRAIT_PHONE].forEach(q => { try { q.addEventListener('change', onTurn); } catch(e){ try { q.addListener(onTurn); } catch(e2){} } });
-// Is this point visible, and not hidden behind the fixed bottom dock (portrait)?
-function onScreen(r){
-  if (!r) return false;
-  let bottom = scrollY + innerHeight; const dock = document.querySelector('.dock');
-  if (dock && getComputedStyle(dock).position === 'fixed') bottom = dock.getBoundingClientRect().top + scrollY;
-  return r.y > scrollY && r.y < bottom - 8;
-}
 
 /* ---------- staying up to date ----------
    A phone that keeps the app open (or resumes it from the background) would otherwise keep running old code.
@@ -466,19 +175,22 @@ async function loadAvatarFile(file){
 ['avcam', 'avfile'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', () => { const f = el.files && el.files[0]; el.value = ''; loadAvatarFile(f); }); });
 
 /* ---------- connect: the store (Firestore or this phone only, src/data/connect.ts), then the last table ----------
-   dbReady renders synchronously while this script is still loading (rule 2): what it reaches is declared above. */
+   start() (at the end, called by main.ts) connects and renders the first screen synchronously; it runs only after
+   this whole function has, so everything a render reaches is initialised (rule 2). */
 // One write at a time per document (src/data/writes.ts). Never writes to a table this build doesn't understand.
 const writer = createWriter({ store: () => S.db, onError: e => handleErr(e),
   refuse: path => !!(S.code && S.room && tableUnsupported(S.room) && (path === 'rooms/' + S.code || path.startsWith('rooms/' + S.code + '/'))) });
-let roomsUnsub = null;
-const dbReady = (async () => {
-  const c = connect(window.FIREBASE_CONFIG, window.firebase, ls);
-  S.db = c.store; S.mode = c.mode;
-  subRooms();
-  const hash = (location.hash || '').replace('#', '').toUpperCase();
-  const last = /^[A-Z]{4}$/.test(hash) ? hash : ls.get('chips.room');
-  if (last && !S.code) enterRoom(last); else render();
-})();
+let roomsUnsub = null, dbReady = null;
+function connectStore(){
+  return (async () => {
+    const c = connect(window.FIREBASE_CONFIG, window.firebase, ls);
+    S.db = c.store; S.mode = c.mode;
+    subRooms();
+    const hash = (location.hash || '').replace('#', '').toUpperCase();
+    const last = /^[A-Z]{4}$/.test(hash) ? hash : ls.get('chips.room');
+    if (last && !S.code) enterRoom(last); else render();
+  })();
+}
 
 function subRooms(){
   if (roomsUnsub) roomsUnsub();
@@ -491,7 +203,7 @@ function useLocal(){
   leaveSubs(); S.db = createLocalStore(ls); S.mode = 'local'; S.readOnly = false; S.code = null; ls.del('chips.room'); subRooms(); render();
 }
 
-/* ---------- writes, one at a time per document (the queue is src/data/writes.ts; `writer` is made above dbReady) ---------- */
+/* ---------- writes, one at a time per document (the queue is src/data/writes.ts; `writer` is made above) ---------- */
 function w(path, op, data){ return writer.write(path, op, data); }
 function handleErr(e){
   const code = e && e.code;
@@ -519,16 +231,15 @@ function enterRoom(code){
   S.unsubs.push(S.db.doc('rooms/' + code).onSnapshot(s => {
     if (S.code !== mine) return;
     if (!s.exists){ if (!s.metadata.fromCache){ S.room = null; S.roomLoaded = true; render(); } return; }
-    const nr = normalizeRoom(s.data()); let run = null; try { run = tableUnsupported(nr) ? null : fxRoom(S.room, nr); } catch(e){ console.error(e); }
-    S.room = nr; S.roomLoaded = true; S.synced = !s.metadata.fromCache; render();
-    if (run) try { run(); } catch(e){ console.error(e); }
+    // diff → every subscriber's before → this render → every subscriber's after (src/sync/events.ts)
+    const nr = normalizeRoom(s.data()); let evs = []; try { evs = diffRoom(S.room, nr, { myId: S.myId, players: S.players }); } catch(e){ console.error(e); }
+    bus.emit(evs, () => { S.room = nr; S.roomLoaded = true; S.synced = !s.metadata.fromCache; render(); });
   }, onErr));
   S.unsubs.push(S.db.collection('rooms/' + code + '/players').onSnapshot(s => {
     if (S.code !== mine) return;
     const m = {}; s.docs.forEach(d => { if (d.exists) m[d.id] = normalizePlayer(d.data()); });
-    let runs = []; try { runs = tableUnsupported(S.room) ? [] : fxPlayers(S.players, m); } catch(e){ console.error(e); }
-    S.players = m; S.pSynced = !s.metadata.fromCache; render();
-    runs.forEach(f => { try { f(); } catch(e){ console.error(e); } });
+    let evs = []; try { evs = diffPlayers(S.players, m, S.room, { myId: S.myId }); } catch(e){ console.error(e); }
+    bus.emit(evs, () => { S.players = m; S.pSynced = !s.metadata.fromCache; render(); });
   }, onErr));
   wake(); render();
 }
@@ -545,171 +256,11 @@ const newPlayer = (stack) => ({ name: S.name.trim().slice(0,20) || 'שחקן', j
 const nameOf = id => (S.players[id] && S.players[id].name) || (S.room && S.room.hostId === id && S.room.hostName) || 'שחקן';
 
 /* ---------- chip denominations ----------
-   The chip rules (DEN, chipsOf, okChips, handStack, handHalves…) live in src/domain/chips.ts; the HTML stays here. */
+   The chip rules (DEN, chipsOf, okChips, handStack, handHalves…) live in src/domain/chips.ts, the chip HTML in src/ui/chips-html.ts. */
 function denoms(){ const r = S.room; return denomsFor(r.game, r.sb, r.minBet); }
-const chipStyle = d => { const dark = [5,10,25,100,250,500,2500,5000,10000].includes(d); return `--c:var(--c${d});--e:${d===1||d===2||d===1000?'var(--c5)':'var(--chalk)'};--t:${dark?'#fff':'#1a1a1a'}`; };
-// A stack can be drawn from an amount (made up from the biggest chips) or from the exact chips a player put down.
-function stackHTML(amt, per = 8){
-  const c = Array.isArray(amt) ? amt : chipsOf(amt); if (!c.length) return '';
-  const p = c.length > per * 4 ? Math.ceil(c.length / 4) : c.length > per * 3 ? Math.ceil(c.length / 3) : per, cols = [];
-  for (let i = 0; i < c.length; i += p) cols.push(c.slice(i, i + p));
-  return `<div class="stk">${cols.map(col => `<div class="col" style="--n:${col.length}">${col.map((d, i) => `<i class="cd" style="${chipStyle(d)};--i:${i}"></i>`).join('')}</div>`).join('')}</div>`;
-}
+// chipStyle and stackHTML are in src/ui/chips-html.ts.
 // The chips in your hand right now. Anything that changed the pending amount without chips (presets, clearing) resets it.
 function pendChips(){ if (sumOf(S.pendChips) !== S.pending) S.pendChips = chipsOf(S.pending); return S.pendChips; }
-
-/* ---------- turning document changes into animations ----------
-   Every player write sets lastAction and ts, so a new ts tells us exactly what just happened.
-   Each handler may set an override before the render, and returns a function that runs after it. */
-function fxPlayers(old, nw){
-  const r = S.room; if (!r) return [];
-  const runs = [];
-  for (const pid in nw){
-    const a = old[pid], b = nw[pid];
-    if (!a || !b || !b.lastAction || (b.ts || 0) === (a.ts || 0)) continue;
-    const f = (r.game === 'holdem' ? fxHold : fxBJ)(pid, a, b, r);
-    if (f) runs.push(f);
-  }
-  return runs;
-}
-function fxBJ(pid, a, b, r){
-  const k = b.lastAction.k, mine = pid === S.myId, A = a.hands || [], B = b.hands || [];
-  const sum = hs => hs.reduce((x, h) => x + (h.bet || 0), 0);
-  const seat = () => seatTarget(pid), spot = j => rectOf(`spot:${pid}:${j}`), u = unitPx();
-  if (k === 'bet'){
-    const prev = a.bjRound === b.bjRound ? A : [], d = sum(B) - sum(prev); if (d <= 0) return null;
-    if (mine) return () => { SND.chips(4); pulse(`spot:${pid}:0`, 1.08); };      // my pending chips were already on the spot
-    const pc = prev[0] ? handStack(prev[0]) : [], nc = B[0] ? handStack(B[0]) : d;      // just the chips added this time
-    const delta = Array.isArray(nc) && Array.isArray(pc) && pc.every((x, n) => nc[n] === x) && sumOf(nc.slice(pc.length)) === d ? nc.slice(pc.length) : d;
-    const tok = setOv(pid, { hands: prev }, 700);
-    return () => fly({ from: seat(), to: spot(0), amt: delta, sound: SND.slide, land: () => { SND.chips(3); clearOv(pid, tok); } });
-  }
-  if (k === 'clear'){
-    const amt = sum(A); if (!amt) return null;
-    const from = oldRect(`spot:${pid}:0`), tok = setOv(pid, { stack: a.stack }, 700);
-    return () => fly({ from, to: seat(), amt: A.length === 1 ? handStack(A[0]) : amt, fadeOut: true, sound: SND.slide, land: () => { SND.chips(2); clearOv(pid, tok); } });
-  }
-  if (k === 'double'){
-    const i = B.findIndex((h, j) => h.doubled && !(A[j] && A[j].doubled)); if (i < 0) return null;
-    const half = B[i].bet / 2, hv = handHalves(B[i]);
-    const tok = setOv(pid, { hands: B.map((h, j) => j === i ? { ...h, doubled: false, bet: half, chips: Array.isArray(hv[0]) ? hv[0] : undefined } : h) }, 800);
-    return () => { SND.whoosh(); const t = spot(i); fly({ from: seat(), to: shift(t, u * 3.8), amt: hv[1], dur: 600, land: () => { SND.chips(4); clearOv(pid, tok); pulse(`spot:${pid}:${i}`); floatText(shift(t, 0, -u * 9), '×2'); } }); };
-  }
-  if (k === 'split'){
-    if (B.length <= A.length) return null;
-    const same = (x, y) => x && y && x.bet === y.bet && !!x.split === !!y.split && !!x.doubled === !!y.doubled && x.result === y.result;
-    let j = 0; while (j < A.length && same(A[j], B[j])) j++;
-    const i = A[j] && !A[j].split && B[j] && B[j].split && A[j].bet === B[j].bet ? j : Math.max(0, j - 1);
-    const from = oldRect(`spot:${pid}:${i}`);
-    const tok = setOv(pid, { hands: B.map((h, x) => x === i || x === i + 1 ? { ...h, _hide: true } : h) }, 900);
-    return () => {
-      SND.whoosh();
-      fly({ from, to: spot(i), amt: handStack(B[i]), dur: 420, lift: 12, land: () => { const o = FX.ov[pid]; if (o && o.tok === tok){ o.hands[i]._hide = false; render(); } } });
-      fly({ from: seat(), to: spot(i + 1), amt: handStack(B[i + 1]), delay: 140, dur: 580, land: () => { SND.chips(4); clearOv(pid, tok); const t = spot(i + 1); floatText(shift(t, 0, -u * 9), 'ספליט'); } });
-    };
-  }
-  if (k === 'ins'){
-    const amt = b.insurance || 0; if (!amt) return null;
-    const tok = setOv(pid, { ins: 0 }, 700);
-    return () => fly({ from: seat(), to: rectOf('ins:' + pid), amt, sound: SND.slide, land: () => { SND.chips(3); clearOv(pid, tok); } });
-  }
-  if (k === 'surrender'){
-    const h = B[0]; if (!h) return null; const back = Math.floor(h.bet / 2); if (!back) return null;
-    const tok = setOv(pid, { stack: a.stack }, 700);
-    return () => { SND.fold(); fly({ from: spot(0), to: seat(), amt: back, fadeOut: true, land: () => { SND.chips(2); clearOv(pid, tok); } }); };
-  }
-  if (k === 'bjpay'){
-    setTimeout(() => SND.say('blackjack'), 400);
-    const h0 = A[0]; if (!h0) return null; const win = b.lastAction.amt || 0, from = oldRect(`spot:${pid}:0`);
-    const tok = setOv(pid, { hands: [{ ...h0, _hide: true }], stack: a.stack }, 1700);
-    return () => {
-      const dealer = rectOf('dealer'), st = seat(), f = from || spot(0), off = shift(f, u * 4.2);
-      dealerNod(); SND.chips(3); floatText(shift(f, 0, -u * 10), "בלאק ג'ק!");
-      fly({ from: f, to: st, amt: handStack(h0), delay: 1000, fadeOut: true });
-      fly({ from: dealer, to: off, amt: win, delay: 120, dur: 600, sound: () => SND.chips(3), land: () => fly({ from: off, to: st, amt: win, delay: 280, fadeOut: true }) });
-      setTimeout(() => { clearOv(pid, tok); SND.chips(4); pulse('seat:' + pid, 1.2); floatText(shift(rectOf('seat:' + pid) || st, 0, -u * 12), '+' + fmt(win), 'w'); if (mine) SND.bj(); }, 1560);
-    };
-  }
-  if (k === 'bjres'){
-    if (!B.length) return null;
-    const T1 = 1000, from = A.map((_, j) => oldRect(`spot:${pid}:${j}`)), insFrom = oldRect('ins:' + pid);
-    const tok = setOv(pid, { hands: A.map(h => ({ ...h, _hide: true })), ins: 0, stack: a.stack, hideRes: true }, T1 + 700);
-    return () => {
-      const dealer = rectOf('dealer'), st = seat(); let handsNet = 0, anyBJ = false;
-      B.forEach((h, j) => {
-        if (h.paid) return;                                    // already paid when the dealer declared the blackjack
-        const f = from[j] || spot(j), amt = handStack(A[j] || h), res = h.result;
-        if (res === 'lose' || res === 'surrender'){
-          handsNet -= res === 'lose' ? h.bet : h.bet - Math.floor(h.bet / 2);
-          fly({ from: f, to: dealer, amt, delay: 80 * j, dur: 640, fadeOut: true, sound: SND.slide });
-        } else if (res === 'push'){
-          fly({ from: f, to: st, amt, delay: T1, fadeOut: true });
-        } else if (res === 'win' || res === 'bj'){
-          const pay = res === 'bj' ? Math.floor(h.bet * 1.5) : h.bet, off = shift(f, u * 4.2), d0 = 120 + 80 * j;
-          handsNet += pay; anyBJ = anyBJ || res === 'bj';
-          fly({ from: f, to: st, amt, delay: T1, fadeOut: true });
-          fly({ from: dealer, to: off, amt: pay, delay: d0, dur: 600, sound: () => SND.chips(3), land: () => fly({ from: off, to: st, amt: pay, delay: Math.max(0, T1 - d0 - 600), fadeOut: true }) });
-        }
-      });
-      const ins = a.insurance || 0;
-      if (ins){
-        const won = (b.lastAction.amt || 0) - handsNet > 0, f = insFrom || rectOf('ins:' + pid);
-        if (!won) fly({ from: f, to: dealer, amt: ins, dur: 600, fadeOut: true });
-        else { const off = shift(f, u * 3.4); fly({ from: f, to: st, amt: ins, delay: T1, fadeOut: true }); fly({ from: dealer, to: off, amt: ins * 2, delay: 160, dur: 600, land: () => fly({ from: off, to: st, amt: ins * 2, delay: Math.max(0, T1 - 760), fadeOut: true }) }); }
-      }
-      const net = b.lastAction.amt || 0;
-      setTimeout(() => {
-        clearOv(pid, tok); if (net >= 0) SND.chips(4);
-        pulse('seat:' + pid, 1.2);
-        floatText(shift(rectOf('seat:' + pid) || st, 0, -u * 12), net > 0 ? '+' + fmt(net) : net < 0 ? '−' + fmt(-net) : 'תיקו', net > 0 ? 'w' : net < 0 ? 'l' : 'p');
-        if (mine){ if (net > 0) (anyBJ ? SND.bj : SND.win)(); else if (net < 0) SND.lose(); else SND.push(); }
-      }, (B.some(h => ['win', 'bj', 'push'].includes(h.result)) || (ins && net > handsNet) ? T1 + 560 : 760));
-    };
-  }
-  if (k === 'refund'){
-    const amt = b.lastAction.amt || 0;
-    if (A.length && !B.length){        // the dealer cancelled the round: bets go back from the spots
-      const fr = A.map((_, j) => oldRect(`spot:${pid}:${j}`)), fi = a.insurance ? oldRect('ins:' + pid) : null;
-      const tok = setOv(pid, { hands: A.map(h => ({ ...h, _hide: true })), ins: 0, stack: a.stack }, 800);
-      return () => { const st = seat(); SND.slide(); A.forEach((h, j) => { if (!h.paid) fly({ from: fr[j], to: st, amt: handStack(h), delay: 70 * j, fadeOut: true }); }); if (fi) fly({ from: fi, to: st, amt: a.insurance, fadeOut: true }); setTimeout(() => { SND.chips(3); clearOv(pid, tok); }, 640); };
-    }
-    if (!amt) return null;
-    if (amt > 0){ const tok = setOv(pid, { stack: a.stack }, 700); return () => fly({ from: rectOf('dealer'), to: seat(), amt, fadeOut: true, sound: SND.slide, land: () => { SND.chips(3); clearOv(pid, tok); } }); }
-    return () => fly({ from: seat(), to: rectOf('dealer'), amt: -amt, fadeOut: true, sound: SND.slide, land: () => SND.chips(2) });
-  }
-  return null;
-}
-function fxHold(pid, a, b, r){
-  const k = b.lastAction.k;
-  if (k === 'allin' && FX.allinHand !== r.handId){ FX.allinHand = r.handId; setTimeout(() => SND.say('allin'), 350); }
-  if (['blind', 'call', 'bet', 'raise', 'allin'].includes(k)){
-    const d = (a.stack || 0) - (b.stack || 0); if (d <= 0) return null;
-    const c = b.lastAction.chips;
-    return () => fly({ from: seatTarget(pid), to: rectOf('pot'), amt: okChips(c, d) ? c : d, sound: SND.slide, land: () => { SND.chips(3); pulse('pot', 1.06); } });
-  }
-  if (k === 'won' || k === 'refund'){
-    const d = (b.stack || 0) - (a.stack || 0); if (d <= 0) return null;
-    const tok = setOv(pid, { stack: a.stack }, 700);
-    return () => fly({ from: rectOf('pot'), to: seatTarget(pid), amt: d, fadeOut: true, sound: SND.slide, land: () => { SND.chips(4); clearOv(pid, tok); if (k === 'won'){ pulse('seat:' + pid, 1.2); if (pid === S.myId) SND.win(); } } });
-  }
-  if (k === 'check') return () => SND.knock();
-  if (k === 'fold') return () => SND.fold();
-  return null;
-}
-function fxRoom(a, b){
-  if (!a || !b || a.code !== b.code) return null;
-  const runs = [];
-  if (!a.closed && b.closed && b.final) runs.push(() => ceremony());              // the ceremony says 'winner' at the reveal
-  if (b.game === 'blackjack' && a.phase === 'betting' && b.phase === 'playing' && a.roundId === b.roundId) runs.push(() => { lockFx(); SND.say('locked'); });
-  // a round that was paid (not cancelled): the payout line, then the dealer opens the next round
-  if (a.game === 'blackjack' && b.game === 'blackjack' && a.phase === 'playing' && b.phase === 'betting' && (b.roundId || 0) > (a.roundId || 0) && (b.roundEnd ? b.roundEnd === 'paid' : /שולם/.test((b.lastEvent && b.lastEvent.t) || '')))   // roundEnd is missing when an older phone did the payout
-    runs.push(() => { SND.say('payout'); setTimeout(() => SND.say('open'), 2500); });
-  if (b.game === 'holdem' && (b.handId || 0) > (a.handId || 0)) runs.push(() => { SND.bell(); dealerNod(); SND.say('newhand'); });
-  else if (b.game === 'holdem' && a.stage !== b.stage && ['flop', 'turn', 'river'].includes(b.stage)) runs.push(() => SND.say(b.stage));
-  return runs.length ? () => runs.forEach(f => f()) : null;
-}
-// The dealer locked the bets: a bell, and every stack on the felt gives a little bump.
-function lockFx(){ SND.bell(); dealerNod(); players().filter(cur).forEach(p => p.hands.forEach((_, j) => pulse(`spot:${p.pid}:${j}`, 1.1))); }
 
 /* ---------- Hold'em model ----------
    The rules live in src/domain/holdem/ (rules.ts, pots.ts). This section reads S, writes what they return
@@ -897,7 +448,7 @@ function dealerSVG(){
     </g>
   </svg>`;
 }
-function dealerNod(){ if (RM) return; document.querySelectorAll('.dhead').forEach(el => { try { el.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-7deg) translateY(1px)' }, { transform: 'rotate(4deg)' }, { transform: 'rotate(0)' }], { duration: 750, easing: 'ease-in-out' }); } catch(e){} }); }
+// dealerNod() is in src/fx/room.ts.
 
 /* ---------- the end of the game: announce the winner, close the table ---------- */
 const standings = () => players().map(p => ({ pid: p.pid, name: p.name, stack: p.stack || 0 })).sort((a, b) => b.stack - a.stack);
@@ -946,7 +497,7 @@ function ceremony(){
   const tbl = document.querySelector('.bjt, .stage .table'); if (tbl) tbl.scrollIntoView({ block: 'center', behavior: 'instant' });
   const seat = rectOf('seat:' + lead.pid), x = seat ? seat.x - scrollX : innerWidth / 2, y = seat ? seat.y - scrollY : innerHeight / 2;
   finEl.innerHTML = `<div class="fin-dim" style="--x:${x}px;--y:${y}px"></div>`;
-  finEl.hidden = false; SND.drumroll(1.9); dealerNod();
+  finEl.hidden = false; SND.drumroll(1.9); dealerNod(RM);
   const throb = setInterval(() => pulse('seat:' + lead.pid, 1.25), 420); finTimers.push(throb);
   // 2. the reveal: fanfare, applause, the winner's card, raining chips
   T(1950, () => {
@@ -1349,8 +900,8 @@ function sheetView(){
     return `${head('הגדרות')}
       <div class="card" style="padding:12px"><span class="muted">שתפו את הקישור לעמוד הזה ואת הקוד</span><div class="row" style="justify-content:space-between"><span class="code">${esc(r.code)}</span><button class="btn small" data-a="copy">שיתוף הזמנה</button></div>
       <span class="muted">להתקנה: באנדרואיד, תפריט הדפדפן ← "התקנת אפליקציה". באייפון, ספארי ← שיתוף ← "הוספה למסך הבית".</span></div>
-      <button class="opt" data-a="ambi" aria-pressed="${AMBI_ON}"><span class="box"></span><span><b>אווירת קזינו ברקע</b><br><span class="muted">מכונות מזל ואנשים מדברים בשקט, מדי פעם${SND.on ? '' : ' · הצלילים כבויים כרגע'}</span></span><span></span></button>
-      <button class="opt" data-a="voice" aria-pressed="${VOICE_ON}"><span class="box"></span><span><b>קריינות הדילרית</b><br><span class="muted">הדילרית אומרת בקול מה קורה: הימורים, קלפים, תשלום${SND.on ? '' : ' · הצלילים כבויים כרגע'}</span></span><span></span></button>
+      <button class="opt" data-a="ambi" aria-pressed="${SND.ambiOn}"><span class="box"></span><span><b>אווירת קזינו ברקע</b><br><span class="muted">מכונות מזל ואנשים מדברים בשקט, מדי פעם${SND.on ? '' : ' · הצלילים כבויים כרגע'}</span></span><span></span></button>
+      <button class="opt" data-a="voice" aria-pressed="${SND.voiceOn}"><span class="box"></span><span><b>קריינות הדילרית</b><br><span class="muted">הדילרית אומרת בקול מה קורה: הימורים, קלפים, תשלום${SND.on ? '' : ' · הצלילים כבויים כרגע'}</span></span><span></span></button>
       ${host ? `
         <span class="label">סוג משחק</span>
         <div class="seg"><button data-a="setgame" data-v="holdem" aria-pressed="${hold}" ${busy ? 'disabled' : ''}>טקסס הולדם</button><button data-a="setgame" data-v="blackjack" aria-pressed="${!hold}" ${busy ? 'disabled' : ''}>בלאק ג'ק</button></div>
@@ -1396,8 +947,8 @@ const A = {
   },
   setp: v => { S.pending = Math.max(0, Math.min(me()?.stack || 0, Number(v))); FX.pendFly = 0; SND.chips(3); render(); },
   clearp: () => { if (S.pending) SND.slide(); S.pending = 0; FX.pendFly = 0; render(); },
-  ambi: () => { AMBI_ON = !AMBI_ON; ls.set('chips.ambi', AMBI_ON ? '1' : '0'); ambiSync(); render(); },
-  voice: () => { VOICE_ON = !VOICE_ON; ls.set('chips.voice', VOICE_ON ? '1' : '0'); if (!VOICE_ON) SND.voiceStop(); ambiSync(); render(); },
+  ambi: () => { SND.setAmbi(!SND.ambiOn); ambiSync(); render(); },
+  voice: () => { SND.setVoice(!SND.voiceOn); if (!SND.voiceOn) SND.voiceStop(); ambiSync(); render(); },
   reload: () => { reloading = true; location.reload(); },
   upd: async () => { await checkUpdate(); if (newBuild){ reloading = true; location.reload(); } else toast('זו כבר הגרסה האחרונה. אם השולחן עדיין לא נפתח, נסו שוב עוד רגע.'); },
   endgame: () => endGame(),
@@ -1459,5 +1010,7 @@ document.addEventListener('input', bind);
 document.addEventListener('change', bind);
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'jcode') A.join(); if (e.key === 'Escape' && S.sheet){ S.sheet = null; render(); } else if (e.key === 'Escape' && !rotEl.hidden){ S.rotOff = true; render(); } });
 
-render();
-})();
+// main.ts calls start() once the event subscribers are wired: connect, then enter the last table or show home.
+function start(){ dbReady = connectStore(); render(); }
+return { start, render, ceremony, myId: () => S.myId, inTable: () => !!(S.code && S.room && !S.room.closed) };
+}

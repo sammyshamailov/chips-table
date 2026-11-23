@@ -10,10 +10,10 @@ export default defineConfig({
   plugins: [swPlugin('src/sw-template.js')],
   test: {
     include: ['src/**/*.test.ts', 'scripts/**/*.test.mts'],
-    // `npm run coverage`: the game rules and the data layer are the code that must be fully tested.
+    // `npm run coverage`: the game rules, the data layer and the document diff are the code that must be fully tested.
     coverage: {
       provider: 'v8',
-      include: ['src/domain/**/*.ts', 'src/data/**/*.ts'],
+      include: ['src/domain/**/*.ts', 'src/data/**/*.ts', 'src/sync/**/*.ts'],
       exclude: ['src/**/*.test.ts'],
       reporter: ['text'],
     },

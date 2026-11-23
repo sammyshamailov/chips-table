@@ -112,6 +112,22 @@ async function openTable(pages, url, { game = 'holdem', settings = {}, names, pl
   return { code, ids };
 }
 
+// Counts the flying chips (`.fly` added to #fx) a phone shows from now on. Returns an async function that waits until at
+// least `atLeast` have started (up to 3 s), lets any extra ones start, and returns the count. One action on another phone
+// must fly exactly once: two would mean a subscriber runs twice, none that the event or its subscriber is missing.
+async function watchFlies(pg){
+  await pg.evaluate(() => {
+    window.__flies = 0; if (window.__flyObs) window.__flyObs.disconnect();
+    window.__flyObs = new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.classList && n.classList.contains('fly')) window.__flies++; })));
+    window.__flyObs.observe(document.getElementById('fx'), { childList: true });
+  });
+  return async (atLeast = 1) => {
+    for (let t = 0; t < 30 && await pg.evaluate(() => window.__flies) < atLeast; t++) await pg.waitForTimeout(100);
+    await pg.waitForTimeout(400);
+    return pg.evaluate(() => { window.__flyObs.disconnect(); return window.__flies; });
+  };
+}
+
 let failed = 0;
 function check(name, ok, detail = ''){
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : '  ' + detail}`);
@@ -119,4 +135,4 @@ function check(name, ok, detail = ''){
 }
 const failures = () => failed;
 
-module.exports = { ROOT, DIST, OUT, requirePlaywright, serve, phones, setPending, players, room, openTable, check, failures };
+module.exports = { ROOT, DIST, OUT, requirePlaywright, serve, phones, setPending, players, room, openTable, watchFlies, check, failures };

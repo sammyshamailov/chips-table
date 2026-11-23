@@ -55,6 +55,38 @@ function domainPurity() {
   ];
 }
 
+// src/sync/ turns documents into events: pure like the domain (no DOM, timers, clock or randomness), and it may import
+// only the domain and itself, so the same documents give the same events on every phone.
+function syncPurity() {
+  const rules = tests => ({
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          {
+            group: ['../*', '!../domain', '!../domain/**'],
+            message: 'src/sync/ may only import from src/domain/ and src/sync/.',
+          },
+          ...(tests ? [] : [{ regex: '^[^.]', message: 'src/sync/ uses no packages.' }]),
+        ],
+      },
+    ],
+    'no-restricted-globals': [
+      'error',
+      ...IMPURE_GLOBALS.map(name => ({ name, message: 'src/sync/ is pure: pass it in.' })),
+    ],
+    'no-restricted-properties': [
+      'error',
+      { object: 'Date', property: 'now', message: 'Pass `now` in.' },
+      { object: 'Math', property: 'random', message: 'Pass randomness in.' },
+    ],
+  });
+  return [
+    { files: ['src/sync/*.ts'], rules: rules(false) },
+    { files: ['src/sync/*.test.ts'], rules: rules(true) },
+  ];
+}
+
 export default tseslint.config(
   { ignores: ['dist/', 'node_modules/', 'src/legacy.ts', 'tests/', 'config.js', 'config.example.js'] },
   js.configs.recommended,
@@ -66,6 +98,7 @@ export default tseslint.config(
   },
   // The domain (src/domain/) is pure game rules: no DOM, no Firebase, no timers, no clock, nothing outside src/domain/.
   ...domainPurity(),
+  ...syncPurity(),
   { files: ['vite.config.mts', 'scripts/**/*.mts', 'eslint.config.mjs'], languageOptions: { globals: globals.node } },
   {
     files: ['scripts/**/*.js'],
