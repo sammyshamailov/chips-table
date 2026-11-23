@@ -1,8 +1,10 @@
 // Screenshots of the table for a visual check, written to tests/out/. Run: node tests/screenshots.js
 // Uses single-device mode (no config.js), where one phone can sit several players and switch between them.
+// Then runs the pixel comparison of tests/visual.js against tests/baseline/ (--update takes a new baseline).
 const fs = require('fs');
 const path = require('path');
 const { OUT, requirePlaywright, serve, setPending } = require('./lib');
+const visual = require('./visual');
 
 (async () => {
   const { chromium } = requirePlaywright();
@@ -28,7 +30,9 @@ const { OUT, requirePlaywright, serve, setPending } = require('./lib');
     console.log('wrote', path.join(OUT, `table-${label}.png`));
     await pg.close();
   }
+  const vfail = await visual.run({ update: process.argv.includes('--update'), browser, url: srv.url });
   await browser.close(); srv.close();
   console.log(errors.length ? 'errors:\n' + errors.join('\n') : 'no errors');
-  process.exit(errors.length ? 1 : 0);
+  console.log(vfail ? `${vfail} visual check(s) failed` : 'visual: all screens match');
+  process.exit(errors.length || vfail ? 1 : 0);
 })();

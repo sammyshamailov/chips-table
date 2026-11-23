@@ -1,0 +1,11 @@
+{
+  "name": "chips-table",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Chip table for home poker and blackjack games",
+  "scripts": {},
+  "devDependencies": {
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0"
+  }
+}
