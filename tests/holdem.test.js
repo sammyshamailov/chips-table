@@ -6,6 +6,8 @@
 //           different players (the award sheet asks twice), the biggest stack gets its excess back.
 //   Hand 3: a raise, a call and a fold, a bet on the flop, then the dealer cancels: everyone gets back what they put in.
 //   Hand 4: a new hand after the cancel starts normally.
+//   Hand 5: a tied showdown on an odd pot (25 = 10 + 5 dead blind + 10) split between two winners: the odd chip goes to the
+//           first winner in seat (joining) order, and the total chips at the table stay the same.
 const { requirePlaywright, serve, phones, players, room, openTable, check, failures } = require('./lib');
 
 (async () => {
@@ -190,6 +192,32 @@ const { requirePlaywright, serve, phones, players, room, openTable, check, failu
     await verify('hand 4 blinds', { st: S4, pot: 15, stage: 'preflop' });
     await dealerTap('.o-host [data-a=sheet][data-v=cancel]'); await A.click('[data-a=cancelhand]'); await wait(1500);
     await verify('hand 4 cancelled too: blinds returned', { st: s3, pot: 0, stage: 'idle' });
+
+    // =================== Hand 5: tied pot that does not divide evenly ===================
+    // Button calls 10, small blind folds after putting in 5, big blind checks: pot 25. The button and the big blind tie.
+    // computeAward: level 5 holds 15 (3 players) -> floor(15/2) = 7 each, the odd chip goes to the first winner in seat order;
+    // level 10 holds 10 -> 5 each. So the first winner in seat order gets 13 and the other 12.
+    await newHand();
+    r = room(db());
+    const b5 = ord[1], sb5 = ord[2], bb5 = ord[0];
+    check('hand 5: button and blinds moved on', r.handId === 5 && r.buttonPid === b5 && r.sbPid === sb5 && r.bbPid === bb5, JSON.stringify([r.handId, r.buttonPid, r.sbPid, r.bbPid]));
+    const S5 = { ...s3 }; S5[sb5] -= 5; S5[bb5] -= 10;
+    await verify('hand 5 blinds', { st: S5, pot: 15, stage: 'preflop' });
+    await go(b5); S5[b5] -= 10;
+    await fold(sb5);
+    await go(bb5);
+    await verify('hand 5 call, fold, check', { st: S5, pot: 25, stage: 'preflop' });
+    for (let i = 0; i < 4; i++) await nextStreet();
+    await verify('hand 5 showdown, odd pot of 25', { st: S5, pot: 25, stage: 'showdown' });
+    check('hand 5: the pot is odd', potOf(db()) % 2 === 1);
+    // the big blind sits first in seat order (ord[0]), the button second: the odd chip goes to the big blind
+    const winners = [b5, bb5], firstWinner = ord.find(p => winners.includes(p)), otherWinner = winners.find(p => p !== firstWinner);
+    await award(winners);
+    const S5b = { ...S5 }; S5b[firstWinner] += 13; S5b[otherWinner] += 12;
+    await verify('hand 5 tie split: the first winner in seat order gets the odd chip', { st: S5b, pot: 0, stage: 'idle' });
+    check('hand 5: exact shares 13 and 12, odd chip to ' + nameOf[firstWinner], stackOf(firstWinner) === S5[firstWinner] + 13 && stackOf(otherWinner) === S5[otherWinner] + 12 && stackOf(sb5) === S5[sb5], JSON.stringify(stacks()));
+    check('hand 5: total chips at the table unchanged', players(db()).reduce((a, p) => a + p.stack, 0) === TOTAL, JSON.stringify(stacks()));
+    check('hand 5: the split is announced', (lastEvent() || '').includes('13') && (lastEvent() || '').includes('12'), lastEvent());
 
     check('no JavaScript errors on any phone', errors.length === 0, errors.join(' | '));
   } catch(e){ check('test ran to the end', false, e.message.split('\n')[0]); console.error(e); }

@@ -1176,7 +1176,7 @@ Fix · **Done 2026-11-22** · commit `98c135f`. Dealer stack changes are increme
 
 ### R-003 Two-phone test for a Hold'em hand
 
-Chore · **Done 2026-11-22** · commit `91b54ff`. `tests/holdem.test.js`: three phones, every street, side pot, cancels, chip totals after each step; shared `openTable` helper. Follow-up: an odd-pot tie (before R-005 phase 2).
+Chore · **Done 2026-11-22** · commit `91b54ff`. `tests/holdem.test.js`: three phones, every street, side pot, cancels, chip totals after each step; shared `openTable` helper. The odd-pot tie is now covered (hand 5 of the test).
 
 ### R-009 Guard older phones against new table types
 
