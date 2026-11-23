@@ -1,6 +1,7 @@
 // What a render must keep, now that Preact patches the page instead of replacing it (R-005 phase 5): the caret and the
 // avatar letter while you type, the landscape side panel's element and scroll, a sheet's scroll and the amounts typed in
-// it, the sheet and the toast showing and hiding. Single-device mode. Run: node tests/behaviour.test.js
+// it, the sheet and the toast showing and hiding; the Blackjack table's elements (each seat stays with its player), the
+// dealer's blink rhythm, your chips in hand landing on your spot. Single-device mode. Run: node tests/behaviour.test.js
 const { requirePlaywright, serve, setPending, check, failures } = require('./lib');
 
 async function addPlayers(p, names){
@@ -62,6 +63,28 @@ async function addPlayers(p, names){
     check('toast: shows', await p.$eval('#toast', e => !e.hidden && e.textContent === 'הצלילים כבויים'));
     await p.waitForTimeout(3400);
     check('toast: hides', await p.$eval('#toast', e => e.hidden));
+
+    // 6. Blackjack: the table's elements are kept across renders, each seat stays with its player when someone sits
+    //    down, the blink keeps its phase, and chips from the tray land on your spot one by one.
+    p = await page(390, 844);
+    await p.fill('#name', 'סמי'); await p.click('[data-a=cgame][data-v=blackjack]'); await p.click('#cplay'); await p.click('[data-a=create]'); await p.waitForTimeout(300);
+    await addPlayers(p, ['דנה', 'יוסי']);
+    const dana = await p.$eval('.st[data-a=claim]', e => e.dataset.v);
+    const lids = await p.$eval('.lids', e => e.getAttribute('style'));
+    await p.$eval('.bjt', e => e.__mark = 1); await p.$eval(`.st[data-v="${dana}"]`, e => e.__mark = 1); await p.$eval('.dfig svg', e => e.__mark = 1);
+    await p.click('.tray .chip >> nth=2'); await p.waitForTimeout(150);
+    check('blackjack: a chip in the air is not on your spot yet', await p.$$eval('[data-k=ghost] .cd', e => e.length) === 0);
+    await p.waitForTimeout(600);
+    check('blackjack: the chip lands on your spot', await p.$$eval('[data-k=ghost] .cd', e => e.length) === 1 && (await p.textContent('[data-k=pend]')) === '25');
+    await p.click('.tray .chip >> nth=0'); await p.waitForTimeout(700);
+    check('blackjack: the next chip lands on top of it', await p.$$eval('[data-k=ghost] .cd', e => e.length) === 2 && (await p.textContent('[data-k=pend]')) === '30');
+    check('blackjack: the table and the dealer are the same elements after renders', await p.$eval('.bjt', e => e.__mark === 1) && await p.$eval('.dfig svg', e => e.__mark === 1));
+    check('blackjack: the dealer keeps her blink rhythm across renders', (await p.$eval('.lids', e => e.getAttribute('style'))) === lids);
+    await addPlayers(p, ['מיכל']);
+    check('blackjack: a seat stays with its player when someone sits down', await p.$eval(`.st[data-v="${dana}"]`, e => e.__mark === 1) && await p.$$eval('.st', e => e.length) === 4);
+    await p.click('[data-a=bjbet]'); await p.waitForTimeout(600);
+    const mine = await p.evaluate(() => localStorage.getItem('chips.pid'));
+    check('blackjack: the bet is on your spot and your hand is empty', await p.$$eval(`[data-k="spot:${mine}:0"] > .stk .cd`, e => e.length) === 2 && !(await p.$('[data-k=ghost] .cd')) && (await p.textContent('[data-k=pend]')) === '0');
   } catch(e){ check('test ran to the end', false, e.stack || e.message); }
   check('no page errors', !errors.length, errors.join(' | '));
   await browser.close(); srv.close();

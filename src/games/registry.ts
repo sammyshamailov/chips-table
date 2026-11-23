@@ -3,10 +3,13 @@
  * registry instead of checking `game === 'holdem'` in every place.
  *
  * R-005 phase 5 fills it in part by part: Part A (the shell, home and sheets) uses the names, the form fields and the
- * per-game wording below. Parts B and C add each game's `Table`, `Dock` and `HostPanel` components here when they
- * convert them (until then `src/legacy.ts` draws those as HTML strings).
+ * per-game wording below; Part B added Blackjack's `views` (its table, dock and dealer controls as components). Part C
+ * adds Hold'em's (until then `src/legacy.ts` draws those as HTML strings).
  */
+import type { ComponentType } from 'preact';
 import type { Game } from '../domain/types';
+import type { Session } from '../ui/session';
+import { blackjackViews } from '../ui/tables/blackjack';
 
 /** A table limit: Hold'em blinds or Blackjack bet limits, as typed in the create form and the dealer's settings. */
 export interface LimitField {
@@ -17,6 +20,16 @@ export interface LimitField {
   label: string;
   /** A shorter label for the settings sheet, when the create form's doesn't fit there. */
   settingsLabel?: string;
+}
+
+/**
+ * A game's parts of the room screen. Each reads the session through its selector (like the sheets) and draws a pure
+ * component: the table (in `.stage`), your controls (in `.dock`), the dealer's controls (in `.o-host`).
+ */
+export interface GameViews {
+  Table: ComponentType<{ session: Session }>;
+  Dock: ComponentType<{ session: Session }>;
+  HostPanel: ComponentType<{ session: Session }>;
 }
 
 export interface GameMode {
@@ -40,6 +53,8 @@ export interface GameMode {
   cancel: { title: string; refunds: string; action: string };
   /** The end-game sheet, when chips are still on the table: what the dealer has to do first. */
   settleFirst: string;
+  /** The table, dock and dealer controls as components; missing: the HTML strings from `src/legacy.ts` (Hold'em, until Part C). */
+  views?: GameViews;
 }
 
 export const GAMES: Record<Game, GameMode> = {
@@ -74,6 +89,7 @@ export const GAMES: Record<Game, GameMode> = {
     ],
     cancel: { title: 'ביטול הסיבוב', refunds: 'בסיבוב הזה', action: 'cancelround' },
     settleFirst: 'שלמו או בטלו את הסיבוב',
+    views: blackjackViews,
   },
 };
 

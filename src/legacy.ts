@@ -1,6 +1,6 @@
 // @ts-nocheck
 // The game rules are pure functions in src/domain/ (R-005 phase 2); this script reads S, calls them and writes what they return.
-import { DEN, chipsOf, sumOf, handStack, handHalves, chipLabel, denoms as denomsFor } from './domain/chips';
+import { DEN, chipsOf, sumOf, chipLabel, denoms as denomsFor } from './domain/chips';
 import { tableUnsupported } from './domain/guard';
 import * as HR from './domain/holdem/rules';
 import * as Pots from './domain/holdem/pots';
@@ -18,12 +18,12 @@ import { normalizeRoom, normalizePlayer } from './data/schema';
 import { diffPlayers, diffRoom } from './sync/diff';
 import { dealerNod } from './fx/room';
 import { fmt } from './ui/format';
-import { chipStyle, stackHTML } from './ui/chips-html';
-// The shell, home, the final card and every sheet are Preact components in src/ui/ (R-005 phase 5); the tables, the
-// docks and the dealer controls are still HTML strings here, shown inside the components (LegacyHtml).
+import { chipStyle } from './ui/chips-html';
+// The shell, home, the final card, every sheet and the Blackjack table, dock and dealer controls are Preact components
+// in src/ui/ (R-005 phase 5); the Hold'em table, dock and dealer controls are still HTML strings here, shown inside the
+// components (LegacyHtml).
 import { avatarBg, validAv, initial } from './ui/avatars';
-import { avatarArtHtml, crownHtml, rankHtml } from './ui/legacy-html';
-import { RESULT_HE as RES_HE } from './ui/labels';
+import { avatarArtHtml, closedSignHtml, crownHtml, dealerFigureHtml, rankHtml } from './ui/legacy-html';
 import { gameMode } from './games/registry';
 
 // Builds the app around what main.ts created: the event bus, the sound engine (src/audio/synth.ts), the effects
@@ -61,7 +61,8 @@ let installEvt = null;
 const FX = layer.FX, RM = layer.reduced;      // the effects layer (src/fx/layer.ts): FX.ov, FX.rects, FX.pendFly…
 const { pageRect, measure, rectOf, fly, pulse, onScreen, ov, shownStack } = layer;
 const ghostChips = () => { const c = pendChips(); return c.slice(0, Math.max(0, c.length - FX.pendFly)); };
-function paintGhost(){ const el = document.querySelector('[data-k="ghost"]'); if (el){ const g = ghostChips(); el.innerHTML = g.length ? stackHTML(g) : ''; } }
+// A chip from the tray has landed on your spot: redraw the components (the ghost stack on your spot grows by it).
+function paintGhost(){ paint(); }
 const LAND = matchMedia('(orientation: landscape)');
 const PORTRAIT_PHONE = matchMedia('(orientation: portrait) and (max-width: 700px) and (pointer: coarse)');
 const landRoom = () => LAND.matches && !!S.code;
@@ -217,7 +218,7 @@ const nameOf = id => (S.players[id] && S.players[id].name) || (S.room && S.room.
 /* ---------- chip denominations ----------
    The chip rules (DEN, chipsOf, okChips, handStack, handHalves…) live in src/domain/chips.ts, the chip HTML in src/ui/chips-html.ts. */
 function denoms(){ const r = S.room; return denomsFor(r.game, r.sb, r.minBet); }
-// chipStyle and stackHTML are in src/ui/chips-html.ts.
+// chipStyle and stackHTML are in src/ui/chips-html.ts; the stacks on the table are ChipStack (src/ui/tables/).
 // The chips in your hand right now. Anything that changed the pending amount without chips (presets, clearing) resets it.
 function pendChips(){ if (sumOf(S.pendChips) !== S.pending) S.pendChips = chipsOf(S.pending); return S.pendChips; }
 
@@ -273,7 +274,6 @@ async function cancelHand(){
 /* ---------- Blackjack model ----------
    The rules live in src/domain/blackjack/ (rules.ts, actions.ts, round.ts); see the Hold'em model above. */
 const cur = p => BJ.isCurrent(p, S.room);
-const bjStake = BJ.stake;
 async function bjBet(){
   const r = S.room, res = BJA.placeBet(me(), r, S.pending, pendChips());
   if (!res.ok){
@@ -375,35 +375,9 @@ function renderRot(){
 }
 function unlockTurn(){ try { screen.orientation.unlock(); } catch(e){} try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch(e){} }
 
-/* ---------- the dealer: an original illustration, standing behind the table ---------- */
-function dealerSVG(){
-  const ph = `animation-delay:-${((now() % 5200) / 1000).toFixed(2)}s`;    // keeps the blink rhythm steady across re-renders
-  return `<svg class="dsvg" viewBox="0 0 120 110" aria-hidden="true">
-    <defs><linearGradient id="dg-skin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2c8a6"/><stop offset="1" stop-color="#dca783"/></linearGradient></defs>
-    <path d="M52.5 52H67.5L68 66Q60 70 52 66Z" fill="#d49e7b"/>
-    <path d="M16 110C16 80 32 63 60 63S104 80 104 110Z" fill="#f4f1ea"/>
-    <path d="M16 110C16 82 30 66 48 63.5L60 90V110Z" fill="#17171c"/><path d="M104 110C104 82 90 66 72 63.5L60 90V110Z" fill="#17171c"/>
-    <circle cx="60" cy="94" r="1.2" fill="#e0b766"/><circle cx="60" cy="102" r="1.2" fill="#e0b766"/><rect x="75" y="80" width="12" height="4.2" rx="1" fill="#e0b766"/>
-    <path d="M51 62L60 70L55 76L46 65Z" fill="#fff"/><path d="M69 62L60 70L65 76L74 65Z" fill="#fff"/>
-    <path d="M60 70L50.5 65.5V74.5ZM60 70L69.5 65.5V74.5Z" fill="#b3203c"/><circle cx="60" cy="70" r="2.3" fill="#86152d"/>
-    <g class="dhead">
-      <circle cx="60" cy="11.5" r="8.5" fill="#3a2217"/><path d="M53 13Q60 9 67 13" stroke="#5a3626" stroke-width="1.2" fill="none"/>
-      <ellipse cx="44.6" cy="39" rx="3" ry="4.2" fill="#e0ab88"/><ellipse cx="75.4" cy="39" rx="3" ry="4.2" fill="#e0ab88"/>
-      <ellipse cx="60" cy="37" rx="15.5" ry="18.5" fill="url(#dg-skin)"/>
-      <path d="M44 38C41 19 51 15.5 60 15.5S79 19 76 38C75 30 71 25 64 24C57 27 50 30 44 38Z" fill="#3a2217"/>
-      <path d="M64 24C58 26.5 52 29.5 47 34C51 28 57 25 64 24Z" fill="#5a3626"/>
-      <circle cx="44.6" cy="45.2" r="1.8" fill="#e0b766"/><circle cx="75.4" cy="45.2" r="1.8" fill="#e0b766"/>
-      <path d="M49.5 32.3Q53.5 30.1 57 32.1M63 32.1Q66.5 30.1 70.5 32.3" stroke="#3a2217" stroke-width="1.3" fill="none" stroke-linecap="round"/>
-      <ellipse cx="53.5" cy="37.6" rx="2" ry="2.5" fill="#2a1a12"/><ellipse cx="66.5" cy="37.6" rx="2" ry="2.5" fill="#2a1a12"/>
-      <circle cx="54.2" cy="36.7" r=".75" fill="#fff"/><circle cx="67.2" cy="36.7" r=".75" fill="#fff"/>
-      <path d="M51.3 36.3L49.8 35.1M68.7 36.3L70.2 35.1" stroke="#2a1a12" stroke-width=".9" stroke-linecap="round"/>
-      <g class="lids" style="${ph}"><ellipse cx="53.5" cy="37.4" rx="2.7" ry="3.1" fill="#edc19e"/><ellipse cx="66.5" cy="37.4" rx="2.7" ry="3.1" fill="#edc19e"/></g>
-      <path d="M60 39.5Q58.8 43.5 60.8 44.2" stroke="#c48a68" stroke-width=".9" fill="none" stroke-linecap="round"/>
-      <ellipse cx="50.6" cy="44.6" rx="3" ry="1.8" fill="#f08a8a" opacity=".35"/><ellipse cx="69.4" cy="44.6" rx="3" ry="1.8" fill="#f08a8a" opacity=".35"/>
-      <path d="M55.4 47.6Q60 52.2 64.6 47.6Q60 49.4 55.4 47.6Z" fill="#c2414f"/>
-    </g>
-  </svg>`;
-}
+/* ---------- the dealer: an original illustration, standing behind the table ----------
+   The figure is DealerFigure (src/ui/tables/dealer-figure.tsx); the Hold'em view draws it as HTML. */
+const dealerSVG = () => dealerFigureHtml();
 // dealerNod() is in src/fx/room.ts.
 
 /* ---------- the end of the game: announce the winner, close the table ---------- */
@@ -414,7 +388,8 @@ async function endGame(){
   const t = win.length > 1 ? `תיקו בצמרת: ${win.map(x => x.name).join(' ו')} עם ${fmt(top)}` : `${win[0].name} ניצח/ה עם ${fmt(top)} צ'יפים`;
   if (await w(roomPath(), 'update', { closed: true, final: { at: now(), list }, ...setEvent('המשחק הסתיים · ' + t) })){ S.sheet = null; render(); }
 }
-function closedSign(){ const drop = FX.signDrop && now() - FX.signDrop < 1800; return `<div class="csign${drop ? ' drop' : ''}" aria-label="השולחן סגור"><span>השולחן סגור</span></div>`; }
+const signDrop = () => !!(FX.signDrop && now() - FX.signDrop < 1800);       // the closed sign drops in after the ceremony
+const closedSign = () => closedSignHtml(signDrop());
 let finTimers = [];
 function finHide(){ finTimers.forEach(clearTimeout); finTimers = []; finEl.hidden = true; finEl.innerHTML = ''; FX.cer = false; }
 const looksClosed = () => !!(S.room && S.room.closed && !FX.cer);
@@ -462,10 +437,13 @@ function ceremony(){
 
 /* ---------- views ----------
    Home, the room's shell, the final card and the sheets are components (src/ui/app.tsx, mounted by main.ts as `ui`);
-   they read the app through `session`. The table, the dock and the dealer controls are still the strings below
-   (legacyParts), built before the components render. */
+   they read the app through `session`. So are the Blackjack table, dock and dealer controls (src/ui/tables/blackjack/,
+   registered in src/games/registry.ts). Hold'em's are still the strings below (legacyParts), built before the
+   components render. */
 const session = {
   state: S,
+  fx: { ov, shownStack, ghost: ghostChips, signDrop },
+  denoms: () => denoms(),
   me, players, isHost, nameOf, myAvatar: myAv, standings, looksClosed,
   holdem: () => H(),
   award: sel => computeAward(sel),
@@ -477,13 +455,13 @@ const session = {
   build: BUILD,
   sound: () => ({ on: SND.on, ambiOn: SND.ambiOn, voiceOn: SND.voiceOn }),
 };
-// The string parts of a table, or null when no table is showing (home, loading, not found, the update screen).
+// The string parts of a table, or null when no table is showing (home, loading, not found, the update screen). A game
+// whose parts are components (Blackjack) has none.
 function legacyParts(){
   if (!S.code || !S.roomLoaded || !S.room || tableUnsupported(S.room)) return null;
-  const r = S.room, m = me(), hold = r.game === 'holdem', closed = !!r.closed;
-  const table = hold ? holdemView() : bjView();
-  const dock = m && !closed ? (hold ? holdemDock() : bjDock()) : '';
-  return { table, dock, host: isHost() && !closed ? (hold ? holdemHost() : bjHost()) : '' };
+  const r = S.room, m = me(), closed = !!r.closed;
+  if (gameMode(r.game).views) return {};
+  return { table: holdemView(), dock: m && !closed ? holdemDock() : '', host: isHost() && !closed ? holdemHost() : '' };
 }
 let lastParts = null;
 // Redraws the components with the table strings of the last render: for changes only the components show (the
@@ -595,105 +573,6 @@ function holdemHost(){
       <button class="btn ghost" data-a="sheet" data-v="end">סיום המשחק</button>
     </div>
   </section>`;
-}
-
-/* Table geometry, in % of the table box. Everything sits on ellipses that share one centre near the dealer. */
-const GEO = { cy: 8, seat: [47, 75], spot: [34, 56], ins: [19.5, 32], bj: [25, 43], insText: [19.5, 33.6], in1: [17, 27.5], in2: [22, 37], max: 64 };
-const ept = (phi, e) => [50 + e[0] * Math.sin(phi), GEO.cy + e[1] * Math.cos(phi)];
-// Seats are spaced evenly along the arc of betting circles, so circles never overlap however many players sit down.
-const ARC = (() => {
-  const pts = []; let L = 0, prev = ept(-GEO.max * Math.PI / 180, GEO.spot);
-  for (let d = -GEO.max; d <= GEO.max + .001; d += .5){ const q = ept(d * Math.PI / 180, GEO.spot); L += Math.hypot(q[0] - prev[0], (q[1] - prev[1]) * .98); pts.push([d, L]); prev = q; }
-  return { pts, L };
-})();
-function seatLayout(n){
-  if (n <= 1) return { angles: [0], size: 13.5 };
-  const gap = Math.min(17, ARC.L / (n - 1)), mid = ARC.L / 2;
-  const angles = Array.from({ length: n }, (_, k) => {
-    const target = mid + gap * ((n - 1) / 2 - k);                  // k = 0 sits on the right, the first seat when reading Hebrew
-    const hit = ARC.pts.find(q => q[1] >= target) || ARC.pts[ARC.pts.length - 1];
-    return hit[0] * Math.PI / 180;
-  });
-  return { angles, size: Math.min(13.5, gap * .86) };
-}
-function arc(id, e, deg){
-  const a = deg * Math.PI / 180, k = .98, [x1, y1] = ept(-a, e), [x2, y2] = ept(a, e);
-  return `<path id="${id}" d="M${x1.toFixed(2)} ${(y1 * k).toFixed(2)} A${e[0]} ${(e[1] * k).toFixed(2)} 0 0 0 ${x2.toFixed(2)} ${(y2 * k).toFixed(2)}"/>`;
-}
-function bjVis(p){
-  const r = S.room, o = ov(p.pid), hs = p.hands || [];
-  const show = p.bjRound === r.roundId || (p.bjRound === r.roundId - 1 && hs.some(h => !h.result));   // a round being paid out stays on the felt
-  return { hands: o && o.hands ? o.hands : (show ? hs : []), ins: o && o.ins != null ? o.ins : (show ? p.insurance || 0 : 0) };
-}
-function bjSeat(p, phi, base){
-  const r = S.room, o = ov(p.pid), mine = p.pid === S.myId, vis = bjVis(p), c = cur(p), pid = esc(p.pid);
-  const [sx, sy] = ept(phi, GEO.seat), [bx, by] = ept(phi, GEO.spot), [ix, iy] = ept(phi * .78, GEO.ins);
-  const hs = vis.hands.length ? vis.hands : [null], m = hs.length, size = m === 1 ? base : Math.min(base * (m === 2 ? .8 : .66), 15 / m + 3);
-  const gc = mine && r.phase === 'betting' ? ghostChips() : null, ghost = gc ? gc.length : -1;
-  const spots = hs.map((h, j) => {
-    const x = Math.max(size / 2 + .5, Math.min(99.5 - size / 2, bx + (j - (m - 1) / 2) * size * 1.04));
-    const paid = h && h.paid, show = h && !h._hide && !paid;
-    let inner = show ? (h.doubled ? `<div class="duo">${handHalves(h).map(x => stackHTML(x)).join('')}</div>` : stackHTML(handStack(h))) : '';
-    if (j === 0 && gc) inner += `<div class="ghost" data-k="ghost">${ghost ? stackHTML(gc) : ''}</div>`;
-    const lbl = paid && !h._hide ? `<span class="bl bjl">בלאק ג'ק ✓</span>` : show ? `<span class="bl num">${fmt(h.bet)}${h.doubled ? (m > 1 ? '×2' : ' · ×2') : ''}${h.result === 'surrender' ? ' · ½' : ''}</span>` : '';
-    const glow = mine && j === 0 && r.phase === 'betting' && !show && !ghost;
-    return `<div class="spot${m > 1 ? ' sm' : ''}${mine ? ' mine' : ''}${show ? ' has' : ''}${glow ? ' glow' : ''}" data-k="spot:${pid}:${j}" style="left:${x.toFixed(2)}%;top:${by.toFixed(2)}%;width:${size.toFixed(2)}%;--chip:calc(var(--u)*${(size * .53).toFixed(2)})">${inner}${lbl}</div>`;
-  }).join('');
-  const ins = `<div class="insk" data-k="ins:${pid}" style="left:${ix.toFixed(2)}%;top:${iy.toFixed(2)}%">${vis.ins ? stackHTML(vis.ins) + `<span class="bl num">ביטוח ${fmt(vis.ins)}</span>` : ''}</div>`;
-  const res = !(o && o.hideRes) && !c && p.bjRound === r.roundId - 1 && p.lastAction && (p.lastAction.k === 'bjres' || p.lastAction.k === 'bjpay') ? (p.lastAction.amt || 0) : null;
-  const claim = S.mode === 'local' && !mine ? ` data-a="claim" data-v="${pid}" role="button" title="שחק בתור ${esc(p.name)}"` : mine ? ` data-a="sheet" data-v="avatar" role="button" title="החלפת התמונה שלך"` : '';
-  return spots + ins + `<div class="st${mine ? ' me' : ''}${r.phase === 'playing' && !c ? ' out' : ''}"${claim} style="left:${sx.toFixed(2)}%;top:${sy.toFixed(2)}%">
-    ${res != null ? `<span class="rb ${res > 0 ? 'w' : res < 0 ? 'l' : 'p'} num">${res > 0 ? '+' + fmt(res) : res < 0 ? '−' + fmt(-res) : 'תיקו'}</span>` : ''}
-    ${avatar(p, 'seat:' + p.pid)}
-    <b class="sn">${esc(p.name)}</b><span class="ss num">${fmt(shownStack(p))}</span></div>`;
-}
-function bjView(){
-  const r = S.room, list = players(), n = list.length;
-  const bettors = list.filter(cur), inTable = bettors.reduce((a, p) => a + bjStake(p) + (p.insurance || 0), 0), house = r.house || 0;
-  const lay = seatLayout(n);
-  const seats = list.map((p, k) => bjSeat(p, lay.angles[k], lay.size)).join('');
-  const print = `<svg class="print" viewBox="0 0 100 98" preserveAspectRatio="none" aria-hidden="true" direction="ltr"><defs>${arc('pa-bj', GEO.bj, 48)}${arc('pa-it', GEO.insText, 40)}${arc('pa-i1', GEO.in1, 42)}${arc('pa-i2', GEO.in2, 42)}</defs><use href="#pa-i1" class="ln"/><use href="#pa-i2" class="ln"/><text class="t1"><textPath href="#pa-bj" startOffset="50%" text-anchor="middle">BLACKJACK PAYS 3 TO 2</textPath></text><text class="t2"><textPath href="#pa-it" startOffset="50%" text-anchor="middle">INSURANCE PAYS 2 TO 1</textPath></text></svg>`;
-  return `
-  <section class="bjt${n > 7 ? ' dense' : ''}${looksClosed() ? ' closed' : ''}" aria-label="שולחן בלאק ג'ק">
-    ${looksClosed() ? closedSign() : ''}
-    <div class="dfig">${dealerSVG()}</div>
-    <div class="felt"></div>
-    ${print}
-    <div class="dlr"><div class="rack" data-k="dealer">${denoms().slice().reverse().map(d => `<i class="tube" style="${chipStyle(d)}"></i>`).join('')}</div><div class="dn">${esc(r.hostName || 'הדילר')} · דילר</div></div>
-    <div class="plac num"><span>מינ׳ ${fmt(r.minBet)}</span><span>מקס׳ ${r.maxBet ? fmt(r.maxBet) : '∞'}</span></div>
-    <div class="rnd num"><span>סיבוב ${r.roundId}</span><span>הבית <span dir="ltr">${house >= 0 ? '+' : '−'}${fmt(Math.abs(house))}</span></span></div>
-    <div class="cst"><span class="pill ${r.phase === 'betting' ? 'ok' : ''}">${r.phase === 'betting' ? 'הימורים פתוחים' : 'הקלפים חולקו'}</span><span class="meta num">${r.phase === 'betting' ? `${bettors.length} מתוך ${n} הימרו` : `על השולחן ${fmt(inTable)}`}</span></div>
-    ${seats || `<div class="empty">עוד אין מהמרים.<br>שתפו את הקוד.</div>`}
-  </section>`;
-}
-
-function bjDock(){
-  const r = S.room, m = me(), c = cur(m);
-  const head = `<div class="dock-head"><div class="mystack"><span class="big num" data-k="mystack">${fmt(shownStack(m))}</span><span class="muted">הצ'יפים שלך</span></div>${r.phase === 'betting' ? pendingBox() : ''}</div>`;
-  if (r.phase === 'betting'){
-    const curBet = c ? m.hands[0].bet : 0;
-    return `${head}
-      <div class="tray">${denoms().map(d => `<button class="chip" style="${chipStyle(d)}" data-a="add" data-v="${d}" aria-label="הוספת ${d}"><span>${chipLabel(d)}</span></button>`).join('')}</div>
-      <div class="acts">${c ? `<button class="btn ghost" data-a="bjclear">ביטול ${fmt(curBet)}</button>` : `<button class="btn ghost" data-a="setp" data-v="${r.minBet}">מינימום ${fmt(r.minBet)}</button>`}
-      <button class="btn primary" data-a="bjbet" ${S.pending ? '' : 'disabled'}>${c ? `הוספה להימור (${fmt(curBet + S.pending)})` : `הימור ${fmt(S.pending)}`}</button></div>`;
-  }
-  if (!c) return `${head}<div class="status">לא הימרת בסיבוב הזה. אפשר להמר בסיבוב הבא.</div>`;
-  const handsHtml = m.hands.map((x, i) => {
-    if (x.result) return `<div class="status">יד ${i+1}: ${fmt(x.bet)} · ${RES_HE[x.result]}</div>`;
-    return `<div class="handrow hr1"><div class="hl"><b>${m.hands.length > 1 ? `יד ${i+1}` : 'ההימור שלך'}</b><span class="amt num"><span class="mini"></span>${fmt(x.bet)}${x.doubled ? ' · דאבל' : ''}</span></div>
-      <button class="btn small" data-a="bj" data-v="double:${i}" ${x.doubled || m.stack < x.bet ? 'disabled' : ''}>דאבל דאון</button><button class="btn small" data-a="bj" data-v="split:${i}" ${x.doubled || m.hands.length >= 4 || m.stack < x.bet ? 'disabled' : ''}>ספליט</button></div>`;
-  }).join('');
-  const one = m.hands.length === 1 && !m.hands[0].doubled && !m.hands[0].result;
-  return `${head}${handsHtml}
-    <div class="acts3"><button class="btn small ghost" data-a="bj" data-v="ins:0" ${m.insurance || m.hands.length > 1 || m.hands[0].result || m.stack < Math.floor(m.hands[0].bet/2) ? 'disabled' : ''}>${m.insurance ? `ביטוח ${fmt(m.insurance)}` : `ביטוח (${fmt(Math.floor(m.hands[0].bet/2))})`}</button><button class="btn small ghost" data-a="bj" data-v="surrender:0" ${one ? '' : 'disabled'}>כניעה (מקבלים חצי)</button></div>`;
-}
-
-function bjHost(){
-  const r = S.room, n = players().filter(cur).length;
-  return `<section class="host"><h3>בקרת דילר</h3><div class="btns">
-    ${r.phase === 'betting' ? `<button class="btn primary" data-a="deal" ${n ? '' : 'disabled'}>חלוקת קלפים (נועל הימורים)</button>` : `<button class="btn primary" data-a="sheet" data-v="settle">סימון זוכים ותשלום</button>${players().some(bjEligible) ? `<button class="btn" data-a="sheet" data-v="bjnow">בלאק ג'ק לשחקן</button>` : ''}<button class="btn ghost" data-a="sheet" data-v="cancel">ביטול הסיבוב</button>`}
-    <button class="btn ghost" data-a="sheet" data-v="end">סיום המשחק</button>
-  </div>${r.phase === 'betting' && !n ? '<span class="muted">מחכים שמישהו יהמר.</span>' : ''}</section>`;
 }
 
 /* ---------- events ---------- */

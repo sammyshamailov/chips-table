@@ -6,6 +6,8 @@ import { render, type VNode } from 'preact';
 import { AvatarArt } from './components/avatar';
 import { Crown } from './components/crown';
 import { Rank } from './components/rank';
+import { ClosedSign } from './tables/closed-sign';
+import { DealerFigure } from './tables/dealer-figure';
 import type { Standing } from '../data/schema';
 
 /**
@@ -43,3 +45,9 @@ export const crownHtml = (): string => toHtml(<Crown />);
 /** The standings, as HTML. */
 export const rankHtml = (list: Standing[], players: Record<string, { avatar?: unknown }>): string =>
   toHtml(<Rank list={list} players={players} />);
+
+/** The dealer figure, as HTML (the Hold'em view; a fresh one per render, with the blink's phase from the clock). */
+export const dealerFigureHtml = (): string => toHtml(<DealerFigure />);
+
+/** The closed sign, as HTML (the Hold'em view). */
+export const closedSignHtml = (drop: boolean): string => toHtml(<ClosedSign drop={drop} />);

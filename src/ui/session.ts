@@ -6,6 +6,7 @@
  * below them gets plain data through its props.
  */
 import type { Avatar, Player, Room, Standing } from '../data/schema';
+import type { Override } from '../fx/layer';
 import type { HoldemState } from '../domain/holdem/rules';
 import type { Award } from '../domain/holdem/pots';
 import type { Game } from '../domain/types';
@@ -55,6 +56,8 @@ export interface AppState {
   syncErr?: string | null;
   synced?: boolean;
   pSynced?: boolean;
+  /** The chips in your hand (about to be bet), and which chips they are. */
+  pending: number;
   /** The open sheet, or null. */
   sheet: string | null;
   /** Award sheet: the chosen winners. */
@@ -73,8 +76,24 @@ export interface AppState {
   edit: EditForm | null;
 }
 
+/** What a table shows while chips fly (the effects layer, src/fx/layer.ts). */
+export interface TableFx {
+  /** What a player's spots and stack should still show until the chips in the air land, or null. */
+  ov(pid: string): Override | null;
+  /** The chips a seat shows: the old count while chips fly to it. */
+  shownStack(p: { pid: string; stack?: number }): number;
+  /** Your chips in hand that have landed (the ones still flying from the tray are left out). */
+  ghost(): number[];
+  /** The closed sign is dropping in (just after the ceremony). */
+  signDrop(): boolean;
+}
+
 export interface Session {
   readonly state: AppState;
+  /** What the table shows while chips fly. */
+  readonly fx: TableFx;
+  /** The room's chip values, smallest first. */
+  denoms(): number[];
   /** This phone's player at the table, or null. */
   me(): SeatView | null;
   players(): SeatView[];
@@ -101,9 +120,12 @@ export interface Session {
   sound(): { on: boolean; ambiOn: boolean; voiceOn: boolean };
 }
 
-/** The parts of a table still drawn as HTML strings by `src/legacy.ts` (Parts B and C convert them). */
+/**
+ * The parts of a table still drawn as HTML strings by `src/legacy.ts` (Hold'em until Part C converts it), or `{}` for
+ * a game whose parts are components (`GameMode.views`). The parts are null when no table is showing.
+ */
 export interface LegacyParts {
-  table: string;
-  dock: string;
-  host: string;
+  table?: string;
+  dock?: string;
+  host?: string;
 }

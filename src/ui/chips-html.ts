@@ -11,15 +11,25 @@ export function chipStyle(d: number): string {
   return `--c:var(--c${d});--e:${d === 1 || d === 2 || d === 1000 ? 'var(--c5)' : 'var(--chalk)'};--t:${dark ? '#fff' : '#1a1a1a'}`;
 }
 
+/** The columns of a stack: `per` chips each, or more per column (up to four columns) when there are many. */
+export function stackColumns(c: number[], per = 8): number[][] {
+  const p = c.length > per * 4 ? Math.ceil(c.length / 4) : c.length > per * 3 ? Math.ceil(c.length / 3) : per,
+    cols: number[][] = [];
+  for (let i = 0; i < c.length; i += p) cols.push(c.slice(i, i + p));
+  return cols;
+}
+
 /**
- * A stack, drawn from an amount (made up from the biggest chips) or from the exact chips a player put down, in
- * columns of `per` chips (more columns, up to four, when there are many).
+ * A stack as HTML, drawn from an amount (made up from the biggest chips) or from the exact chips a player put down, in
+ * columns (`stackColumns`). The chips in the air (src/fx/) use it; on the table it is `ChipStack` (src/ui/tables/).
  */
 export function stackHTML(amt: number[] | number | null | undefined, per = 8): string {
   const c = Array.isArray(amt) ? amt : chipsOf(amt);
   if (!c.length) return '';
-  const p = c.length > per * 4 ? Math.ceil(c.length / 4) : c.length > per * 3 ? Math.ceil(c.length / 3) : per,
-    cols: number[][] = [];
-  for (let i = 0; i < c.length; i += p) cols.push(c.slice(i, i + p));
-  return `<div class="stk">${cols.map(col => `<div class="col" style="--n:${col.length}">${col.map((d, i) => `<i class="cd" style="${chipStyle(d)};--i:${i}"></i>`).join('')}</div>`).join('')}</div>`;
+  return `<div class="stk">${stackColumns(c, per)
+    .map(
+      col =>
+        `<div class="col" style="--n:${col.length}">${col.map((d, i) => `<i class="cd" style="${chipStyle(d)};--i:${i}"></i>`).join('')}</div>`,
+    )
+    .join('')}</div>`;
 }

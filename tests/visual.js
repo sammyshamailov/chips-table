@@ -34,6 +34,21 @@ async function settle(pg){
   await pg.waitForTimeout(150);
 }
 
+// Lay out and paint the screens the app renders (#app, #sheet) afresh, keeping scroll positions and focus. Chrome
+// reuses the layout and paint of elements a render kept (Preact patches the page), and an element that only moved with
+// its parent (a row of the fixed bottom dock when the dock grows) can come out 1 px off where a fresh layout puts it:
+// sub-pixel snapping, not something a player can see. The picture should show what the page is, not how Chrome got
+// there. (The overlays outside them, such as the ceremony, are created afresh by the app and left alone.)
+const relayout = pg => pg.evaluate(() => {
+  const scrolled = [...document.querySelectorAll('*')].filter(e => e.scrollTop || e.scrollLeft).map(e => [e, e.scrollTop, e.scrollLeft]);
+  const x = scrollX, y = scrollY, focused = document.activeElement;
+  for (const el of [document.getElementById('app'), document.getElementById('sheet')]){
+    const d = el.style.display; el.style.display = 'none'; void el.offsetHeight; el.style.display = d; void el.offsetHeight;
+  }
+  scrolled.forEach(([e, t, l]) => { e.scrollTop = t; e.scrollLeft = l; }); scrollTo(x, y);
+  if (focused && focused !== document.body && focused.focus) focused.focus({ preventScroll: true });
+});
+
 async function addPlayers(pg, names){
   for (const n of names){ await pg.click('[data-a=sheet][data-v=players]'); await pg.fill('#newp', n); await pg.click('[data-a=addp]'); await pg.waitForTimeout(60); await pg.click('[data-a=close]'); }
 }
@@ -211,6 +226,7 @@ async function shoot(browser, url, s, errors){
   await s.run(pg);
   await settle(pg);
   await pg.mouse.move(0, 0);
+  await relayout(pg);
   const png = await pg.screenshot({ fullPage: !!s.full });
   await ctx.close();
   return png;

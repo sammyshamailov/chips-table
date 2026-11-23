@@ -1,8 +1,9 @@
 /**
  * Inside a table: loading, not found, the update screen (R-009), or the room. The room is a side panel (header,
  * status lines, join card, dealer controls or the final card, your dock) and the table; in portrait the side panel's
- * parts are laid out around the table by CSS order. The table, the dock and the dealer controls are still HTML strings
- * from src/legacy.ts (`LegacyParts`) until Parts B and C convert them.
+ * parts are laid out around the table by CSS order. The table, the dock and the dealer controls are the game's
+ * components (`GameMode.views`: Blackjack since Part B), or still HTML strings from src/legacy.ts (`LegacyParts`,
+ * Hold'em until Part C).
  */
 import { tableUnsupported } from '../../domain/guard';
 import { gameMode } from '../../games/registry';
@@ -36,9 +37,11 @@ export function RoomScreen({ session, legacy }: { session: Session; legacy: Lega
   if (!r) return <NotFound code={code} />;
   if (tableUnsupported(r) || !legacy) return <UpdateView code={code} />;
   const g = gameMode(r.game),
+    v = g.views,
     m = session.me(),
     host = session.isHost(),
-    closed = !!r.closed;
+    closed = !!r.closed,
+    stage = g.fitStage ? 'stage fit' : 'stage';
   return (
     <div class="room">
       <div class="side">
@@ -72,22 +75,45 @@ export function RoomScreen({ session, legacy }: { session: Session; legacy: Lega
             />
           </div>
         )}
-        {host && !closed && <LegacyHtml class="o-host" html={legacy.host} />}
+        {host &&
+          !closed &&
+          (v ? (
+            <div class="o-host">
+              <v.HostPanel session={session} />
+            </div>
+          ) : (
+            <LegacyHtml class="o-host" html={legacy.host || ''} />
+          ))}
         {session.looksClosed() && (
           <div class="o-host">
             <FinalCard list={r.final ? r.final.list : []} players={S.players} canReopen={host} />
           </div>
         )}
-        {legacy.dock && (
+        {hasDock(session) && (
           <div class="dock">
-            <LegacyHtml class="dock-in" html={legacy.dock} />
+            {v ? (
+              <div class="dock-in">
+                <v.Dock session={session} />
+              </div>
+            ) : (
+              <LegacyHtml class="dock-in" html={legacy.dock || ''} />
+            )}
           </div>
         )}
       </div>
-      <LegacyHtml class={g.fitStage ? 'stage fit' : 'stage'} html={legacy.table} />
+      {v ? (
+        <div class={stage}>
+          <v.Table session={session} />
+        </div>
+      ) : (
+        <LegacyHtml class={stage} html={legacy.table || ''} />
+      )}
     </div>
   );
 }
+
+/** You sit at the table and it is open: your controls are at the bottom (the side panel in landscape). */
+const hasDock = (session: Session) => !!session.me() && !session.state.room?.closed;
 
 /**
  * The class of `#app` for this screen: `in-room` (and `has-dock`) inside a table, nothing on home and on the update
@@ -98,5 +124,5 @@ export function appClass(session: Session, legacy: LegacyParts | null): string |
   if (!S.code) return '';
   if (!S.roomLoaded || !S.room) return null;
   if (tableUnsupported(S.room) || !legacy) return '';
-  return 'in-room' + (legacy.dock ? ' has-dock' : '');
+  return 'in-room' + (hasDock(session) ? ' has-dock' : '');
 }
