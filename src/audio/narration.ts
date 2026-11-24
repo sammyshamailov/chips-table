@@ -1,5 +1,7 @@
 /**
- * The dealer's narration: recorded Hebrew lines (`sounds/voice/<key>.mp3`), and when each one is said.
+ * The dealer's narration: recorded lines in the phone's language (Hebrew `sounds/voice/<key>.mp3`, where phones on
+ * older versions still load them; English `sounds/voice/en/<key>.mp3`), and when each one is said. A line missing in
+ * the phone's language falls back to the Hebrew one.
  *
  * Triggers come from the table's events, so every phone says them, not only the acting one. One line at a time: a
  * new line is dropped while one plays, except `winner` and `closed`, which wait their turn. The background is ducked
@@ -24,7 +26,9 @@ export const VOICE_KEYS = [
 export type VoiceKey = (typeof VOICE_KEYS)[number];
 /** Speech RMS about −20 dBFS at the master. */
 export const VOICE_LEVEL = 0.7;
-export const voiceUrl = (k: string) => `sounds/voice/${k}.mp3`;
+/** A line's file: Hebrew at the old path, every other language in its own folder. */
+export const voiceUrl = (k: string, l: string = 'he') =>
+  l === 'he' ? `sounds/voice/${k}.mp3` : `sounds/voice/${l}/${k}.mp3`;
 
 /** One dealer line: plays `buf` at time `t` on `dest`. Shared with tests/audio.js (offline rendering). */
 export function playLine(
@@ -55,10 +59,15 @@ export interface VoiceIO {
   duck(on: boolean): void;
   /** The narration setting. */
   enabled(): boolean;
+  /** The phone's language: which recordings to load and say. */
+  lang(): string;
 }
 
 export interface Voice {
-  /** Starts loading the lines (each file once; a failed one is retried at most once a minute). */
+  /**
+   * Starts loading the lines in the phone's language (each file once; a failed one is retried at most once a minute),
+   * and the Hebrew line for any that failed. Called again after the language changes, it loads the new language.
+   */
   load(): void;
   say(key: string): void;
   stop(): void;
@@ -66,35 +75,49 @@ export interface Voice {
 
 /** The narration player. */
 export function createVoice(io: VoiceIO): Voice {
-  const vox: Record<string, AudioBuffer> = {};
-  const VOX = VOICE_KEYS.map(k => ({
-    key: k as string,
-    url: voiceUrl(k),
-    buf: null as AudioBuffer | null,
-    busy: false,
-    failAt: 0,
-  }));
+  interface Line {
+    url: string;
+    buf: AudioBuffer | null;
+    busy: boolean;
+    failAt: number;
+  }
+  /** Every line ever asked for, by language and key (`en/open`). */
+  const lines: Record<string, Line> = {};
+  const line = (l: string, k: string): Line =>
+    (lines[l + '/' + k] ||= { url: voiceUrl(k, l), buf: null, busy: false, failAt: 0 });
+  /** The recording to say for `key` now: the phone's language, else Hebrew once the other has failed. */
+  const bufOf = (key: string): AudioBuffer | null => {
+    const own = line(io.lang(), key);
+    return own.buf || (own.failAt ? line('he', key).buf : null);
+  };
   let voice: AudioBufferSourceNode | null = null;
   const queue: string[] = [];
+  function fetchLine(it: Line, then?: () => void) {
+    if (it.buf || it.busy || Date.now() - it.failAt < 60000) return;
+    it.busy = true;
+    io.fetchBuf(it.url).then(
+      b => {
+        it.buf = b;
+        it.busy = false;
+      },
+      () => {
+        it.busy = true;
+        it.failAt = Date.now();
+        setTimeout(() => {
+          it.busy = false;
+        }, 60000);
+        if (then) then();
+      },
+    );
+  }
   function load() {
     if (!io.ctx()) return;
-    VOX.forEach(it => {
-      if (it.buf || it.busy || Date.now() - it.failAt < 60000) return;
-      it.busy = true;
-      io.fetchBuf(it.url).then(
-        b => {
-          it.buf = b;
-          it.busy = false;
-          vox[it.key] = b;
-        },
-        () => {
-          it.busy = true;
-          it.failAt = Date.now();
-          setTimeout(() => {
-            it.busy = false;
-          }, 60000);
-        },
-      );
+    const l = io.lang();
+    VOICE_KEYS.forEach(k => {
+      const own = line(l, k),
+        fallback = () => fetchLine(line('he', k));
+      if (l !== 'he' && own.failAt) fallback();
+      fetchLine(own, l === 'he' ? undefined : fallback);
     });
   }
   function playNext() {
@@ -102,7 +125,7 @@ export function createVoice(io: VoiceIO): Voice {
       out = io.out();
     if (voice || !queue.length || !io.ready() || !io.enabled() || !ctx || !out) return;
     const key = queue.shift() as string,
-      buf = vox[key];
+      buf = bufOf(key);
     if (!buf) {
       playNext();
       return;
@@ -121,7 +144,7 @@ export function createVoice(io: VoiceIO): Voice {
     say(key) {
       if (!io.ready() || !io.enabled() || !(VOICE_KEYS as readonly string[]).includes(key)) return;
       load();
-      if (!vox[key]) return;
+      if (!bufOf(key)) return;
       if (voice) {
         if ((key === 'winner' || key === 'closed') && !queue.includes(key)) queue.push(key);
         return;

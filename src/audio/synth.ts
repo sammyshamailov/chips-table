@@ -7,6 +7,7 @@
  * Settings, stored on the phone: `chips.sound` (everything), `chips.ambi` (background), `chips.voice` (narration).
  */
 import type { KeyValue } from '../data/local-store';
+import { lang } from '../i18n';
 import { AMB_LEVEL, AMB_MANIFEST, Ambience, type AmbienceClip, type AmbiencePlayer } from './ambience';
 import { createVoice } from './narration';
 
@@ -85,7 +86,15 @@ export function createSound(deps: SoundDeps) {
     }
   }
   const ready = () => on && !!ctx && ctx.state === 'running';
-  const voice = createVoice({ ready, ctx: () => ctx, out: () => out, fetchBuf, duck, enabled: () => voiceOn });
+  const voice = createVoice({
+    ready,
+    ctx: () => ctx,
+    out: () => out,
+    fetchBuf,
+    duck,
+    enabled: () => voiceOn,
+    lang: () => lang(),
+  });
   function init() {
     if (!AC || !on) return;
     try {
