@@ -278,10 +278,12 @@ const SCREENS = [
   } },
   { name: 'holdem-small', size: [375, 667], run: holdemScenario },
   { name: 'holdem-empty', size: P, full: true, run: async pg => { await holdemTable(pg, { play: false, players: [] }); } },
+  // The turn-the-phone prompt (R-005 phase 6): a phone held upright (touch, coarse pointer) inside a table.
+  { name: 'rotate', size: P, touch: true, run: async pg => { await pg.fill('#name', 'סמי'); await pg.click('[data-a=create]'); await w(pg, 500); } },
 ];
 
 async function shoot(browser, url, s, errors){
-  const ctx = await browser.newContext({ viewport: { width: s.size[0], height: s.size[1] }, deviceScaleFactor: 1, serviceWorkers: 'block', locale: 'he-IL', timezoneId: 'Asia/Jerusalem', reducedMotion: 'no-preference' });
+  const ctx = await browser.newContext({ viewport: { width: s.size[0], height: s.size[1] }, deviceScaleFactor: 1, serviceWorkers: 'block', locale: 'he-IL', timezoneId: 'Asia/Jerusalem', reducedMotion: 'no-preference', hasTouch: !!s.touch, isMobile: !!s.touch });
   await ctx.addInitScript(FREEZE);
   await ctx.route(/gstatic|googleapis/, r => r.abort());
   if (s.cloud){
