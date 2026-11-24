@@ -99,7 +99,7 @@ export default tseslint.config(
   // The domain (src/domain/) is pure game rules: no DOM, no Firebase, no timers, no clock, nothing outside src/domain/.
   ...domainPurity(),
   ...syncPurity(),
-  { files: ['vite.config.mts', 'scripts/**/*.mts', 'eslint.config.mjs'], languageOptions: { globals: globals.node } },
+  { files: ['vite.config.mts', 'scripts/**/*.mts', 'scripts/**/*.mjs', 'eslint.config.mjs'], languageOptions: { globals: globals.node } },
   {
     files: ['scripts/**/*.js'],
     languageOptions: { sourceType: 'commonjs', globals: globals.node },
