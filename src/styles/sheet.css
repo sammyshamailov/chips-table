@@ -10,7 +10,7 @@
 .opt[aria-pressed="true"] .box::after{content:"";width:9px;height:5px;border:2.5px solid var(--brass-ink);border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
 .payline{display:flex;justify-content:space-between;font-size:14px;padding:2px 2px}
 .handrow{display:grid;gap:8px;padding:12px;border-radius:12px;background:var(--bg)}
-.hr1{grid-template-columns:1fr auto auto;align-items:center;padding:8px 8px 8px 10px}
+.hr1{grid-template-columns:1fr auto auto;align-items:center;padding:8px;padding-inline-end:10px}
 .hr1 .hl{display:grid;gap:2px;min-width:0}
 .hr1 .btn.small{padding:8px 10px}
 .spot.sm .bl{font-size:calc(var(--u)*2.4);padding:0 calc(var(--u)*.8)}

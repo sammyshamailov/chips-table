@@ -1,7 +1,7 @@
 /** Blackjack: the dealer pays a player's blackjack at once (3:2), with a second tap to confirm. */
 import { BLACKJACK_PAYS } from '../../domain/blackjack/rules';
 import { SheetHead } from '../components/sheet-head';
-import { fmt } from '../format';
+import { formatChips, t } from '../../i18n';
 import type { Session } from '../session';
 
 export interface BjNowProps {
@@ -25,10 +25,8 @@ export function bjNowProps(s: Session): BjNowProps {
 export function BjNowSheet({ list, sure }: BjNowProps) {
   return (
     <>
-      <SheetHead title="בלאק ג'ק" />
-      <span class="muted">
-        למי יש בלאק ג'ק (אס ותמונה בשני הקלפים הראשונים)? הוא מקבל עכשיו 3:2 על ההימור, בלי לחכות לסוף הסיבוב.
-      </span>
+      <SheetHead title={t('game.bj.name')} />
+      <span class="muted">{t('bjnow.help')}</span>
       <div class="stack" style="gap:8px">
         {list.length ? (
           list.map(p => {
@@ -40,7 +38,7 @@ export function BjNowSheet({ list, sure }: BjNowProps) {
                   <b>{p.name}</b>
                   <span class="amt num">
                     <span class="mini"></span>
-                    {fmt(p.bet)}
+                    {formatChips(p.bet)}
                   </span>
                 </div>
                 <button
@@ -49,13 +47,13 @@ export function BjNowSheet({ list, sure }: BjNowProps) {
                   data-v={p.pid}
                   style="grid-column:span 2"
                 >
-                  {ok ? `בטוח? לשלם +${fmt(win)}` : `בלאק ג'ק · +${fmt(win)}`}
+                  {ok ? t('bjnow.sure', { amt: win }) : t('bjnow.pay', { amt: win })}
                 </button>
               </div>
             );
           })
         ) : (
-          <span class="muted">אין ידיים שאפשר לסמן כרגע.</span>
+          <span class="muted">{t('bjnow.none')}</span>
         )}
       </div>
     </>

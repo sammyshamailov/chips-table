@@ -3,8 +3,8 @@
  * board slots (the real cards are on the real table), the pot and the bet on this street; then a row per player.
  * (The felt-table redesign is R-007.)
  */
-import { fmt } from '../../format';
-import { STAGE_HE } from '../../labels';
+import { formatChips, t } from '../../../i18n';
+import { stageText } from '../../labels';
 import { ClosedSign } from '../closed-sign';
 import { DealerFigure } from '../dealer-figure';
 import { DealerRow, SeatRow, type DealerRowView, type HoldemSeatView } from './seat-row';
@@ -33,46 +33,46 @@ export interface HoldemTableProps {
 }
 
 /** The line under the pot: how the hand stands. */
-function toCallText(t: HoldemTableProps): string {
-  if (t.stage === 'idle') return t.handId ? 'היד הסתיימה. הדילר יתחיל יד חדשה.' : 'מחכים שהדילר יתחיל את היד הראשונה';
-  return t.streetBet ? `ההימור ברחוב: ${fmt(t.streetBet)}` : 'אין הימור ברחוב הזה';
+function toCallText(v: HoldemTableProps): string {
+  if (v.stage === 'idle') return v.handId ? t('htable.over') : t('htable.first');
+  return v.streetBet ? t('htable.streetBet', { amt: v.streetBet }) : t('htable.noBet');
 }
 
-export function HoldemTable(t: HoldemTableProps) {
-  const idle = t.stage === 'idle';
+export function HoldemTable(v: HoldemTableProps) {
+  const idle = v.stage === 'idle';
   return (
     <>
       <div class="hdealer">
         <DealerFigure />
       </div>
-      <section class={'table' + (t.closed ? ' closed' : '')}>
-        {t.closed && <ClosedSign drop={t.signDrop} />}
+      <section class={'table' + (v.closed ? ' closed' : '')}>
+        {v.closed && <ClosedSign drop={v.signDrop} />}
         <div class="stage-row">
           <span class={'pill ' + (idle ? 'ok' : '')}>
-            {(STAGE_HE[t.stage] || '') + (t.handId ? ` · יד ${t.handId}` : '')}
+            {stageText(v.stage) + (v.handId ? ' · ' + t('common.handNo', { n: String(v.handId) }) : '')}
           </span>
-          <span class="meta num">{`בליינדים ${fmt(t.sb)}/${fmt(t.bb)}`}</span>
+          <span class="meta num">{t('htable.blinds', { sb: v.sb, bb: v.bb })}</span>
         </div>
-        <div class="board" aria-label="קלפים על השולחן">
+        <div class="board" aria-label={t('htable.board')}>
           {[0, 1, 2, 3, 4].map(i => (
-            <span class={'slot ' + (i < t.cards ? 'on' : '')}></span>
+            <span class={'slot ' + (i < v.cards ? 'on' : '')}></span>
           ))}
         </div>
         <div class="pot">
-          <span class="lbl">קופה</span>
+          <span class="lbl">{t('htable.pot')}</span>
           <span class="big num" data-k="pot">
-            {fmt(t.pot)}
+            {formatChips(v.pot)}
           </span>
         </div>
-        <div class="tocall">{toCallText(t)}</div>
+        <div class="tocall">{toCallText(v)}</div>
       </section>
       <div class="seats">
-        {t.dealer && <DealerRow d={t.dealer} />}
-        {t.seats.length ? (
-          t.seats.map(s => <SeatRow key={s.pid} seat={s} />)
+        {v.dealer && <DealerRow d={v.dealer} />}
+        {v.seats.length ? (
+          v.seats.map(s => <SeatRow key={s.pid} seat={s} />)
         ) : (
           <div class="muted" style="text-align:center;padding:16px">
-            עוד אין שחקנים. שתפו את הקוד.
+            {t('htable.empty')}
           </div>
         )}
       </div>

@@ -3,10 +3,12 @@
  * registry instead of checking `game === 'holdem'` in every place.
  *
  * The screens use the names, the form fields and the per-game wording below, and draw each game's table, dock and
- * dealer controls from its `views` (R-005 phase 5).
+ * dealer controls from its `views` (R-005 phase 5). The wording is read in the phone's language each time (getters
+ * over the catalogs, src/i18n/).
  */
 import type { ComponentType } from 'preact';
 import type { Game } from '../domain/types';
+import { t } from '../i18n';
 import type { Session } from '../ui/session';
 import { blackjackViews } from '../ui/tables/blackjack';
 import { holdemViews } from '../ui/tables/holdem';
@@ -50,7 +52,7 @@ export interface GameMode {
   /** The two limits, in the order the forms show them (the first on the right). */
   limits: [LimitField, LimitField];
   /** The cancel sheet: its title, what comes back, and the action it confirms. */
-  cancel: { title: string; refunds: string; action: string };
+  cancel: { title: string; text: string; action: string };
   /** The end-game sheet, when chips are still on the table: what the dealer has to do first. */
   settleFirst: string;
   /** The table, dock and dealer controls. */
@@ -60,36 +62,95 @@ export interface GameMode {
 export const GAMES: Record<Game, GameMode> = {
   holdem: {
     id: 'holdem',
-    name: 'טקסס הולדם',
-    listName: 'הולדם',
+    get name() {
+      return t('game.holdem.name');
+    },
+    get listName() {
+      return t('game.holdem.list');
+    },
     fitStage: false,
-    playLabel: 'אני גם משחק, לא רק מנהל',
+    get playLabel() {
+      return t('game.holdem.play');
+    },
     dealerPlays: true,
     dealerIsHouse: false,
     sitOut: true,
     limits: [
-      { key: 'bb', id: 'bb', label: 'ביג בליינד' },
-      { key: 'sb', id: 'sb', label: 'סמול בליינד' },
+      {
+        key: 'bb',
+        id: 'bb',
+        get label() {
+          return t('game.holdem.bb');
+        },
+      },
+      {
+        key: 'sb',
+        id: 'sb',
+        get label() {
+          return t('game.holdem.sb');
+        },
+      },
     ],
-    cancel: { title: 'ביטול היד', refunds: 'ביד הזו וטרם חולקו', action: 'cancelhand' },
-    settleFirst: 'חלקו את הקופה או בטלו את היד',
+    cancel: {
+      get title() {
+        return t('hhost.cancel');
+      },
+      get text() {
+        return t('game.holdem.cancelText');
+      },
+      action: 'cancelhand',
+    },
+    get settleFirst() {
+      return t('game.holdem.settleFirst');
+    },
     views: holdemViews,
   },
   blackjack: {
     id: 'blackjack',
-    name: "בלאק ג'ק",
-    listName: "בלאק ג'ק",
+    get name() {
+      return t('game.bj.name');
+    },
+    get listName() {
+      return t('game.bj.name');
+    },
     fitStage: true,
-    playLabel: 'אני גם מהמר (לא רק הדילר)',
+    get playLabel() {
+      return t('game.bj.play');
+    },
     dealerPlays: false,
     dealerIsHouse: true,
     sitOut: false,
     limits: [
-      { key: 'minBet', id: 'min', label: 'הימור מינימלי' },
-      { key: 'maxBet', id: 'max', label: 'הימור מקסימלי (0 = ללא)', settingsLabel: 'מקסימלי (0 = ללא)' },
+      {
+        key: 'minBet',
+        id: 'min',
+        get label() {
+          return t('game.bj.min');
+        },
+      },
+      {
+        key: 'maxBet',
+        id: 'max',
+        get label() {
+          return t('game.bj.max');
+        },
+        get settingsLabel() {
+          return t('game.bj.maxShort');
+        },
+      },
     ],
-    cancel: { title: 'ביטול הסיבוב', refunds: 'בסיבוב הזה', action: 'cancelround' },
-    settleFirst: 'שלמו או בטלו את הסיבוב',
+    cancel: {
+      get title() {
+        return t('bjhost.cancel');
+      },
+      get text() {
+        return t('game.bj.cancelText');
+      },
+      action: 'cancelround',
+    },
+    get settleFirst() {
+      return t('game.bj.settleFirst');
+    },
     views: blackjackViews,
   },
 };

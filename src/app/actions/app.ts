@@ -1,7 +1,8 @@
 /**
- * The app's own controls: the sound switches, installing and updating the app, the ceremony's buttons and the
- * turn-the-phone prompt.
+ * The app's own controls: the language, the sound switches, installing and updating the app, the ceremony's buttons
+ * and the turn-the-phone prompt.
  */
+import { asLang, lang, t, type Lang } from '../../i18n';
 import { lockLandscape } from '../../ui/rotate';
 import type { Updater } from '../../update';
 import type { CeremonyPlayer } from '../ceremony';
@@ -13,14 +14,21 @@ export interface AppActionDeps {
   install(): Promise<void>;
   /** Starts or stops the background sound to match the settings. */
   ambiSync(): void;
+  /** Speaks `l` from now on: saved on the phone, the page and the narration follow, everything is drawn again. */
+  setLanguage(l: Lang): void;
 }
 
 export function appActions(c: AppContext, d: AppActionDeps): Actions {
   const { S, snd } = c;
   return {
+    /** The language switch: to the language given (Settings), or the other one (the home screen's switch). */
+    lang: v => {
+      const next = asLang(v) || (lang() === 'he' ? 'en' : 'he');
+      if (next !== lang()) d.setLanguage(next);
+    },
     snd: () => {
       const on = snd.toggle();
-      c.toast(on ? 'הצלילים פועלים' : 'הצלילים כבויים');
+      c.toast(on ? t('toast.soundOn') : t('toast.soundOff'));
       c.render();
     },
     ambi: () => {
@@ -52,7 +60,7 @@ export function appActions(c: AppContext, d: AppActionDeps): Actions {
       try {
         await lockLandscape();
       } catch {
-        c.toast('הטלפון לא מאפשר לסובב מכאן. סובבו אותו ביד.');
+        c.toast(t('toast.cantRotate'));
       }
       c.render();
     },

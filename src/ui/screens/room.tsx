@@ -6,6 +6,7 @@
  */
 import { tableUnsupported } from '../../domain/guard';
 import { gameMode } from '../../games/registry';
+import { eventText, t } from '../../i18n';
 import { FinalCard } from '../components/final-card';
 import { RoomHeader } from '../components/header';
 import { JoinCard } from '../components/join-card';
@@ -17,10 +18,10 @@ function NotFound({ code }: { code: string }) {
   return (
     <div class="stack" style="padding-top:40px">
       <div class="card">
-        <h2 style="font-family:var(--f-display);font-size:36px">{`החדר ${code} לא נמצא`}</h2>
-        <span class="muted">בדקו את הקוד ונסו שוב.</span>
+        <h2 style="font-family:var(--f-display);font-size:36px">{t('room.notFound', { code })}</h2>
+        <span class="muted">{t('room.checkCode')}</span>
         <button class="btn primary" data-a="home">
-          חזרה
+          {t('common.back')}
         </button>
       </div>
     </div>
@@ -31,7 +32,7 @@ export function RoomScreen({ session }: { session: Session }) {
   const S = session.state,
     r = S.room,
     code = S.code || '';
-  if (!S.roomLoaded) return <div class="spin">טוען את השולחן…</div>;
+  if (!S.roomLoaded) return <div class="spin">{t('room.loading')}</div>;
   if (!r) return <NotFound code={code} />;
   if (tableUnsupported(r)) return <UpdateView code={code} />;
   const g = gameMode(r.game),
@@ -57,11 +58,11 @@ export function RoomScreen({ session }: { session: Session }) {
         {session.newBuild() && (
           <div class="updw">
             <button class="btn primary wide" data-a="reload">
-              יש גרסה חדשה · לחצו לעדכון
+              {t('room.newVersion')}
             </button>
           </div>
         )}
-        <div class="event">{r.lastEvent ? r.lastEvent.t : ''}</div>
+        <div class="event">{eventText(r.lastEvent)}</div>
         {!m && !closed && (
           <div class="o-join">
             <JoinCard

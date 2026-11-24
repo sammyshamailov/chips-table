@@ -4,7 +4,8 @@
  * width, set by the app's `setU`) scales it all as one picture.
  */
 import { chipStyle } from '../../chips-html';
-import { fmt } from '../../format';
+import { t } from '../../../i18n';
+import { signed } from '../../labels';
 import { ClosedSign } from '../closed-sign';
 import { DealerFigure } from '../dealer-figure';
 import { GEO, arcPath, seatLayout } from './geometry';
@@ -46,24 +47,24 @@ function FeltPrint() {
       <use href="#pa-i2" class="ln" />
       <text class="t1">
         <textPath href="#pa-bj" startOffset="50%" text-anchor="middle">
-          BLACKJACK PAYS 3 TO 2
+          {t('bjt.feltBj')}
         </textPath>
       </text>
       <text class="t2">
         <textPath href="#pa-it" startOffset="50%" text-anchor="middle">
-          INSURANCE PAYS 2 TO 1
+          {t('bjt.feltIns')}
         </textPath>
       </text>
     </svg>
   );
 }
 
-export function BlackjackTable(t: BlackjackTableProps) {
-  const n = t.seats.length,
+export function BlackjackTable(v: BlackjackTableProps) {
+  const n = v.seats.length,
     lay = seatLayout(n);
   return (
-    <section class={'bjt' + (n > 7 ? ' dense' : '') + (t.closed ? ' closed' : '')} aria-label="שולחן בלאק ג'ק">
-      {t.closed && <ClosedSign drop={t.signDrop} />}
+    <section class={'bjt' + (n > 7 ? ' dense' : '') + (v.closed ? ' closed' : '')} aria-label={t('bjt.label')}>
+      {v.closed && <ClosedSign drop={v.signDrop} />}
       <div class="dfig">
         <DealerFigure />
       </div>
@@ -71,37 +72,39 @@ export function BlackjackTable(t: BlackjackTableProps) {
       <FeltPrint />
       <div class="dlr">
         <div class="rack" data-k="dealer">
-          {t.denoms
+          {v.denoms
             .slice()
             .reverse()
             .map(d => (
               <i class="tube" style={chipStyle(d)}></i>
             ))}
         </div>
-        <div class="dn">{t.hostName + ' · דילר'}</div>
+        <div class="dn">{t('common.nameDealer', { name: v.hostName })}</div>
       </div>
       <div class="plac num">
-        <span>{'מינ׳ ' + fmt(t.minBet)}</span>
-        <span>{'מקס׳ ' + (t.maxBet ? fmt(t.maxBet) : '∞')}</span>
+        <span>{t('bjt.min', { amt: v.minBet })}</span>
+        <span>{t('bjt.max', { amt: v.maxBet ? v.maxBet : '∞' })}</span>
       </div>
       <div class="rnd num">
-        <span>{'סיבוב ' + t.roundId}</span>
+        <span>{t('bjt.round', { n: String(v.roundId) })}</span>
         <span>
-          {'הבית '}
-          <span dir="ltr">{(t.house >= 0 ? '+' : '−') + fmt(Math.abs(t.house))}</span>
+          {t('bjt.house') + ' '}
+          <span dir="ltr">{signed(v.house)}</span>
         </span>
       </div>
       <div class="cst">
-        <span class={'pill ' + (t.betting ? 'ok' : '')}>{t.betting ? 'הימורים פתוחים' : 'הקלפים חולקו'}</span>
-        <span class="meta num">{t.betting ? `${t.bettors} מתוך ${n} הימרו` : `על השולחן ${fmt(t.onFelt)}`}</span>
+        <span class={'pill ' + (v.betting ? 'ok' : '')}>{v.betting ? t('bjt.open') : t('bjt.dealt')}</span>
+        <span class="meta num">
+          {v.betting ? t('bjt.bettors', { n: v.bettors, total: n }) : t('bjt.onFelt', { amt: v.onFelt })}
+        </span>
       </div>
       {n ? (
-        t.seats.map((s, k) => <BjSeat key={s.pid} seat={s} phi={lay.angles[k]} base={lay.size} />)
+        v.seats.map((s, k) => <BjSeat key={s.pid} seat={s} phi={lay.angles[k]} base={lay.size} />)
       ) : (
         <div class="empty">
-          עוד אין מהמרים.
+          {t('bjt.empty1')}
           <br />
-          שתפו את הקוד.
+          {t('bjt.empty2')}
         </div>
       )}
     </section>

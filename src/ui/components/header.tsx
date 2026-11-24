@@ -1,4 +1,5 @@
 /** The room's header: the game and the connection status over the room code, the sound switch, Players and Settings. */
+import { t } from '../../i18n';
 
 /** How this phone is connected: `cloud` with its sync state, or not connected at all (single-device mode). */
 export interface Connection {
@@ -9,9 +10,13 @@ export interface Connection {
 }
 
 export function ConnStatus({ mode, syncErr, synced }: Connection) {
-  if (mode !== 'cloud') return <span style="color:var(--danger)">● לא מחובר</span>;
-  if (syncErr) return <span style="color:var(--danger)">{'שגיאה: ' + syncErr}</span>;
-  return synced ? <span style="color:var(--ok)">● מחובר</span> : <span style="color:var(--brass)">● מתחבר…</span>;
+  if (mode !== 'cloud') return <span style="color:var(--danger)">{t('conn.offline')}</span>;
+  if (syncErr) return <span style="color:var(--danger)">{t('conn.error', { code: syncErr })}</span>;
+  return synced ? (
+    <span style="color:var(--ok)">{t('conn.online')}</span>
+  ) : (
+    <span style="color:var(--brass)">{t('conn.connecting')}</span>
+  );
 }
 
 const ICON = {
@@ -51,7 +56,7 @@ interface HeaderProps {
 export function RoomHeader({ code, gameName, conn, soundOn }: HeaderProps) {
   return (
     <div class="top">
-      <button class="code-btn" data-a="copy" aria-label="העתקת קוד החדר">
+      <button class="code-btn" data-a="copy" aria-label={t('room.copyCode')}>
         <small>
           {/* one text node: two adjacent ones are shaped (kerned) slightly differently */}
           {gameName + ' · '}
@@ -63,16 +68,16 @@ export function RoomHeader({ code, gameName, conn, soundOn }: HeaderProps) {
         <button
           class="btn small ghost icon-btn"
           data-a="snd"
-          aria-label={soundOn ? 'השתקת צלילים' : 'הפעלת צלילים'}
+          aria-label={soundOn ? t('room.mute') : t('room.unmute')}
           aria-pressed={soundOn}
         >
           <SoundIcon on={soundOn} />
         </button>
         <button class="btn small ghost" data-a="sheet" data-v="players">
-          שחקנים
+          {t('room.players')}
         </button>
         <button class="btn small ghost" data-a="sheet" data-v="settings">
-          הגדרות
+          {t('room.settings')}
         </button>
       </div>
     </div>

@@ -20,7 +20,8 @@ describe('validAv', () => {
 
 describe('the letter and its colour', () => {
   it('shows the first letter of the trimmed name, or ?', () => {
-    expect(initial('  דנה')).toBe('ד');
+    expect(initial('  Dana')).toBe('D');
+    expect(initial(' \u05d3\u05e0\u05d4')).toBe('\u05d3'); // a Hebrew name
     expect(initial('')).toBe('?');
     expect(initial('   ')).toBe('?');
     expect(initial(null)).toBe('?');

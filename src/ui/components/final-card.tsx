@@ -1,6 +1,6 @@
 /** The closed table's card: the winner (or the tie), the standings, watch the ceremony again, reopen, go home. */
 import type { Standing } from '../../data/schema';
-import { fmt } from '../format';
+import { formatChips, joinNames, t } from '../../i18n';
 import { Crown } from './crown';
 import { Rank } from './rank';
 
@@ -17,29 +17,30 @@ export function FinalCard({ list, players, canReopen }: FinalCardProps) {
     win = list.filter(x => x.stack === top);
   return (
     <section class="host fincard">
-      <h3>המשחק הסתיים</h3>
+      <h3>{t('final.title')}</h3>
       {win.length > 0 && (
         <div class="fc-win">
           <Crown />
-          <b>{win.map(x => x.name).join(' ו')}</b>
+          <b>{joinNames(win.map(x => x.name))}</b>
           <span class="muted">
-            {(win.length > 1 ? 'תיקו בצמרת' : 'המנצח/ת') + ' · '}
-            <span class="num">{fmt(top)}</span> צ'יפים
+            {(win.length > 1 ? t('final.tie') : t('final.winner')) + ' · '}
+            <span class="num">{formatChips(top)}</span>
+            {' ' + t('common.chips')}
           </span>
         </div>
       )}
       <Rank list={list} players={players} />
       <div class="btns">
         <button class="btn" data-a="replay">
-          צפייה בטקס שוב
+          {t('final.replay')}
         </button>
         {canReopen && (
           <button class="btn ghost" data-a="reopen">
-            פתיחת השולחן מחדש
+            {t('final.reopen')}
           </button>
         )}
         <button class="btn ghost" data-a="home">
-          למסך הראשי
+          {t('common.home')}
         </button>
       </div>
     </section>

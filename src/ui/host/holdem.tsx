@@ -3,31 +3,31 @@
  * hand (between hands, or when the pot is empty); the next street; split the pot (the award sheet); cancel the hand;
  * end the game.
  */
-import { fmt } from '../format';
+import { t, type Key } from '../../i18n';
 import type { HoldemHostProps } from '../tables/holdem/select';
 
 /** The button that deals the next street, by the street now. */
-const NEXT: Record<string, string> = {
-  preflop: 'פתיחת פלופ',
-  flop: 'פתיחת טרן',
-  turn: 'פתיחת ריבר',
-  river: 'לשואודאון',
+const NEXT: Record<string, Key> = {
+  preflop: 'hhost.next.preflop',
+  flop: 'hhost.next.flop',
+  turn: 'hhost.next.turn',
+  river: 'hhost.next.river',
 };
 
 export function HoldemHost({ stage, pot, solo }: HoldemHostProps) {
-  const next = NEXT[stage];
+  const next = Object.prototype.hasOwnProperty.call(NEXT, stage) ? t(NEXT[stage]) : '';
   return (
     <section class="host">
-      <h3>בקרת דילר</h3>
+      <h3>{t('host.title')}</h3>
       {solo && (
         <button class="btn primary" data-a="solo" data-v={solo.pid}>
-          {`${solo.name} לוקח את הקופה (${fmt(pot)})`}
+          {t('hhost.solo', { name: solo.name, amt: pot })}
         </button>
       )}
       <div class="btns">
         {(stage === 'idle' || pot === 0) && (
           <button class={'btn ' + (solo ? '' : 'primary')} data-a="newhand">
-            יד חדשה
+            {t('hhost.newHand')}
           </button>
         )}
         {next && (
@@ -37,16 +37,16 @@ export function HoldemHost({ stage, pot, solo }: HoldemHostProps) {
         )}
         {pot > 0 && (
           <button class={'btn ' + (stage === 'showdown' ? 'primary' : '')} data-a="sheet" data-v="award">
-            חלוקת הקופה
+            {t('hhost.award')}
           </button>
         )}
         {stage !== 'idle' && (
           <button class="btn ghost" data-a="sheet" data-v="cancel">
-            ביטול היד
+            {t('hhost.cancel')}
           </button>
         )}
         <button class="btn ghost" data-a="sheet" data-v="end">
-          סיום המשחק
+          {t('host.end')}
         </button>
       </div>
     </section>

@@ -12,7 +12,7 @@ const visual = require('./visual');
   fs.mkdirSync(OUT, { recursive: true });
   const srv = await serve(), browser = await chromium.launch(), errors = [];
   for (const [w, h, label] of [[390, 844, 'portrait'], [844, 390, 'landscape'], [375, 667, 'small-portrait']]){
-    const pg = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
+    const pg = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2, locale: 'he-IL' });
     pg.on('pageerror', e => errors.push(`${label}: ${e.message}`));
     await pg.route(/gstatic|googleapis/, r => r.abort());
     await pg.goto(srv.url); await pg.evaluate(() => localStorage.clear()); await pg.reload(); await pg.waitForTimeout(300);

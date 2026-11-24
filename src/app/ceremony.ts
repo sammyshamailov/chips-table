@@ -11,7 +11,7 @@ import type { FxLayer } from '../fx/layer';
 import { dealerNod } from '../fx/room';
 import { Ceremony, type CeremonyCard } from '../ui/ceremony';
 import { chipStyle } from '../ui/chips-html';
-import { fmt } from '../ui/format';
+import { formatChips, joinNames } from '../i18n';
 import type { State } from './state';
 
 /** The chip colours that rain (the eleven smallest values). */
@@ -82,7 +82,7 @@ export function createCeremony(d: CeremonyDeps) {
     const t0 = performance.now();
     const step = (t: number) => {
       const k = Math.min(1, (t - t0) / ms);
-      target.textContent = fmt(to * (1 - Math.pow(1 - k, 3)));
+      target.textContent = formatChips(to * (1 - Math.pow(1 - k, 3)));
       if (k < 1) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
@@ -127,7 +127,7 @@ export function createCeremony(d: CeremonyDeps) {
       card = {
         // Each winner with their pid: the circle's colour behind the letter comes from it.
         winners: win.map(w => (S.players[w.pid] ? { ...S.players[w.pid], pid: w.pid } : w)),
-        names: win.map(w => w.name).join(' ו'),
+        names: joinNames(win.map(w => w.name)),
         list,
         players: S.players,
         rest: false,

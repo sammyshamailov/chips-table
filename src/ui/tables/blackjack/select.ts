@@ -5,6 +5,7 @@
 import type { Room } from '../../../data/schema';
 import { stake } from '../../../domain/blackjack/rules';
 import type { BjHand } from '../../../domain/types';
+import { t } from '../../../i18n';
 import type { SeatView, Session } from '../../session';
 import type { BjSeatView } from './seat';
 import type { BlackjackTableProps } from './table';
@@ -50,7 +51,7 @@ export function blackjackTableProps(s: Session): BlackjackTableProps {
     list = s.players(),
     bettors = list.filter(p => s.bjCurrent(p));
   return {
-    hostName: r.hostName || 'הדילר',
+    hostName: r.hostName || t('common.theDealer'),
     minBet: r.minBet,
     maxBet: r.maxBet,
     roundId: r.roundId,

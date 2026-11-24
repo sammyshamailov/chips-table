@@ -3,6 +3,7 @@
  * dismissed. Rendered with Preact on every render while it shows, so its animation runs on instead of restarting.
  */
 import { render } from 'preact';
+import { t } from '../i18n';
 
 /** The phone can go full screen and lock itself in landscape (Android). */
 export function canLock(): boolean {
@@ -49,15 +50,15 @@ export function RotatePrompt({ lock }: { lock: boolean }) {
           </div>
         </div>
       </div>
-      <h2 id="rot-t">סובבו את הטלפון</h2>
-      <p class="muted">לרוחב יש לשולחן הרבה יותר מקום: כל השחקנים, הצ'יפים והכפתורים במסך אחד.</p>
+      <h2 id="rot-t">{t('rot.title')}</h2>
+      <p class="muted">{t('rot.text')}</p>
       {lock && (
         <button class="btn primary wide" data-a="rotlock">
-          מסך מלא לרוחב
+          {t('rot.lock')}
         </button>
       )}
       <button class="btn ghost wide" data-a="rotoff">
-        להמשיך לאורך
+        {t('rot.stay')}
       </button>
     </div>
   );

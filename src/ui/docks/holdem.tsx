@@ -4,7 +4,7 @@
  * raise or all-in, worked out from the chips in your hand; disabled while they are short of a call or a raise).
  */
 import type { HoldemDockProps } from '../tables/holdem/select';
-import { fmt } from '../format';
+import { formatChips, t } from '../../i18n';
 import { ChipTray, DockHead, PendingBox } from './parts';
 
 export function HoldemDock(d: HoldemDockProps) {
@@ -28,13 +28,13 @@ export function HoldemDock(d: HoldemDockProps) {
         {d.presets.map(([t, v]) => (
           <button data-a="setp" data-v={v}>
             {t + ' '}
-            <span class="num">{fmt(v)}</span>
+            <span class="num">{formatChips(v)}</span>
           </button>
         ))}
       </div>
       <div class="acts">
         <button class="btn danger" data-a="fold">
-          קיפול
+          {t('hdock.fold')}
         </button>
         <button class="btn primary" data-a="hgo" data-v={d.go.amount} disabled={d.go.disabled}>
           {d.go.label}

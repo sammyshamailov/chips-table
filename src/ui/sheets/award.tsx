@@ -1,7 +1,7 @@
 /** Hold'em: the dealer picks the winner(s); the preview shows what each gets, side pots worked out by contribution. */
 import { SheetHead } from '../components/sheet-head';
 import { Option } from '../components/option';
-import { fmt } from '../format';
+import { formatChips, t } from '../../i18n';
 import type { Session } from '../session';
 
 export interface AwardProps {
@@ -32,10 +32,8 @@ export function awardProps(s: Session): AwardProps {
 export function AwardSheet({ cands, sel, pays, left }: AwardProps) {
   return (
     <>
-      <SheetHead title="חלוקת הקופה" />
-      <span class="muted">
-        בחרו את הזוכה. בתיקו בחרו כמה זוכים והקופה תתחלק ביניהם. קופות צדדיות מחושבות לבד לפי מה שכל אחד הכניס.
-      </span>
+      <SheetHead title={t('hhost.award')} />
+      <span class="muted">{t('award.help')}</span>
       <div class="stack" style="gap:8px">
         {cands.map(p => (
           <Option
@@ -43,9 +41,9 @@ export function AwardSheet({ cands, sel, pays, left }: AwardProps) {
             a="pick"
             v={p.pid}
             pressed={sel.includes(p.pid)}
-            end={<span class="num muted">{'הכניס ' + fmt(p.put)}</span>}
+            end={<span class="num muted">{t('award.put', { amt: p.put })}</span>}
           >
-            <b>{p.name}</b> <span class="muted">{p.folded ? '· קיפל' : p.allIn ? '· אול-אין' : ''}</span>
+            <b>{p.name}</b> <span class="muted">{p.folded ? t('award.folded') : p.allIn ? t('award.allin') : ''}</span>
           </Option>
         ))}
       </div>
@@ -54,19 +52,19 @@ export function AwardSheet({ cands, sel, pays, left }: AwardProps) {
           {pays.map(x => (
             <div class="payline">
               <span>{x.name}</span>
-              <b class="num">{'+' + fmt(x.amt)}</b>
+              <b class="num">{'+' + formatChips(x.amt)}</b>
             </div>
           ))}
           {left > 0 && (
             <div class="payline muted">
-              <span>נשאר בקופה צדדית</span>
-              <span class="num">{fmt(left)}</span>
+              <span>{t('award.side')}</span>
+              <span class="num">{formatChips(left)}</span>
             </div>
           )}
         </div>
       )}
       <button class="btn primary wide" data-a="award" disabled={!sel.length}>
-        תשלום לזוכים
+        {t('award.pay')}
       </button>
     </>
   );

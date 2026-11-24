@@ -2,19 +2,18 @@
  * Hold'em: a player's bet or fold, and the dealer's new hand, next street, award and cancel. Each reads the state,
  * asks the rules (src/domain/holdem/) and writes what they return, adding `ts` and writing the dealer's stack changes
  * as increments; a refusal becomes its toast (or nothing, where there never was one), and the room gets its event
- * line in Hebrew.
+ * line (`eventLine`).
  */
 import * as HR from '../../domain/holdem/rules';
 import * as Pots from '../../domain/holdem/pots';
-import { STAGE_HE } from '../../ui/labels';
-import { fmt } from '../../ui/format';
+import { formatChips, hasKey, t, type Key, type Params } from '../../i18n';
 import type { Actions, AppContext } from '../context';
 import { eventLine, holdem, me, nameOf, pendChips, playerList, playerPath, roomPath } from '../state';
 
 export function holdemActions(c: AppContext): Actions {
   const { S } = c;
   const H = () => holdem(S);
-  const ev = (t: string) => eventLine(t, c.now());
+  const ev = (key: Key, p: Params = {}) => eventLine(key, p, c.now());
 
   async function bet(add: number) {
     const res = HR.bet(H(), me(S), add, pendChips(S));
@@ -36,15 +35,11 @@ export function holdemActions(c: AppContext): Actions {
     const r = S.room as NonNullable<typeof S.room>,
       plan = HR.newHand(r, playerList(S));
     if (!plan.ok) {
-      c.toast(
-        plan.reason === 'pot-not-empty'
-          ? "יש עדיין צ'יפים בקופה. חלקו את הקופה או בטלו את היד."
-          : "צריך לפחות שני שחקנים עם צ'יפים",
-      );
+      c.toast(plan.reason === 'pot-not-empty' ? t('toast.potNotEmpty') : t('toast.twoPlayers'));
       return;
     }
-    const line = `יד ${plan.room.handId} התחילה · בליינדים ${fmt(r.sb)}/${fmt(r.bb)}`;
-    if (!(await c.write(roomPath(S), 'update', { ...plan.room, ...ev(line) }))) return;
+    const line = ev('ev.handStarted', { hand: plan.room.handId, sb: r.sb, bb: r.bb });
+    if (!(await c.write(roomPath(S), 'update', { ...plan.room, ...line }))) return;
     c.buzz();
     await Promise.all(plan.posts.map(x => c.write(playerPath(S, x.pid), 'update', { ...x.patch, ts: c.now() })));
   }
@@ -53,17 +48,18 @@ export function holdemActions(c: AppContext): Actions {
     const res = HR.nextStreet(S.room as NonNullable<typeof S.room>);
     if (!res.ok) return;
     c.buzz();
-    await c.write(roomPath(S), 'update', { ...res.patch, ...ev(STAGE_HE[res.patch.stage]) });
+    const k = 'ev.' + res.patch.stage;
+    await c.write(roomPath(S), 'update', { ...res.patch, ...(hasKey(k) ? ev(k) : {}) });
   }
 
   async function award(win: string[]) {
     const res = Pots.award(H(), win);
     if (!res.ok) {
-      c.toast('בחרו זוכה');
+      c.toast(t('toast.pickWinner'));
       return;
     }
-    const names = res.pays.map(([id, a]) => `${nameOf(S, id)} +${fmt(a)}`).join(' · ');
-    if (!(await c.write(roomPath(S), 'update', { ...res.room, ...ev(names) }))) return;
+    const pays = res.pays.map(([id, a]) => `${nameOf(S, id)} +${formatChips(a)}`).join(' · ');
+    if (!(await c.write(roomPath(S), 'update', { ...res.room, ...ev('ev.award', { pays }) }))) return;
     c.buzz();
     await Promise.all(
       res.pays.map(([id, a]) =>
@@ -72,13 +68,13 @@ export function holdemActions(c: AppContext): Actions {
     );
     S.sel = [];
     if (res.left === 0) S.sheet = null;
-    else c.toast(`נשארה קופה צדדית של ${fmt(res.left)} – בחרו את הזוכה בה`);
+    else c.toast(t('toast.sidePot', { amt: res.left }));
     c.render();
   }
 
   async function cancelHand() {
     const x = Pots.cancelHandRefunds(H());
-    await c.write(roomPath(S), 'update', { ...x.room, ...ev("היד בוטלה והצ'יפים הוחזרו") });
+    await c.write(roomPath(S), 'update', { ...x.room, ...ev('ev.handCancelled') });
     await Promise.all(
       x.refunds.map(r =>
         c.write(playerPath(S, r.pid), 'update', {

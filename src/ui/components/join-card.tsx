@@ -1,5 +1,5 @@
 /** Sitting down at a table you opened by code or link, or (Blackjack) the dealer joining as a bettor. */
-import { fmt } from '../format';
+import { t } from '../../i18n';
 import type { AvatarOwner } from '../session';
 import { AvatarButton } from './avatar';
 
@@ -17,23 +17,23 @@ export function JoinCard({ dealerIsHouse, me, name, startStack, seated }: JoinCa
   if (dealerIsHouse)
     return (
       <div class="card" style="margin-top:14px">
-        <span class="muted">אתה הדילר. אם תרצה גם להמר:</span>
+        <span class="muted">{t('join.houseNote')}</span>
         <button class="btn ghost" data-a="sit">
-          הצטרפות כמהמר
+          {t('join.asBettor')}
         </button>
       </div>
     );
   return (
     <div class="card" style="margin-top:14px">
-      <span class="label">הצטרפות לשולחן</span>
+      <span class="label">{t('join.title')}</span>
       <div class="me-row">
         <AvatarButton who={me} />
-        <input id="jname" data-bind="name" value={name} maxLength={20} placeholder="השם שלך" />
+        <input id="jname" data-bind="name" value={name} maxLength={20} placeholder={t('common.yourName')} />
       </div>
       <button class="btn primary" data-a="sit">
-        {`שבו לשולחן עם ${fmt(startStack)} צ'יפים`}
+        {t('join.sit', { amt: startStack })}
       </button>
-      {seated.length > 0 && <span class="muted">כבר ישבתם מטלפון אחר? בחרו את עצמכם:</span>}
+      {seated.length > 0 && <span class="muted">{t('join.claimHint')}</span>}
       {seated.length > 0 && (
         <div class="btns">
           {seated.map(p => (

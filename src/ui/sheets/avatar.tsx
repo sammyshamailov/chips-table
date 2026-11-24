@@ -1,4 +1,5 @@
 /** Your picture: a photo (camera or gallery) or a prepared character, or none (the first letter of your name). */
+import { t } from '../../i18n';
 import { AV_SET } from '../avatars';
 import { Avatar, AvatarArt } from '../components/avatar';
 import { SheetHead } from '../components/sheet-head';
@@ -19,20 +20,20 @@ export function avatarSheetProps(s: Session): AvatarSheetProps {
 export function AvatarSheet({ me, chosen, hasAvatar }: AvatarSheetProps) {
   return (
     <>
-      <SheetHead title="התמונה שלך" />
+      <SheetHead title={t('av.title')} />
       <div class="avp">
         <Avatar who={me} class="av big" />
-        <span class="muted">כולם בשולחן רואים אותה ליד השם שלך.</span>
+        <span class="muted">{t('av.note')}</span>
       </div>
       <div class="grid2">
         <button class="btn" data-a="avcam">
-          צילום עכשיו
+          {t('av.camera')}
         </button>
         <button class="btn" data-a="avfile">
-          תמונה מהגלריה
+          {t('av.gallery')}
         </button>
       </div>
-      <span class="label">או בחרו דמות</span>
+      <span class="label">{t('av.orPick')}</span>
       <div class="avgrid">
         {Object.keys(AV_SET).map(id => (
           <button
@@ -41,7 +42,7 @@ export function AvatarSheet({ me, chosen, hasAvatar }: AvatarSheetProps) {
             data-a="avset"
             data-v={id}
             aria-pressed={chosen === id}
-            aria-label={`דמות ${id}`}
+            aria-label={t('av.character', { id })}
           >
             <AvatarArt id={id} />
           </button>
@@ -49,7 +50,7 @@ export function AvatarSheet({ me, chosen, hasAvatar }: AvatarSheetProps) {
       </div>
       {hasAvatar && (
         <button class="btn ghost" data-a="avclear">
-          בלי תמונה (האות הראשונה של השם)
+          {t('av.none')}
         </button>
       )}
     </>

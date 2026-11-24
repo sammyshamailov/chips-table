@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizePlayer, normalizeRoom } from '../../../data/schema';
 import { blackjackEligible, isCurrent } from '../../../domain/blackjack/rules';
 import type { Override } from '../../../fx/layer';
+import { he } from '../../../i18n/he';
 import type { SeatView, Session } from '../../session';
 import { blackjackDockProps, blackjackHostProps, blackjackTableProps, seatView } from './select';
 
@@ -15,7 +16,7 @@ function session(
     code: 'ABCD',
     game: 'blackjack',
     hostId: 'h',
-    hostName: 'דנה',
+    hostName: 'Dana',
     roundId: 3,
     minBet: 10,
     ...room,
@@ -108,11 +109,11 @@ describe('Blackjack table, dock and dealer controls', () => {
       onFelt: 65,
       house: -40,
       betting: false,
-      hostName: 'דנה',
+      hostName: 'Dana',
       denoms: [5, 10, 25],
     });
     expect(t.seats.map(x => x.pid)).toEqual(['a', 'b', 'c']);
-    expect(blackjackTableProps(session({ hostName: '' }, {})).hostName).toBe('הדילר');
+    expect(blackjackTableProps(session({ hostName: '' }, {})).hostName).toBe(he['common.theDealer']);
   });
   it('gives the dock your hands only when you bet this round', () => {
     expect(blackjackDockProps(session({ phase: 'playing' }, docs))).toMatchObject({

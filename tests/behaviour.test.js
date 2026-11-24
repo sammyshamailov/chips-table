@@ -13,7 +13,7 @@ async function addPlayers(p, names){
   const { chromium } = requirePlaywright();
   const srv = await serve(), browser = await chromium.launch(), errors = [];
   const page = async (w, h) => {
-    const c = await browser.newContext({ viewport: { width: w, height: h }, serviceWorkers: 'block' });
+    const c = await browser.newContext({ viewport: { width: w, height: h }, serviceWorkers: 'block', locale: 'he-IL' });
     await c.route(/gstatic|googleapis/, r => r.abort());
     const p = await c.newPage(); p.on('pageerror', e => errors.push(e.message));
     await p.goto(srv.url); await p.waitForTimeout(300); return p;

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { normalizePlayer, normalizeRoom } from '../data/schema';
 import type { KeyValueStore } from '../data/browser-storage';
+import { he } from '../i18n/he';
+import { setLang } from '../i18n';
 import { randomCode, randomId } from './ids';
 import {
   createState,
@@ -27,23 +29,23 @@ function storage(init: Record<string, string> = {}): KeyValueStore & { data: Rec
 }
 
 function table() {
-  const S = createState(storage({ 'chips.pid': 'p_me', 'chips.name': 'סמי' }), () => 'p_new');
+  const S = createState(storage({ 'chips.pid': 'p_me', 'chips.name': 'Sam' }), () => 'p_new');
   S.code = 'ABCD';
-  S.room = normalizeRoom({ code: 'ABCD', hostId: 'p_me', hostName: 'סמי' });
+  S.room = normalizeRoom({ code: 'ABCD', hostId: 'p_me', hostName: 'Sam' });
   S.players = {
-    p_b: normalizePlayer({ name: 'דנה', joinedAt: 2, stack: 700 }),
-    p_me: normalizePlayer({ name: 'סמי', joinedAt: 1, stack: 1200 }),
-    p_c: normalizePlayer({ name: 'יוסי', joinedAt: 3, stack: 700 }),
+    p_b: normalizePlayer({ name: 'Dana', joinedAt: 2, stack: 700 }),
+    p_me: normalizePlayer({ name: 'Sam', joinedAt: 1, stack: 1200 }),
+    p_c: normalizePlayer({ name: 'Yossi', joinedAt: 3, stack: 700 }),
   };
   return S;
 }
 
 describe('createState', () => {
   it('keeps the phone’s player id, name and avatar', () => {
-    const ls = storage({ 'chips.pid': 'p_kept', 'chips.name': 'דנה', 'chips.avatar': '{"k":"set","v":"tex"}' });
+    const ls = storage({ 'chips.pid': 'p_kept', 'chips.name': 'Dana', 'chips.avatar': '{"k":"set","v":"tex"}' });
     let made = 0;
     const S = createState(ls, () => (made++, 'p_new'));
-    expect([S.myId, S.name, S.avatar, made]).toEqual(['p_kept', 'דנה', { k: 'set', v: 'tex' }, 0]);
+    expect([S.myId, S.name, S.avatar, made]).toEqual(['p_kept', 'Dana', { k: 'set', v: 'tex' }, 0]);
   });
 
   it('makes and saves a player id only when there is none', () => {
@@ -80,7 +82,7 @@ describe('questions about the state', () => {
 
   it('knows this phone’s player and whether it is the dealer', () => {
     const S = table();
-    expect(me(S)).toMatchObject({ pid: 'p_me', name: 'סמי', stack: 1200 });
+    expect(me(S)).toMatchObject({ pid: 'p_me', name: 'Sam', stack: 1200 });
     expect(isHost(S)).toBe(true);
     S.myId = 'p_b';
     expect(isHost(S)).toBe(false);
@@ -91,14 +93,14 @@ describe('questions about the state', () => {
   it('names a player, the dealer who doesn’t sit, or anyone else', () => {
     const S = table();
     delete S.players.p_me;
-    expect([nameOf(S, 'p_b'), nameOf(S, 'p_me'), nameOf(S, 'p_x')]).toEqual(['דנה', 'סמי', 'שחקן']);
+    expect([nameOf(S, 'p_b'), nameOf(S, 'p_me'), nameOf(S, 'p_x')]).toEqual(['Dana', 'Sam', he['common.player']]);
   });
 
   it('ranks the standings by stack, ties in seat order', () => {
     expect(standings(table())).toEqual([
-      { pid: 'p_me', name: 'סמי', stack: 1200 },
-      { pid: 'p_b', name: 'דנה', stack: 700 },
-      { pid: 'p_c', name: 'יוסי', stack: 700 },
+      { pid: 'p_me', name: 'Sam', stack: 1200 },
+      { pid: 'p_b', name: 'Dana', stack: 700 },
+      { pid: 'p_c', name: 'Yossi', stack: 700 },
     ]);
   });
 
@@ -113,13 +115,16 @@ describe('questions about the state', () => {
 
   it('writes a new player with its name cut to 20 letters and the phone’s avatar', () => {
     const S = table();
-    S.name = '  ' + 'א'.repeat(25) + ' ';
+    S.name = '  ' + 'a'.repeat(25) + ' ';
     S.avatar = { k: 'set', v: 'tex' };
     const d = newPlayer(S, 500, 99);
-    expect(d).toMatchObject({ name: 'א'.repeat(20), stack: 500, joinedAt: 99, ts: 99, avatar: { k: 'set', v: 'tex' } });
+    expect(d).toMatchObject({ name: 'a'.repeat(20), stack: 500, joinedAt: 99, ts: 99, avatar: { k: 'set', v: 'tex' } });
     expect(d).toMatchObject({ handId: 0, bjRound: null, hands: [], lastAction: null, folded: false });
     S.name = ' ';
-    expect(newPlayer(S, 0, 1).name).toBe('שחקן');
+    expect(newPlayer(S, 0, 1).name).toBe(he['common.player']);
+    setLang('en');
+    expect([newPlayer(S, 0, 1).name, nameOf(S, 'p_x')]).toEqual(['Player', 'Player']);
+    setLang('he');
   });
 
   it('builds the document paths and the event line', () => {
@@ -129,7 +134,19 @@ describe('questions about the state', () => {
       'rooms/ABCD/players/p_me',
       'rooms/ABCD/players/p_b',
     ]);
-    expect(eventLine('היד התחילה', 5)).toEqual({ lastEvent: { t: 'היד התחילה', ts: 5 }, updatedAt: 5 });
+    expect(eventLine('ev.opened', {}, 5)).toEqual({
+      lastEvent: { t: he['ev.opened'], key: 'ev.opened', p: {}, ts: 5 },
+      updatedAt: 5,
+    });
+    // in Hebrew for older phones, whatever this phone speaks
+    setLang('en');
+    expect(eventLine('ev.newDealer', { name: 'Dana' }, 6).lastEvent).toEqual({
+      t: he['ev.newDealer'].replace('{name}', 'Dana'),
+      key: 'ev.newDealer',
+      p: { name: 'Dana' },
+      ts: 6,
+    });
+    setLang('he');
   });
 });
 

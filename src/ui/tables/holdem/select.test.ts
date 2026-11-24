@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { normalizePlayer, normalizeRoom } from '../../../data/schema';
 import { holdemState } from '../../../domain/holdem/rules';
 import type { Override } from '../../../fx/layer';
+import { setLang } from '../../../i18n';
 import { actionText } from '../../labels';
 import type { SeatView, Session } from '../../session';
 import { holdemChoices, holdemDockProps, holdemHostProps, holdemStatus, holdemTableProps, seatTags } from './select';
@@ -10,12 +11,16 @@ import { holdemChoices, holdemDockProps, holdemHostProps, holdemStatus, holdemTa
 const HAND = { handId: 2, streetId: 21, stage: 'preflop', buttonPid: 'a', sbPid: 'b', bbPid: 'c' };
 const inHand = (more = {}) => ({ handId: 2, streetId: 21, ...more });
 
+// The words are checked in English (the Hebrew screens are checked pixel by pixel, tests/visual.js).
+beforeAll(() => setLang('en'));
+afterAll(() => setLang('he'));
+
 function session(
   room: Record<string, unknown>,
   players: Record<string, Record<string, unknown>>,
   { myId = 'a', mode = 'cloud', ov = {} as Record<string, Override>, pending = 0 } = {},
 ): Session {
-  const r = normalizeRoom({ code: 'ABCD', game: 'holdem', hostId: 'a', hostName: 'סמי', sb: 5, bb: 10, ...room });
+  const r = normalizeRoom({ code: 'ABCD', game: 'holdem', hostId: 'a', hostName: 'Sam', sb: 5, bb: 10, ...room });
   const ps: SeatView[] = Object.entries(players).map(([pid, d], i) => ({
     pid,
     ...normalizePlayer({ name: pid, stack: 1000, joinedAt: i, ...d }),
@@ -67,18 +72,18 @@ describe("Hold'em table: what each row shows", () => {
     });
     expect(tagsOf(s, 'a')).toEqual([
       { cls: 'btn-d', text: 'D' },
-      { cls: 'fold', text: 'קיפל' },
+      { cls: 'fold', text: 'Folded' },
     ]);
     expect(tagsOf(s, 'b')).toEqual([{ text: 'SB' }, { cls: 'allin', text: 'ALL-IN' }]);
-    expect(texts(s, 'c')).toEqual(['BB', 'קיפל']);
-    expect(texts(s, 'd')).toEqual(['בהפסקה']);
-    expect(texts(s, 'e')).toEqual(['ממתין ליד הבאה']);
+    expect(texts(s, 'c')).toEqual(['BB', 'Folded']);
+    expect(texts(s, 'd')).toEqual(['On a break']);
+    expect(texts(s, 'e')).toEqual(['Joins next hand']);
     expect(seats(s).map(x => x.out)).toEqual([true, false, true, false, false]);
   });
   it('tags nobody between hands, except a player on a break', () => {
     const s = session({ ...HAND, stage: 'idle' }, { a: inHand(), b: { sittingOut: true } });
     expect(texts(s, 'a')).toEqual([]);
-    expect(texts(s, 'b')).toEqual(['בהפסקה']);
+    expect(texts(s, 'b')).toEqual(['On a break']);
   });
   it("shows this street's bet, the shown stack and the last action during the hand, and a win after it", () => {
     const s = session(
@@ -89,10 +94,10 @@ describe("Hold'em table: what each row shows", () => {
       },
       { ov: { a: { stack: 1000 } } },
     );
-    expect(seats(s)[0]).toMatchObject({ streetBet: 30, stack: 1000, action: 'העלה ל-30', mine: true, host: true });
+    expect(seats(s)[0]).toMatchObject({ streetBet: 30, stack: 1000, action: 'Raised to 30', mine: true, host: true });
     expect(seats(s)[1]).toMatchObject({ streetBet: 0, action: '' });
     const after = session({ ...HAND, stage: 'idle' }, { a: { lastAction: { k: 'won', amt: 130 } }, b: inHand() });
-    expect(seats(after).map(x => x.action)).toEqual(['זכה ב-130', '']);
+    expect(seats(after).map(x => x.action)).toEqual(['Won 130', '']);
     const old = session(HAND, { a: inHand({ streetId: 11, streetBet: 40 }) });
     expect(seats(old)[0].streetBet).toBe(0);
   });
@@ -104,7 +109,7 @@ describe("Hold'em table: what each row shows", () => {
   it("adds the dealer's own row only when the dealer doesn't play", () => {
     expect(holdemTableProps(session(HAND, { a: {}, b: {} })).dealer).toBeNull();
     const t = holdemTableProps(session({ hostId: 'h', hostName: '' }, { a: {} }, { myId: 'h' }));
-    expect(t.dealer).toEqual({ pid: 'h', name: 'הדילר', letterName: 'ד', mine: true });
+    expect(t.dealer).toEqual({ pid: 'h', name: 'Dealer', letterName: 'D', mine: true });
   });
   it('turns over the board cards street by street, none between hands', () => {
     const cards = (stage: string) => holdemTableProps(session({ ...HAND, stage }, {})).cards;
@@ -122,17 +127,23 @@ describe("Hold'em dock", () => {
   const status = (room: Record<string, unknown>, me: Record<string, unknown>) =>
     holdemStatus(session(room, { a: me }).holdem(), session(room, { a: me }).me() as SeatView);
   it('says why you cannot act', () => {
-    expect(status(HAND, { sittingOut: true })).toBe('אתם בהפסקה. אפשר לחזור מתפריט השחקנים.');
-    expect(status({ ...HAND, stage: 'idle' }, {})).toBe('מחכים ליד הבאה');
-    expect(status(HAND, {})).toBe('תצטרפו ביד הבאה');
-    expect(status(HAND, inHand({ folded: true }))).toBe('קיפלתם ביד הזו');
-    expect(status(HAND, inHand({ allIn: true }))).toBe('אתם באול-אין. בהצלחה.');
-    expect(status({ ...HAND, stage: 'showdown' }, inHand())).toBe('שואודאון. מחכים לדילר שיחלק את הקופה.');
+    expect(status(HAND, { sittingOut: true })).toBe("You're on a break. Come back from the Players menu.");
+    expect(status({ ...HAND, stage: 'idle' }, {})).toBe('Waiting for the next hand');
+    expect(status(HAND, {})).toBe("You'll join the next hand");
+    expect(status(HAND, inHand({ folded: true }))).toBe('You folded this hand');
+    expect(status(HAND, inHand({ allIn: true }))).toBe("You're all in. Good luck.");
+    expect(status({ ...HAND, stage: 'showdown' }, inHand())).toBe('Showdown. Waiting for the dealer to award the pot.');
     expect(status(HAND, inHand())).toBeNull();
   });
   it('has no controls while you cannot act', () => {
     const d = holdemDockProps(session(HAND, { a: inHand({ folded: true }) }, { pending: 25 }));
-    expect(d).toMatchObject({ go: null, presets: [], pending: 25, status: 'קיפלתם ביד הזו', denoms: [5, 10, 25] });
+    expect(d).toMatchObject({
+      go: null,
+      presets: [],
+      pending: 25,
+      status: 'You folded this hand',
+      denoms: [5, 10, 25],
+    });
   });
 
   // You (a) are the button, facing the big blind's 10; the small blind put in 5.
@@ -145,38 +156,38 @@ describe("Hold'em dock", () => {
     return holdemChoices(s.holdem(), s.me() as SeatView, pending);
   };
   it('names the main button after the chips in your hand', () => {
-    expect(facing(0).go).toEqual({ label: 'השוואה 10', disabled: false, amount: 10 });
-    expect(facing(5).go).toEqual({ label: 'חסר 5 להשוואה', disabled: true, amount: 5 });
-    expect(facing(10).go).toEqual({ label: 'השוואה 10', disabled: false, amount: 10 });
-    expect(facing(15).go).toEqual({ label: 'העלאה מינימלית ל-20', disabled: true, amount: 15 });
-    expect(facing(25).go).toEqual({ label: 'העלאה ל-25', disabled: false, amount: 25 });
-    expect(facing(1000).go).toEqual({ label: 'אול-אין 1,000', disabled: false, amount: 1000 });
-    expect(facing(0, { stack: 8 }).go).toEqual({ label: 'אול-אין 8', disabled: false, amount: 8 });
+    expect(facing(0).go).toEqual({ label: 'Call 10', disabled: false, amount: 10 });
+    expect(facing(5).go).toEqual({ label: '5 short of a call', disabled: true, amount: 5 });
+    expect(facing(10).go).toEqual({ label: 'Call 10', disabled: false, amount: 10 });
+    expect(facing(15).go).toEqual({ label: 'Raise at least to 20', disabled: true, amount: 15 });
+    expect(facing(25).go).toEqual({ label: 'Raise to 25', disabled: false, amount: 25 });
+    expect(facing(1000).go).toEqual({ label: 'All in 1,000', disabled: false, amount: 1000 });
+    expect(facing(0, { stack: 8 }).go).toEqual({ label: 'All in 8', disabled: false, amount: 8 });
   });
   it('checks or bets when nothing is bet on the street', () => {
     const s = (pending: number) => {
       const x = session({ ...HAND, stage: 'flop', streetId: 22 }, { a: inHand({ streetId: 22 }) }, { pending });
       return holdemChoices(x.holdem(), x.me() as SeatView, pending);
     };
-    expect(s(0).go.label).toBe("צ'ק");
-    expect(s(20).go.label).toBe('הימור 20');
-    expect(s(0).presets.map(([t]) => t)).toEqual(['מינימום', '½ קופה', 'קופה', 'אול-אין']);
+    expect(s(0).go.label).toBe('Check');
+    expect(s(20).go.label).toBe('Bet 20');
+    expect(s(0).presets.map(([t]) => t)).toEqual(['Min', '½ pot', 'Pot', 'All in']);
   });
   it('offers call, minimum raise, half the pot, the pot and all-in', () => {
     // pot 15, to call 10: half the pot raises to 10 + round(25 / 2) = 23 (at least the minimum, 20), the pot to 35.
     expect(facing(0).presets).toEqual([
-      ['השוואה', 10],
-      ['מינימום', 20],
-      ['½ קופה', 23],
-      ['קופה', 35],
-      ['אול-אין', 1000],
+      ['Call', 10],
+      ['Min', 20],
+      ['½ pot', 23],
+      ['Pot', 35],
+      ['All in', 1000],
     ]);
     expect(facing(0, { stack: 15 }).presets).toEqual([
-      ['השוואה', 10],
-      ['מינימום', 15],
-      ['½ קופה', 15],
-      ['קופה', 15],
-      ['אול-אין', 15],
+      ['Call', 10],
+      ['Min', 15],
+      ['½ pot', 15],
+      ['Pot', 15],
+      ['All in', 15],
     ]);
   });
   it('shows your chips as the effects show them', () => {
@@ -204,19 +215,19 @@ describe('actionText', () => {
   it("says each Hold'em action with its amount", () => {
     const say = (k: string, amt?: number) => actionText({ k, amt });
     expect([say('fold'), say('check'), say('call', 10), say('raise', 1200), say('bet', 20)]).toEqual([
-      'קיפל',
-      "צ'ק",
-      'השווה 10',
-      'העלה ל-1,200',
-      'הימר 20',
+      'Folded',
+      'Checked',
+      'Called 10',
+      'Raised to 1,200',
+      'Bet 20',
     ]);
     expect([say('allin', 300), say('blind', 5), say('won', 130), say('refund', 15)]).toEqual([
-      'אול-אין 300',
-      'בליינד 5',
-      'זכה ב-130',
-      'הוחזר 15',
+      'All in 300',
+      'Blind 5',
+      'Won 130',
+      'Got back 15',
     ]);
-    expect([say('bjres', 20), say('bjres', -20), say('bjres', 0)]).toEqual(['הרוויח 20', 'הפסיד 20', 'תיקו']);
+    expect([say('bjres', 20), say('bjres', -20), say('bjres', 0)]).toEqual(['Won 20', 'Lost 20', 'Push']);
   });
   it('says nothing for no action or an unknown one', () => {
     expect(actionText(null)).toBe('');

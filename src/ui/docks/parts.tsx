@@ -2,7 +2,7 @@
 import type { ComponentChildren } from 'preact';
 import { chipLabel } from '../../domain/chips';
 import { chipStyle } from '../chips-html';
-import { fmt } from '../format';
+import { formatChips, t } from '../../i18n';
 
 /** Your chips, and next to them whatever the game puts there (the chips in your hand). */
 export function DockHead({ stack, children }: { stack: number; children?: ComponentChildren }) {
@@ -10,9 +10,9 @@ export function DockHead({ stack, children }: { stack: number; children?: Compon
     <div class="dock-head">
       <div class="mystack">
         <span class="big num" data-k="mystack">
-          {fmt(stack)}
+          {formatChips(stack)}
         </span>
-        <span class="muted">הצ'יפים שלך</span>
+        <span class="muted">{t('dock.yourChips')}</span>
       </div>
       {children}
     </div>
@@ -23,13 +23,13 @@ export function DockHead({ stack, children }: { stack: number; children?: Compon
 export function PendingBox({ pending }: { pending: number }) {
   return (
     <div class="pending">
-      <button data-a="clearp" aria-label="ניקוי">
+      <button data-a="clearp" aria-label={t('dock.clear')}>
         ×
       </button>
       <span class="v num" data-k="pend">
-        {fmt(pending)}
+        {formatChips(pending)}
       </span>
-      <span class="muted">להוסיף</span>
+      <span class="muted">{t('dock.toAdd')}</span>
     </div>
   );
 }
@@ -39,7 +39,13 @@ export function ChipTray({ denoms }: { denoms: number[] }) {
   return (
     <div class="tray">
       {denoms.map(d => (
-        <button class="chip" style={chipStyle(d)} data-a="add" data-v={d} aria-label={'הוספת ' + d}>
+        <button
+          class="chip"
+          style={chipStyle(d)}
+          data-a="add"
+          data-v={d}
+          aria-label={t('dock.addChip', { amt: String(d) })}
+        >
           <span>{chipLabel(d)}</span>
         </button>
       ))}

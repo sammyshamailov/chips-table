@@ -26,6 +26,11 @@ type Players = Readonly<Record<string, PlayerDoc>>;
 
 const POT_BETS = { blind: 'BlindPosted', call: 'Called', bet: 'BetMade', raise: 'Raised' } as const;
 const STREETS = ['flop', 'turn', 'river'] as const;
+/**
+ * "Paid" in Hebrew, in the event line an older phone wrote when it paid a Blackjack round, before `roundEnd` existed.
+ * Spelled with escapes: Hebrew letters live only in src/i18n/he.ts, and this matches stored text, not words on screen.
+ */
+const PAID = /\u05e9\u05d5\u05dc\u05dd/;
 
 const total = (hs: readonly BjHand[]) => hs.reduce((x, h) => x + (h.bet || 0), 0);
 
@@ -214,7 +219,7 @@ export function diffRoom(
     a.phase === 'playing' &&
     b.phase === 'betting' &&
     (b.roundId || 0) > (a.roundId || 0) &&
-    (b.roundEnd ? b.roundEnd === 'paid' : /שולם/.test((b.lastEvent && b.lastEvent.t) || ''))
+    (b.roundEnd ? b.roundEnd === 'paid' : PAID.test((b.lastEvent && b.lastEvent.t) || ''))
   )
     out.push({ type: 'RoundPaid', roundId: a.roundId || 0 });
   if (b.game === 'holdem' && (b.handId || 0) > (a.handId || 0))

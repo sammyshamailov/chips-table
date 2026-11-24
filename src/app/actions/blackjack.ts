@@ -8,7 +8,8 @@ import * as BJ from '../../domain/blackjack/rules';
 import * as BJA from '../../domain/blackjack/actions';
 import * as BJR from '../../domain/blackjack/round';
 import type { HandResult } from '../../domain/types';
-import { fmt } from '../../ui/format';
+import { t, type Key, type Params } from '../../i18n';
+import { signed } from '../../ui/labels';
 import type { Actions, AppContext } from '../context';
 import { eventLine, me, pendChips, playerList, playerPath, roomPath } from '../state';
 
@@ -16,15 +17,15 @@ export function blackjackActions(c: AppContext): Actions {
   const { S } = c,
     FX = c.layer.FX;
   const room = () => S.room as NonNullable<typeof S.room>;
-  const ev = (t: string) => eventLine(t, c.now());
+  const ev = (key: Key, p: Params = {}) => eventLine(key, p, c.now());
   const current = () => playerList(S).filter(p => BJ.isCurrent(p, S.room));
 
   async function placeBet() {
     const r = room(),
       res = BJA.placeBet(me(S), r, S.pending, pendChips(S));
     if (!res.ok) {
-      if (res.reason === 'over-max') c.toast(`ההימור המקסימלי הוא ${fmt(r.maxBet)}`);
-      else if (res.reason === 'under-min') c.toast(`ההימור המינימלי הוא ${fmt(r.minBet)}`);
+      if (res.reason === 'over-max') c.toast(t('toast.maxBet', { amt: r.maxBet }));
+      else if (res.reason === 'under-min') c.toast(t('toast.minBet', { amt: r.minBet }));
       return;
     }
     c.buzz();
@@ -59,7 +60,7 @@ export function blackjackActions(c: AppContext): Actions {
       marks = S.settle as Record<string, HandResult | undefined>,
       res = BJR.settleRound(r, playerList(S), marks, S.dealerBJ); // paid blackjacks are done
     if (!res.ok) {
-      c.toast('סמנו תוצאה לכל הידיים');
+      c.toast(t('toast.markAll'));
       return;
     }
     c.buzz();
@@ -69,9 +70,8 @@ export function blackjackActions(c: AppContext): Actions {
       ),
     );
     if (results.some(ok => !ok)) return; // the toast is up; pressing again pays only the players not yet settled
-    const d = res.houseDelta;
-    const line = `סיבוב ${r.roundId} שולם · הבית ⁦${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}⁩`;
-    if (!(await c.write(roomPath(S), 'update', { ...res.room, ...ev(line) }))) return;
+    const line = ev('ev.roundPaid', { round: r.roundId, house: signed(res.houseDelta) });
+    if (!(await c.write(roomPath(S), 'update', { ...res.room, ...line }))) return;
     S.sheet = null;
     S.settle = {};
     S.dealerBJ = false;
@@ -87,7 +87,7 @@ export function blackjackActions(c: AppContext): Actions {
     c.buzz();
     if (!(await c.write(playerPath(S, pid), 'update', { stack: c.inc(res.stackInc), ...res.patch, ts: c.now() })))
       return;
-    await c.write(roomPath(S), 'update', { ...res.room, ...ev(`${p.name}: בלאק ג'ק! +${fmt(res.win)}`) });
+    await c.write(roomPath(S), 'update', { ...res.room, ...ev('ev.bjPaid', { name: p.name, amt: res.win }) });
     S.confirm = null;
     if (!playerList(S).some(x => BJ.blackjackEligible(x, S.room))) S.sheet = null;
     c.render();
@@ -102,7 +102,7 @@ export function blackjackActions(c: AppContext): Actions {
       ),
     );
     if (results.some(ok => !ok)) return;
-    if (!(await c.write(roomPath(S), 'update', { ...x.room, ...ev('הסיבוב בוטל וההימורים הוחזרו') }))) return;
+    if (!(await c.write(roomPath(S), 'update', { ...x.room, ...ev('ev.roundCancelled') }))) return;
     S.sheet = null;
     S.confirm = null;
     c.render();
@@ -120,7 +120,7 @@ export function blackjackActions(c: AppContext): Actions {
       await c.write(roomPath(S), 'update', {
         phase: 'playing',
         dealerBJ: false,
-        ...ev(`סיבוב ${room().roundId}: הקלפים חולקו`),
+        ...ev('ev.dealt', { round: room().roundId }),
       });
     },
     res: v => {

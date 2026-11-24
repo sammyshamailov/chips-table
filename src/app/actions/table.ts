@@ -2,7 +2,8 @@
  * Running the table: the sheets, the dealer's players list (add a player, correct a stack, a break, a new dealer,
  * remove), the settings, switching the game, the invite, and ending and reopening the game.
  */
-import { fmt } from '../../ui/format';
+import { t, type Key, type Params } from '../../i18n';
+import { signed } from '../../ui/labels';
 import type { Actions, AppContext } from '../context';
 import { newPlayerId } from '../ids';
 import { eventLine, holdem, nameOf, newPlayer, playerPath, roomPath, standings } from '../state';
@@ -12,23 +13,21 @@ const whole = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0));
 export function tableActions(c: AppContext): Actions {
   const { S } = c;
   const room = () => S.room as NonNullable<typeof S.room>;
-  const ev = (t: string) => eventLine(t, c.now());
+  const ev = (key: Key, p: Params = {}) => eventLine(key, p, c.now());
 
   async function endGame() {
     const list = standings(S);
     if (!list.length) {
-      c.toast('אין שחקנים בשולחן');
+      c.toast(t('toast.noPlayers'));
       return;
     }
     const top = list[0].stack,
       win = list.filter(x => x.stack === top);
-    const t =
+    const line =
       win.length > 1
-        ? `תיקו בצמרת: ${win.map(x => x.name).join(' ו')} עם ${fmt(top)}`
-        : `${win[0].name} ניצח/ה עם ${fmt(top)} צ'יפים`;
-    if (
-      await c.write(roomPath(S), 'update', { closed: true, final: { at: c.now(), list }, ...ev('המשחק הסתיים · ' + t) })
-    ) {
+        ? ev('ev.gameTie', { names: win.map(x => x.name), amt: top })
+        : ev('ev.gameWin', { name: win[0].name, amt: top });
+    if (await c.write(roomPath(S), 'update', { closed: true, final: { at: c.now(), list }, ...line })) {
       S.sheet = null;
       c.render();
     }
@@ -63,31 +62,31 @@ export function tableActions(c: AppContext): Actions {
       c.render();
     },
     copy: () => {
-      const t = room().code;
-      const link = location.origin + location.pathname + '#' + t;
+      const code = room().code;
+      const link = location.origin + location.pathname + '#' + code;
       try {
         if (navigator.share)
-          navigator.share({ title: "שולחן צ'יפים", text: 'בואו לשולחן ' + t, url: link }).catch(() => {});
+          navigator.share({ title: t('app.title'), text: t('share.text', { code }), url: link }).catch(() => {});
         else
           navigator.clipboard.writeText(link).then(
-            () => c.toast('קישור ההזמנה הועתק'),
-            () => c.toast('קוד החדר: ' + t),
+            () => c.toast(t('toast.linkCopied')),
+            () => c.toast(t('toast.code', { code })),
           );
       } catch {
-        c.toast('קוד החדר: ' + t);
+        c.toast(t('toast.code', { code }));
       }
     },
     addp: async () => {
       const n = S.newName.trim();
       if (!n) {
-        c.toast('כתבו שם');
+        c.toast(t('toast.writeName'));
         return;
       }
       const pid = newPlayerId();
       const d = { ...newPlayer(S, room().startStack || 0, c.now()), name: n.slice(0, 20), avatar: null };
       if (await c.write(playerPath(S, pid), 'set', d)) {
         S.newName = '';
-        c.toast(n + ' נוסף לשולחן');
+        c.toast(t('toast.added', { name: n }));
         c.render();
       }
     },
@@ -99,8 +98,12 @@ export function tableActions(c: AppContext): Actions {
       const ns = Math.max(0, (p.stack || 0) + amt * Number(sign));
       const refund = { stack: ns, lastAction: { k: 'refund', amt: ns - (p.stack || 0) }, ts: c.now() };
       if (await c.write(playerPath(S, id), 'update', refund)) {
-        await c.write(roomPath(S), 'update', ev(`${p.name}: ${Number(sign) > 0 ? '+' : '−'}${fmt(amt)} צ'יפים`));
-        c.toast('עודכן');
+        await c.write(
+          roomPath(S),
+          'update',
+          ev('ev.adjust', { name: p.name, amt: signed(amt * Math.sign(Number(sign))) }),
+        );
+        c.toast(t('toast.updated'));
       }
     },
     sitout: v => {
@@ -110,7 +113,9 @@ export function tableActions(c: AppContext): Actions {
     mkhost: async v => {
       const id = v as string;
       const hostName = id === S.myId ? S.name.trim() || nameOf(S, id) : nameOf(S, id);
-      if (await c.write(roomPath(S), 'update', { hostId: id, hostName, ...ev(`${nameOf(S, id)} הוא הדילר עכשיו`) })) {
+      if (
+        await c.write(roomPath(S), 'update', { hostId: id, hostName, ...ev('ev.newDealer', { name: nameOf(S, id) }) })
+      ) {
         S.sheet = null;
         c.render();
       }
@@ -132,7 +137,7 @@ export function tableActions(c: AppContext): Actions {
         stage: 'idle',
         phase: 'betting',
         roundId: (room().roundId || 1) + 1,
-        ...ev(v === 'holdem' ? 'עוברים לטקסס הולדם' : "עוברים לבלאק ג'ק"),
+        ...ev(v === 'holdem' ? 'ev.toHoldem' : 'ev.toBlackjack'),
       });
       S.pending = 0;
     },
@@ -147,15 +152,14 @@ export function tableActions(c: AppContext): Actions {
         updatedAt: c.now(),
       };
       if (await c.write(roomPath(S), 'update', patch)) {
-        c.toast('נשמר');
+        c.toast(t('toast.saved'));
         S.sheet = null;
         c.render();
       }
     },
     endgame: () => endGame(),
     reopen: async () => {
-      if (await c.write(roomPath(S), 'update', { closed: false, ...ev('השולחן נפתח מחדש') }))
-        c.toast('השולחן פתוח שוב');
+      if (await c.write(roomPath(S), 'update', { closed: false, ...ev('ev.reopened') })) c.toast(t('toast.reopened'));
     },
   };
 }

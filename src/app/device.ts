@@ -2,6 +2,7 @@
  * The phone itself: a short vibration on a tap that does something, keeping the screen on at a table, and the
  * browser's "install the app" prompt.
  */
+import { t } from '../i18n';
 
 /** A short vibration, where the phone can. */
 export function buzz(): void {
@@ -68,7 +69,7 @@ export function createInstallPrompt(d: { onHome(): boolean; render(): void; toas
       });
       window.addEventListener('appinstalled', () => {
         evt = null;
-        d.toast('האפליקציה הותקנה');
+        d.toast(t('toast.installed'));
         if (d.onHome()) d.render();
       });
     },

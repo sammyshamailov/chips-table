@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLocalStore, memoryStorage } from '../data/local-store';
 import type { Store, StoreError } from '../data/store';
+import { he } from '../i18n/he';
 import type { DomainEvent } from './domain-events';
 import { createEventBus } from './events';
 import { createRoomSession, type SessionState } from './room-session';
@@ -47,14 +48,14 @@ describe('the room session', () => {
   it('reads the room and its players, normalised, and renders', async () => {
     const { store, S, calls, session, flush } = setup();
     await store.doc('rooms/ABCD').set(room);
-    await store.doc('rooms/ABCD/players/p_me').set({ name: 'סמי', stack: 500, joinedAt: 1 });
+    await store.doc('rooms/ABCD/players/p_me').set({ name: 'Sam', stack: 500, joinedAt: 1 });
     flush(); // the writes' own notices, before anyone listens
     session.listen('ABCD');
     expect([S.code, S.room, S.roomLoaded, S.synced, S.pSynced]).toEqual(['ABCD', null, false, false, false]);
     flush();
     expect(S.room).toMatchObject({ code: 'ABCD', stage: 'idle', closed: false, final: null });
     expect([S.roomLoaded, S.synced, S.pSynced]).toEqual([true, true, true]);
-    expect(S.players.p_me).toMatchObject({ name: 'סמי', stack: 500, hands: [], lastAction: null });
+    expect(S.players.p_me).toMatchObject({ name: 'Sam', stack: 500, hands: [], lastAction: null });
     expect(calls.render).toBe(2);
   });
 
@@ -68,7 +69,7 @@ describe('the room session', () => {
   it('runs the effects around the change: before sees the old players, after the new ones', async () => {
     const { store, S, bus, session, flush } = setup();
     await store.doc('rooms/ABCD').set(room);
-    await store.doc('rooms/ABCD/players/p_b').set({ name: 'דנה', stack: 500, ts: 1 });
+    await store.doc('rooms/ABCD/players/p_b').set({ name: 'Dana', stack: 500, ts: 1 });
     session.listen('ABCD');
     flush();
     const seen: string[] = [];
@@ -130,7 +131,7 @@ describe('the room session', () => {
     errors[0]({ code: 'permission-denied' });
     expect([S.syncErr, calls.toasts, calls.render]).toEqual([
       'permission-denied',
-      ['שגיאת סנכרון: permission-denied'],
+      [he['toast.syncError'].replace('{code}', 'permission-denied')],
       1,
     ]);
     vi.advanceTimersByTime(5000);

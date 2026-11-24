@@ -6,7 +6,7 @@
 import { handHalves, handStack } from '../../../domain/chips';
 import type { ShownHand } from '../../../fx/layer';
 import { Avatar } from '../../components/avatar';
-import { fmt } from '../../format';
+import { formatChips, t } from '../../../i18n';
 import type { AvatarOwner } from '../../session';
 import { ChipStack } from '../chip-stack';
 import { GEO, ept, spotsAt } from './geometry';
@@ -78,10 +78,10 @@ export function BetCircle({ pid, j, m, x, y, size, hand: h, mine, ghost, betting
         </div>
       )}
       {paid && h && !h._hide ? (
-        <span class="bl bjl">בלאק ג'ק ✓</span>
+        <span class="bl bjl">{t('bjt.bjPaid')}</span>
       ) : show && h ? (
         <span class="bl num">
-          {fmt(h.bet) + (h.doubled ? (m > 1 ? '×2' : ' · ×2') : '') + (h.result === 'surrender' ? ' · ½' : '')}
+          {formatChips(h.bet) + (h.doubled ? (m > 1 ? '×2' : ' · ×2') : '') + (h.result === 'surrender' ? ' · ½' : '')}
         </span>
       ) : null}
     </div>
@@ -91,7 +91,7 @@ export function BetCircle({ pid, j, m, x, y, size, hand: h, mine, ghost, betting
 function SeatResult({ amt }: { amt: number }) {
   return (
     <span class={`rb ${amt > 0 ? 'w' : amt < 0 ? 'l' : 'p'} num`}>
-      {amt > 0 ? '+' + fmt(amt) : amt < 0 ? '−' + fmt(-amt) : 'תיקו'}
+      {amt > 0 ? '+' + formatChips(amt) : amt < 0 ? '−' + formatChips(-amt) : t('common.push')}
     </span>
   );
 }
@@ -99,9 +99,9 @@ function SeatResult({ amt }: { amt: number }) {
 /** The seat's attributes for tapping it. */
 function tapAttrs(s: BjSeatView) {
   if (s.tap === 'claim')
-    return { 'data-a': 'claim', 'data-v': s.pid, role: 'button' as const, title: 'שחק בתור ' + s.name };
+    return { 'data-a': 'claim', 'data-v': s.pid, role: 'button' as const, title: t('bjt.playAs', { name: s.name }) };
   if (s.tap === 'avatar')
-    return { 'data-a': 'sheet', 'data-v': 'avatar', role: 'button' as const, title: 'החלפת התמונה שלך' };
+    return { 'data-a': 'sheet', 'data-v': 'avatar', role: 'button' as const, title: t('bjt.changePhoto') };
   return {};
 }
 
@@ -131,7 +131,7 @@ export function BjSeat({ seat: s, phi, base }: { seat: BjSeatView; phi: number; 
         {s.ins ? (
           <>
             <ChipStack chips={s.ins} />
-            <span class="bl num">{'ביטוח ' + fmt(s.ins)}</span>
+            <span class="bl num">{t('bjt.ins', { amt: s.ins })}</span>
           </>
         ) : null}
       </div>
@@ -143,7 +143,7 @@ export function BjSeat({ seat: s, phi, base }: { seat: BjSeatView; phi: number; 
         {s.result != null && <SeatResult amt={s.result} />}
         <Avatar who={s.who} k={'seat:' + s.pid} />
         <b class="sn">{s.name}</b>
-        <span class="ss num">{fmt(s.stack)}</span>
+        <span class="ss num">{formatChips(s.stack)}</span>
       </div>
     </>
   );

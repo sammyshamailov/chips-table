@@ -6,27 +6,30 @@
  */
 import { MAX_HANDS } from '../../domain/blackjack/rules';
 import type { BjHand } from '../../domain/types';
-import { fmt } from '../format';
-import { RESULT_HE } from '../labels';
+import { formatChips, t } from '../../i18n';
+import { resultText } from '../labels';
 import type { BlackjackDockProps } from '../tables/blackjack/select';
 import { ChipTray, DockHead, PendingBox } from './parts';
 
 function HandRow({ h, i, many, stack, full }: { h: BjHand; i: number; many: boolean; stack: number; full: boolean }) {
-  if (h.result) return <div class="status">{`יד ${i + 1}: ${fmt(h.bet)} · ${RESULT_HE[h.result]}`}</div>;
+  if (h.result)
+    return (
+      <div class="status">{t('bjdock.handResult', { n: String(i + 1), amt: h.bet, result: resultText(h.result) })}</div>
+    );
   return (
     <div class="handrow hr1">
       <div class="hl">
-        <b>{many ? `יד ${i + 1}` : 'ההימור שלך'}</b>
+        <b>{many ? t('common.handNo', { n: String(i + 1) }) : t('bjdock.yourBet')}</b>
         <span class="amt num">
           <span class="mini"></span>
-          {fmt(h.bet) + (h.doubled ? ' · דאבל' : '')}
+          {formatChips(h.bet) + (h.doubled ? ' · ' + t('common.doubled') : '')}
         </span>
       </div>
       <button class="btn small" data-a="bj" data-v={`double:${i}`} disabled={!!h.doubled || stack < h.bet}>
-        דאבל דאון
+        {t('bjdock.double')}
       </button>
       <button class="btn small" data-a="bj" data-v={`split:${i}`} disabled={!!h.doubled || full || stack < h.bet}>
-        ספליט
+        {t('bjdock.split')}
       </button>
     </div>
   );
@@ -44,15 +47,15 @@ export function BlackjackDock(d: BlackjackDockProps) {
         <div class="acts">
           {c ? (
             <button class="btn ghost" data-a="bjclear">
-              {'ביטול ' + fmt(curBet)}
+              {t('bjdock.clearBet', { amt: curBet })}
             </button>
           ) : (
             <button class="btn ghost" data-a="setp" data-v={d.minBet}>
-              {'מינימום ' + fmt(d.minBet)}
+              {t('bjdock.min', { amt: d.minBet })}
             </button>
           )}
           <button class="btn primary" data-a="bjbet" disabled={!d.pending}>
-            {c ? `הוספה להימור (${fmt(curBet + d.pending)})` : `הימור ${fmt(d.pending)}`}
+            {c ? t('bjdock.addTo', { amt: curBet + d.pending }) : t('bjdock.bet', { amt: d.pending })}
           </button>
         </div>
       </>
@@ -62,7 +65,7 @@ export function BlackjackDock(d: BlackjackDockProps) {
     return (
       <>
         {head}
-        <div class="status">לא הימרת בסיבוב הזה. אפשר להמר בסיבוב הבא.</div>
+        <div class="status">{t('bjdock.noBet')}</div>
       </>
     );
   const first = d.hands[0],
@@ -81,10 +84,10 @@ export function BlackjackDock(d: BlackjackDockProps) {
           data-v="ins:0"
           disabled={!!(d.insurance || d.hands.length > 1 || first.result || d.realStack < half)}
         >
-          {d.insurance ? `ביטוח ${fmt(d.insurance)}` : `ביטוח (${fmt(half)})`}
+          {d.insurance ? t('bjdock.insured', { amt: d.insurance }) : t('bjdock.insure', { amt: half })}
         </button>
         <button class="btn small ghost" data-a="bj" data-v="surrender:0" disabled={!one}>
-          כניעה (מקבלים חצי)
+          {t('bjdock.surrender')}
         </button>
       </div>
     </>

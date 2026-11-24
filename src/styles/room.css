@@ -2,6 +2,8 @@
 .top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:12px}
 .top .code-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:4px 2px}
 .top .code-btn small{font-size:11px;color:var(--dim);letter-spacing:.08em}
+/* English wraps the line between the game and the status, never inside the status (R-006; Hebrew is kept as it was) */
+html[dir=ltr] .top .code-btn small span{white-space:nowrap}
 .top .actions{display:flex;gap:8px}
 .event{font-size:13px;color:var(--dim);padding:0 2px 12px;min-height:1.4em}
 

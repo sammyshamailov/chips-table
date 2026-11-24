@@ -5,6 +5,7 @@
  */
 import type { RefObject } from 'preact';
 import type { Standing } from '../data/schema';
+import { t } from '../i18n';
 import { Avatar } from './components/avatar';
 import { Crown } from './components/crown';
 import { Rank } from './components/rank';
@@ -49,7 +50,7 @@ function WinnerCard({ winners, names, list, players, rest }: CeremonyCard) {
           <Avatar key={w.pid} who={w} class="fin-av" />
         ))}
       </div>
-      <div class="fin-t">{winners.length > 1 ? 'תיקו בצמרת!' : 'המנצח/ת!'}</div>
+      <div class="fin-t">{winners.length > 1 ? t('cer.tie') : t('cer.winner')}</div>
       <h2 id="fin-t" class="fin-name">
         {names}
       </h2>
@@ -57,16 +58,16 @@ function WinnerCard({ winners, names, list, players, rest }: CeremonyCard) {
         <span class="num" data-count="">
           0
         </span>
-        {" צ'יפים"}
+        {' ' + t('common.chips')}
       </div>
       <div class={rest ? 'fin-rest on' : 'fin-rest'}>
         {list.length > 1 && <Rank list={list} players={players} />}
         <div class="btns">
           <button class="btn primary" data-a="finclose">
-            לשולחן
+            {t('cer.toTable')}
           </button>
           <button class="btn ghost" data-a="home">
-            למסך הראשי
+            {t('common.home')}
           </button>
         </div>
       </div>

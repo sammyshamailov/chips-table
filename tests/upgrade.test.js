@@ -4,19 +4,11 @@
 // with a new APP_BUILD in config.js, the old app notices (its self-update check) and reloads, and the new build must
 // run: no page errors, the table opened on the old version still there, a new table can be created, the old cache
 // replaced by the new service worker's, and the app still opening offline from that cache.
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
-const { ROOT, DIST, OUT, requirePlaywright, serve, check, failures } = require('./lib');
-
-const OLD_REF = '568fddc';
-const OLD_FILES = ['index.html', 'sw.js', 'manifest.webmanifest', 'icons'];
+const { DIST, requirePlaywright, serve, oldApp, check, failures } = require('./lib');
 
 (async () => {
   const { chromium } = requirePlaywright();
-  const OLD = path.join(OUT, 'old-app');
-  fs.rmSync(OLD, { recursive: true, force: true }); fs.mkdirSync(OLD, { recursive: true });
-  execSync(`git archive ${OLD_REF} ${OLD_FILES.join(' ')} | tar -x -C "${OLD}"`, { cwd: ROOT });
+  const OLD = oldApp();
 
   // One origin; the folder it serves and the APP_BUILD in its config.js change mid-test. Single-device mode (no Firebase config).
   let root = OLD, build = 'old-build';
@@ -57,6 +49,8 @@ const OLD_FILES = ['index.html', 'sw.js', 'manifest.webmanifest', 'icons'];
   await pg.waitForLoadState('load'); await pg.waitForTimeout(800);
   check('new build runs (hashed module script)', !!(await pg.$('script[type=module][src*="assets/index-"]')));
   check('new build: the table opened on the old version is shown', (await pg.textContent('.code').catch(() => '')).trim() === code);
+  // R-006: the phone's languages list English (Playwright's default locale), but it used the app before: it stays in Hebrew.
+  check('new build: a phone that used the app before stays in Hebrew', await pg.evaluate(() => document.documentElement.lang + ' ' + document.documentElement.dir + ' ' + localStorage.getItem('chips.lang')) === 'he rtl he', await pg.evaluate(() => [navigator.languages, document.documentElement.lang, localStorage.getItem('chips.lang')].join(' ')));
   check('new build: Blackjack table rendered', !!(await pg.$('.bjt')));
 
   // 3. The new service worker takes over and drops the old cache.

@@ -70,3 +70,9 @@
 .fly-c{position:absolute;left:0;bottom:0;transform:translate(-50%,calc(var(--u)*2.2))}
 .ft{position:absolute;left:0;top:0;white-space:nowrap;font-family:var(--f-display);font-weight:700;font-size:calc(var(--u)*8);line-height:1;color:var(--brass);text-shadow:0 2px 0 rgba(0,0,0,.5),0 0 18px rgba(0,0,0,.6);direction:ltr}
 .ft.w{color:var(--ok)} .ft.l{color:var(--danger)} .ft.p{color:var(--chalk)}
+
+/* The table is a picture, so a left-to-right language doesn't mirror it (R-006): the dealer's rack, a doubled bet's two
+   stacks and the columns of every stack (on the felt and in the air) keep the order they have in Hebrew, while the
+   words on it read left to right. The seats and circles are placed by geometry.ts and don't move either way. */
+html[dir=ltr] .bjt,html[dir=ltr] .stk{direction:rtl}
+html[dir=ltr] .bjt :is(.dn,.plac,.rnd,.cst,.empty,.st,.csign){direction:ltr}

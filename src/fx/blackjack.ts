@@ -5,7 +5,7 @@
  */
 import type { DomainEvent } from '../sync/domain-events';
 import type { EventBus } from '../sync/events';
-import { fmt } from '../ui/format';
+import { formatChips, t as tr } from '../i18n';
 import type { FxLayer } from './layer';
 import { dealerNod } from './room';
 import type { Sound } from '../audio/synth';
@@ -117,7 +117,7 @@ export function subscribeBlackjackFx(bus: EventBus<DomainEvent>, L: FxLayer, snd
           snd.chips(4);
           L.clearOv(pid, p.tok);
           const t = spot(pid, i + 1);
-          L.floatText(L.shift(t, 0, -p.u * 9), 'ספליט');
+          L.floatText(L.shift(t, 0, -p.u * 9), tr('fx.split'));
         },
       });
     },
@@ -175,7 +175,7 @@ export function subscribeBlackjackFx(bus: EventBus<DomainEvent>, L: FxLayer, snd
         off = L.shift(f, u * 4.2);
       dealerNod(L.reduced);
       snd.chips(3);
-      L.floatText(L.shift(f, 0, -u * 10), "בלאק ג'ק!");
+      L.floatText(L.shift(f, 0, -u * 10), tr('fx.blackjack'));
       L.fly({ from: f, to: st, amt: e.chips, delay: 1000, fadeOut: true });
       L.fly({
         from: dealer,
@@ -190,7 +190,7 @@ export function subscribeBlackjackFx(bus: EventBus<DomainEvent>, L: FxLayer, snd
         L.clearOv(pid, p.tok);
         snd.chips(4);
         L.pulse('seat:' + pid, 1.2);
-        L.floatText(L.shift(L.rectOf('seat:' + pid) || st, 0, -u * 12), '+' + fmt(win), 'w');
+        L.floatText(L.shift(L.rectOf('seat:' + pid) || st, 0, -u * 12), '+' + formatChips(win), 'w');
         if (e.mine) snd.bj();
       }, 1560);
     },
@@ -265,7 +265,7 @@ export function subscribeBlackjackFx(bus: EventBus<DomainEvent>, L: FxLayer, snd
           L.pulse('seat:' + pid, 1.2);
           L.floatText(
             L.shift(L.rectOf('seat:' + pid) || st, 0, -u * 12),
-            net > 0 ? '+' + fmt(net) : net < 0 ? '−' + fmt(-net) : 'תיקו',
+            net > 0 ? '+' + formatChips(net) : net < 0 ? '−' + formatChips(-net) : tr('common.push'),
             net > 0 ? 'w' : net < 0 ? 'l' : 'p',
           );
           if (e.mine) {

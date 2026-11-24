@@ -43,13 +43,15 @@ function serve(root = DIST){
 
 // Several independent "phones" (separate browser contexts, so separate localStorage and identity),
 // connected through tests/fakefs.js: every write on one phone is copied to the others.
-async function phones(browser, n = 2, { width = 390, height = 844, build = 'test-build', scale = 1 } = {}){
+// langs: each phone's language ('he' or 'en', Hebrew by default), from the phone's own language list (its locale),
+// as a new phone picks it on its first run.
+async function phones(browser, n = 2, { width = 390, height = 844, build = 'test-build', scale = 1, langs = [] } = {}){
   // The hub is the "server": it holds the documents, applies each write (increments against its own value) and relays
   // the resulting document to the other phones. hub.delay(phoneIndex, path, op) -> ms holds a write back before the
   // server sees it, to simulate a slow connection (used by tests/race.test.js).
   const pages = [], errors = [], hub = { docs: {}, delay: () => 0, writes: [] };   // hub.writes: every write the server received, { phone, path, op, data }
   for (let i = 0; i < n; i++){
-    const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: scale });
+    const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: scale, locale: langs[i] === 'en' ? 'en-US' : 'he-IL' });
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
     await ctx.route(/\/config\.js(\?|$)/, r => r.fulfill({ contentType: 'text/javascript', body: `window.FIREBASE_CONFIG={apiKey:"test",projectId:"test"};window.APP_BUILD=${JSON.stringify(build)};` }));
     await ctx.route(/firebase-app-compat\.js/, r => r.fulfill({ contentType: 'text/javascript', body: FAKE }));
@@ -112,6 +114,26 @@ async function openTable(pages, url, { game = 'holdem', settings = {}, names, pl
   return { code, ids };
 }
 
+// Collects the words that float over the table (`.ft` in #fx: "Blackjack!", "Split", a payout) from now on; the
+// returned function gives the texts seen so far.
+async function watchFloats(pg){
+  await pg.evaluate(() => {
+    window.__floats = []; if (window.__ftObs) window.__ftObs.disconnect();
+    window.__ftObs = new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.classList && n.classList.contains('ft')) window.__floats.push(n.textContent); })));
+    window.__ftObs.observe(document.getElementById('fx'), { childList: true, subtree: true });
+  });
+  return () => pg.evaluate(() => window.__floats.slice());
+}
+
+// The old single-file app (commit 568fddc, what players ran before R-005) as a folder to serve, for a phone on the old
+// version at the same table (tests/two-phones.test.js) or upgrading from it (tests/upgrade.test.js).
+const OLD_REF = '568fddc';
+function oldApp(dir = path.join(OUT, 'old-app'), files = ['index.html', 'sw.js', 'manifest.webmanifest', 'icons']){
+  fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+  execSync(`git archive ${OLD_REF} ${files.join(' ')} | tar -x -C "${dir}"`, { cwd: ROOT });
+  return dir;
+}
+
 // Counts the flying chips (`.fly` added to #fx) a phone shows from now on. Returns an async function that waits until at
 // least `atLeast` have started (up to 3 s), lets any extra ones start, and returns the count. One action on another phone
 // must fly exactly once: two would mean a subscriber runs twice, none that the event or its subscriber is missing.
@@ -135,4 +157,4 @@ function check(name, ok, detail = ''){
 }
 const failures = () => failed;
 
-module.exports = { ROOT, DIST, OUT, requirePlaywright, serve, phones, setPending, players, room, openTable, watchFlies, check, failures };
+module.exports = { ROOT, DIST, OUT, requirePlaywright, serve, phones, setPending, players, room, openTable, watchFlies, watchFloats, oldApp, OLD_REF, check, failures };

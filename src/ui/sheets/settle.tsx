@@ -1,8 +1,8 @@
 /** Blackjack: the dealer marks every open hand (win, blackjack, push, lose) and pays the round. */
 import { SheetHead } from '../components/sheet-head';
 import { Option } from '../components/option';
-import { fmt } from '../format';
-import { RESULT_HE } from '../labels';
+import { formatChips, t } from '../../i18n';
+import { resultText } from '../labels';
 import type { Session } from '../session';
 
 interface HandLine {
@@ -29,7 +29,7 @@ export function settleProps(s: Session): SettleProps {
     hands: list.flatMap(p =>
       p.hands.map((x, i) => ({
         k: p.pid + ':' + i,
-        title: p.name + (p.hands.length > 1 ? ` · יד ${i + 1}` : ''),
+        title: p.name + (p.hands.length > 1 ? ' · ' + t('common.handNo', { n: String(i + 1) }) : ''),
         bet: x.bet,
         doubled: !!x.doubled,
         result: x.result || null,
@@ -42,11 +42,11 @@ export function settleProps(s: Session): SettleProps {
 }
 
 const MARKS = [
-  ['win', 'ניצח', 'w'],
-  ['bj', "בלאק ג'ק", 'b'],
-  ['push', 'תיקו', 'p'],
-  ['lose', 'הפסיד', 'l'],
-];
+  ['win', 'mark.win', 'w'],
+  ['bj', 'mark.bj', 'b'],
+  ['push', 'mark.push', 'p'],
+  ['lose', 'mark.lose', 'l'],
+] as const;
 
 function Hand({ h }: { h: HandLine }) {
   if (h.result)
@@ -54,7 +54,7 @@ function Hand({ h }: { h: HandLine }) {
       <div class="handrow">
         <div class="row" style="justify-content:space-between">
           <b>{h.title}</b>
-          <span class="num muted">{`${fmt(h.bet)} · ${RESULT_HE[h.result]}`}</span>
+          <span class="num muted">{`${formatChips(h.bet)} · ${resultText(h.result)}`}</span>
         </div>
       </div>
     );
@@ -64,13 +64,13 @@ function Hand({ h }: { h: HandLine }) {
         <b>{h.title}</b>
         <span class="amt num">
           <span class="mini"></span>
-          {fmt(h.bet) + (h.doubled ? ' · דאבל' : '')}
+          {formatChips(h.bet) + (h.doubled ? ' · ' + t('common.doubled') : '')}
         </span>
       </div>
       <div class="res4">
-        {MARKS.map(([rv, t, cl]) => (
+        {MARKS.map(([rv, label, cl]) => (
           <button class={cl} data-a="res" data-v={`${h.k}|${rv}`} aria-pressed={h.mark === rv}>
-            {t}
+            {t(label)}
           </button>
         ))}
       </div>
@@ -82,13 +82,13 @@ export function SettleSheet({ hands, anyIns, dealerBJ }: SettleProps) {
   const missing = hands.filter(h => !h.result && !h.mark).length;
   return (
     <>
-      <SheetHead title="סיום סיבוב" />
+      <SheetHead title={t('settle.title')} />
       <button class="btn ghost" data-a="allwin">
-        הדילר נשרף: כל מי שלא סומן ניצח
+        {t('settle.allWin')}
       </button>
       {anyIns && (
         <Option a="dbj" pressed={dealerBJ}>
-          לדילר יש בלאק ג'ק (ביטוח משלם 2:1)
+          {t('settle.dealerBj')}
         </Option>
       )}
       <div class="stack" style="gap:8px">
@@ -97,7 +97,7 @@ export function SettleSheet({ hands, anyIns, dealerBJ }: SettleProps) {
         ))}
       </div>
       <button class="btn primary wide" data-a="payout" disabled={missing > 0}>
-        {missing ? `נשארו ${missing} ידיים לסמן` : 'תשלום וסיבוב חדש'}
+        {missing ? t('settle.missing', { n: missing }) : t('settle.pay')}
       </button>
     </>
   );

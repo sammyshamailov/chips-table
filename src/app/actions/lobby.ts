@@ -4,6 +4,7 @@
  */
 import type { Game } from '../../domain/types';
 import { gameMode } from '../../games/registry';
+import { t } from '../../i18n';
 import type { Actions, AppContext } from '../context';
 import { randomCode } from '../ids';
 import type { Navigation } from '../navigation';
@@ -19,7 +20,7 @@ export function lobbyActions(c: AppContext, nav: Navigation): Actions {
 
   function nameFirst(inputId: string): boolean {
     if (S.name.trim()) return true;
-    c.toast('כתבו את השם שלכם קודם');
+    c.toast(t('toast.nameFirst'));
     document.getElementById(inputId)?.focus();
     return false;
   }
@@ -28,12 +29,12 @@ export function lobbyActions(c: AppContext, nav: Navigation): Actions {
     if (!nameFirst('name')) return;
     await nav.ready();
     if (S.readOnly) {
-      c.toast('אין לך הרשאת כתיבה בשולחן המשותף');
+      c.toast(t('toast.readOnly'));
       return;
     }
     const f = S.create;
     if (whole(f.stack) < 1) {
-      c.toast("קבעו כמות צ'יפים התחלתית");
+      c.toast(t('toast.startStack'));
       return;
     }
     let code = randomCode();
@@ -67,7 +68,7 @@ export function lobbyActions(c: AppContext, nav: Navigation): Actions {
       phase: 'betting',
       house: 0,
       dealerBJ: false,
-      ...eventLine('השולחן נפתח', c.now()),
+      ...eventLine('ev.opened', {}, c.now()),
     };
     if (!(await c.write('rooms/' + code, 'set', room))) return;
     S.code = code;
@@ -91,7 +92,7 @@ export function lobbyActions(c: AppContext, nav: Navigation): Actions {
     join: async () => {
       const code = S.joinCode.trim().toUpperCase();
       if (code.length !== 4) {
-        c.toast('קוד החדר הוא 4 אותיות');
+        c.toast(t('toast.codeLength'));
         return;
       }
       if (S.name.trim()) ls.set('chips.name', S.name.trim());

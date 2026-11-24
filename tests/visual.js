@@ -134,7 +134,7 @@ const hIds = pg => pg.$$eval('.seat [data-a=claim]', els => els.map(e => e.datas
 async function hAs(pg, pid){ await pg.click(`.seat [data-a=claim][data-v="${pid}"]`); await w(pg, 150); }
 async function hGo(pg, amt = 0){ if (amt) await setPending(pg, amt); await pg.click('[data-a=hgo]'); await w(pg, 900); }
 async function hFold(pg){ await pg.click('[data-a=fold]'); await w(pg, 500); }
-async function hAllIn(pg){ await pg.click('.dock .presets button:has-text("אול-אין")'); await w(pg, 150); await pg.click('[data-a=hgo]'); await w(pg, 900); }
+async function hAllIn(pg){ await pg.click('.dock .presets button:last-child'); await w(pg, 150); await pg.click('[data-a=hgo]'); await w(pg, 900); }
 async function hNext(pg){ await pg.click('[data-a=next]'); await w(pg, 400); }
 // A hand with the blinds posted; with `avatar`, the dealer picked a character first (an avatar in a seat row).
 async function holdemPreflop(pg, { avatar = false } = {}){
@@ -282,8 +282,14 @@ const SCREENS = [
   { name: 'rotate', size: P, touch: true, run: async pg => { await pg.fill('#name', 'סמי'); await pg.click('[data-a=create]'); await w(pg, 500); } },
 ];
 
+// Every screen again in English (R-006): a phone whose languages list English first, so it starts in English, with the
+// players' names typed in English. The table is the same picture (not mirrored); the words and the side panel follow
+// the language. The Hebrew screens above are the reference for the Hebrew version.
+const NAMES_EN = { 'סמי': 'Sam', 'דנה': 'Dana', 'יוסי': 'Yossi', 'מיכל': 'Michal', 'אבי': 'Avi', 'רונית': 'Ronit', 'שלומי': 'Shlomi', 'נועה': 'Noa', 'עידו': 'Ido' };
+SCREENS.push(...SCREENS.map(s => ({ ...s, name: s.name + '-en', lang: 'en' })));
+
 async function shoot(browser, url, s, errors){
-  const ctx = await browser.newContext({ viewport: { width: s.size[0], height: s.size[1] }, deviceScaleFactor: 1, serviceWorkers: 'block', locale: 'he-IL', timezoneId: 'Asia/Jerusalem', reducedMotion: 'no-preference', hasTouch: !!s.touch, isMobile: !!s.touch });
+  const ctx = await browser.newContext({ viewport: { width: s.size[0], height: s.size[1] }, deviceScaleFactor: 1, serviceWorkers: 'block', locale: s.lang === 'en' ? 'en-US' : 'he-IL', timezoneId: 'Asia/Jerusalem', reducedMotion: 'no-preference', hasTouch: !!s.touch, isMobile: !!s.touch });
   await ctx.addInitScript(FREEZE);
   await ctx.route(/gstatic|googleapis/, r => r.abort());
   if (s.cloud){
@@ -297,6 +303,7 @@ async function shoot(browser, url, s, errors){
   }
   const pg = await ctx.newPage();
   pg.on('pageerror', e => errors.push(`${s.name}: ${e.message}`));
+  if (s.lang === 'en'){ const fill = pg.fill.bind(pg); pg.fill = (sel, v, o) => fill(sel, NAMES_EN[v] || v, o); }
   await pg.goto(url + (s.url || '')); await pg.waitForTimeout(300);
   await s.run(pg);
   await settle(pg);

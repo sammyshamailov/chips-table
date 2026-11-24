@@ -4,7 +4,7 @@
  */
 import type { Room } from '../../../data/schema';
 import { STAGES, canAct, type HoldemState } from '../../../domain/holdem/rules';
-import { fmt } from '../../format';
+import { t, type Key } from '../../../i18n';
 import { actionText } from '../../labels';
 import type { SeatView, Session } from '../../session';
 import type { HoldemSeatView, SeatTag } from './seat-row';
@@ -21,10 +21,10 @@ export function seatTags(h: HoldemState, p: SeatView): SeatTag[] {
   if (inH && r.buttonPid === p.pid) tags.push({ cls: 'btn-d', text: 'D' });
   if (inH && r.stage === 'preflop' && r.sbPid === p.pid) tags.push({ text: 'SB' });
   if (inH && r.stage === 'preflop' && r.bbPid === p.pid) tags.push({ text: 'BB' });
-  if (inH && p.folded) tags.push({ cls: 'fold', text: 'קיפל' });
+  if (inH && p.folded) tags.push({ cls: 'fold', text: t('tag.folded') });
   if (inH && p.allIn && !p.folded) tags.push({ cls: 'allin', text: 'ALL-IN' });
-  if (p.sittingOut) tags.push({ text: 'בהפסקה' });
-  else if (!inH && r.stage !== 'idle') tags.push({ text: 'ממתין ליד הבאה' });
+  if (p.sittingOut) tags.push({ text: t('tag.break') });
+  else if (!inH && r.stage !== 'idle') tags.push({ text: t('tag.waiting') });
   return tags;
 }
 
@@ -51,7 +51,12 @@ export function holdemSeatView(s: Session, h: HoldemState, p: SeatView): HoldemS
 /** The dealer's own row, when the dealer runs the table without playing. */
 function dealerRow(s: Session, r: Room): DealerRowView | null {
   if (s.state.players[r.hostId]) return null;
-  return { pid: r.hostId, name: r.hostName || 'הדילר', letterName: r.hostName || 'ד', mine: r.hostId === s.state.myId };
+  return {
+    pid: r.hostId,
+    name: r.hostName || t('common.theDealer'),
+    letterName: r.hostName || t('common.dealerLetter'),
+    mine: r.hostId === s.state.myId,
+  };
 }
 
 export function holdemTableProps(s: Session): HoldemTableProps {
@@ -96,29 +101,31 @@ export function holdemChoices(
     newSt = mySt + add;
   let label,
     disabled = false;
-  if (add === 0) label = toCall === 0 ? "צ'ק" : toCall >= stack ? `אול-אין ${fmt(stack)}` : `השוואה ${fmt(toCall)}`;
-  else if (add === stack) label = `אול-אין ${fmt(stack)}`;
+  if (add === 0)
+    label =
+      toCall === 0 ? t('hgo.check') : toCall >= stack ? t('hgo.allin', { amt: stack }) : t('hgo.call', { amt: toCall });
+  else if (add === stack) label = t('hgo.allin', { amt: stack });
   else if (newSt < h.maxSt) {
-    label = `חסר ${fmt(h.maxSt - newSt)} להשוואה`;
+    label = t('hgo.short', { amt: h.maxSt - newSt });
     disabled = true;
-  } else if (newSt === h.maxSt) label = `השוואה ${fmt(add)}`;
+  } else if (newSt === h.maxSt) label = t('hgo.call', { amt: add });
   else if (newSt < h.minTo) {
-    label = `העלאה מינימלית ל-${fmt(h.minTo)}`;
+    label = t('hgo.minRaise', { amt: h.minTo });
     disabled = true;
-  } else label = h.maxSt === 0 ? `הימור ${fmt(add)}` : `העלאה ל-${fmt(newSt)}`;
+  } else label = h.maxSt === 0 ? t('hgo.bet', { amt: add }) : t('hgo.raise', { amt: newSt });
   const amount = add === 0 ? Math.min(toCall, stack) : add;
   const toAdd = (to: number) => Math.max(0, Math.min(stack, to - mySt));
   const potTo = h.maxSt + h.pot + toCall,
     halfTo = h.maxSt + Math.round((h.pot + toCall) / 2);
-  const presets: [string, number][] = [];
-  if (toCall) presets.push(['השוואה', Math.min(toCall, stack)]);
+  const presets: [Key, number][] = [];
+  if (toCall) presets.push(['preset.call', Math.min(toCall, stack)]);
   presets.push(
-    ['מינימום', toAdd(h.minTo)],
-    ['½ קופה', toAdd(Math.max(h.minTo, halfTo))],
-    ['קופה', toAdd(Math.max(h.minTo, potTo))],
-    ['אול-אין', stack],
+    ['preset.min', toAdd(h.minTo)],
+    ['preset.half', toAdd(Math.max(h.minTo, halfTo))],
+    ['preset.pot', toAdd(Math.max(h.minTo, potTo))],
+    ['preset.allin', stack],
   );
-  return { go: { label, disabled, amount }, presets };
+  return { go: { label, disabled, amount }, presets: presets.map(([k, v]) => [t(k), v]) };
 }
 
 /** Your part of the hand, for the dock. */
@@ -136,11 +143,11 @@ export interface HoldemDockProps {
 
 /** Why the player can't act now (a line instead of the controls), or null. */
 export function holdemStatus(h: HoldemState, m: SeatView): string | null {
-  if (m.sittingOut) return 'אתם בהפסקה. אפשר לחזור מתפריט השחקנים.';
-  if (!h.inHand(m)) return h.r.stage === 'idle' ? 'מחכים ליד הבאה' : 'תצטרפו ביד הבאה';
-  if (m.folded) return 'קיפלתם ביד הזו';
-  if (m.allIn) return 'אתם באול-אין. בהצלחה.';
-  if (!canAct(h, m)) return 'שואודאון. מחכים לדילר שיחלק את הקופה.';
+  if (m.sittingOut) return t('hst.break');
+  if (!h.inHand(m)) return h.r.stage === 'idle' ? t('hst.waitNext') : t('hst.joinNext');
+  if (m.folded) return t('hst.folded');
+  if (m.allIn) return t('hst.allin');
+  if (!canAct(h, m)) return t('hst.showdown');
   return null;
 }
 

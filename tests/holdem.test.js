@@ -8,15 +8,18 @@
 //   Hand 4: a new hand after the cancel starts normally.
 //   Hand 5: a tied showdown on an odd pot (25 = 10 + 5 dead blind + 10) split between two winners: the odd chip goes to the
 //           first winner in seat (joining) order, and the total chips at the table stay the same.
+// The third phone (רון) speaks English (R-006): it shows the same chips with English words (stage, event line, buttons).
 const { requirePlaywright, serve, phones, players, room, openTable, watchFlies, check, failures } = require('./lib');
 
 (async () => {
   const { chromium } = requirePlaywright();
   const srv = await serve(), browser = await chromium.launch();
-  const { pages, errors, db } = await phones(browser, 3);
+  const { pages, errors, db } = await phones(browser, 3, { langs: ['he', 'he', 'en'] });
   const [A, B, C] = pages, wait = ms => A.waitForTimeout(ms);
   const fmt = n => Number(n).toLocaleString('en-US');
   const STAGE = { preflop: 'פרה-פלופ', flop: 'פלופ', turn: 'טרן', river: 'ריבר', showdown: 'שואודאון', idle: 'בין ידיים' };
+  const STAGE_EN = { preflop: 'Preflop', flop: 'Flop', turn: 'Turn', river: 'River', showdown: 'Showdown', idle: 'Between hands' };
+  const stageOn = i => i === 2 ? STAGE_EN : STAGE;      // phone 3 is in English
   try {
     const { ids } = await openTable(pages, srv.url, { game: 'holdem', settings: { stack: 1000, sb: 5, bb: 10 }, names: ['סמי', 'דנה', 'רון'], db });
     const [SAMI, DANA, RON] = [ids['סמי'], ids['דנה'], ids['רון']];
@@ -47,7 +50,7 @@ const { requirePlaywright, serve, phones, players, room, openTable, watchFlies, 
           const v = await view(pg);
           for (const pid of Object.keys(st)) if (v.st[pid] !== st[pid]) bad.push(`phone ${i + 1} sees ${nameOf[pid]} ${v.st[pid]}, expected ${st[pid]}`);
           if (v.pot !== pot) bad.push(`phone ${i + 1} pot ${v.pot}, expected ${pot}`);
-          if (stage && !v.stage.includes(STAGE[stage])) bad.push(`phone ${i + 1} stage "${v.stage}", expected ${STAGE[stage]}`);
+          if (stage && !v.stage.includes(stageOn(i)[stage])) bad.push(`phone ${i + 1} stage "${v.stage}", expected ${stageOn(i)[stage]}`);
         }
         if (!bad.length) break; await wait(150);
       }
@@ -64,7 +67,7 @@ const { requirePlaywright, serve, phones, players, room, openTable, watchFlies, 
     };
     const go = async (pid, chips = 0) => { const pg = phoneOf[pid]; if (chips) await addChips(pg, chips); await pg.click('.dock [data-a=hgo]:not([disabled])'); await wait(600); };
     const fold = async pid => { await phoneOf[pid].click('.dock [data-a=fold]'); await wait(600); };
-    const allIn = async pid => { const pg = phoneOf[pid]; await pg.click('.dock .presets button:has-text("אול-אין")'); await wait(300); await pg.click('.dock [data-a=hgo]:not([disabled])'); await wait(700); };
+    const allIn = async pid => { const pg = phoneOf[pid]; await pg.click('.dock .presets button:last-child'); await wait(300); await pg.click('.dock [data-a=hgo]:not([disabled])'); await wait(700); };
     const dealerTap = async sel => { await A.click(sel); await wait(700); };
     const nextStreet = () => dealerTap('.o-host [data-a=next]');
     const newHand = async () => { await dealerTap('.o-host [data-a=newhand]'); await wait(500); };
@@ -94,6 +97,9 @@ const { requirePlaywright, serve, phones, players, room, openTable, watchFlies, 
     S[sb1] -= 5; S[bb1] -= 10;
     check('hand 1: committed is the blind', players(db()).find(p => p.pid === sb1).committed === 5 && players(db()).find(p => p.pid === bb1).committed === 10 && players(db()).find(p => p.pid === b1).committed === 0);
     await verify('hand 1 blinds', { st: S, pot: 15, stage: 'preflop' });
+    check('English phone: the event line and the street in English', (await C.textContent('.event')).trim() === 'Hand 1 started · blinds 5/10' && (await C.textContent('.stage-row .pill')).trim() === 'Preflop · Hand 1', `${await C.textContent('.event')} | ${await C.textContent('.stage-row .pill')}`);
+    check('Hebrew phones: the event line in Hebrew', (await A.textContent('.event')).trim() === 'יד 1 התחילה · בליינדים 5/10' && (await B.textContent('.event')).trim() === 'יד 1 התחילה · בליינדים 5/10', await B.textContent('.event'));
+    check('English phone: its controls in English', /^(Call|Check|All in)/.test((await C.textContent('.dock [data-a=hgo]')).trim()) && (await C.textContent('.dock [data-a=fold]')).trim() === 'Fold', await C.textContent('.dock [data-a=hgo]'));
     // preflop: button calls 10, small blind calls 5 more, big blind checks
     await go(b1); S[b1] -= 10;
     await go(sb1); S[sb1] -= 5;

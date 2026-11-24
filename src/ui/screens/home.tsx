@@ -2,8 +2,10 @@
 import type { Room } from '../../data/schema';
 import { tableUnsupported } from '../../domain/guard';
 import { GAMES, gameMode } from '../../games/registry';
+import { eventText, t } from '../../i18n';
 import { AvatarButton } from '../components/avatar';
 import { NumField } from '../components/field';
+import { LangSwitch } from '../components/lang';
 import { ModeBanner } from '../components/mode-banner';
 import type { CreateForm, Session } from '../session';
 
@@ -11,16 +13,16 @@ import type { CreateForm, Session } from '../session';
 export function RoomsList({ rooms }: { rooms: Room[] }) {
   return (
     <div id="roomsList" class="rooms">
-      {rooms.length > 0 && <span class="muted">שולחנות פעילים</span>}
+      {rooms.length > 0 && <span class="muted">{t('home.active')}</span>}
       {rooms.map(r => (
         <button key={r.code} class="roomrow" data-a="open" data-v={r.code}>
           <span>
             <span class="code">{r.code}</span>
           </span>
           {tableUnsupported(r) ? (
-            <span class="muted">צריך עדכון</span>
+            <span class="muted">{t('home.needsUpdate')}</span>
           ) : (
-            <span class="muted">{`${gameMode(r.game).listName} · ${r.lastEvent ? r.lastEvent.t : ''}`}</span>
+            <span class="muted">{`${gameMode(r.game).listName} · ${eventText(r.lastEvent)}`}</span>
           )}
         </button>
       ))}
@@ -33,15 +35,15 @@ export function CreateCard({ form }: { form: CreateForm }) {
   const g = gameMode(form.game);
   return (
     <div class="card">
-      <span class="label">שולחן חדש</span>
-      <div class="seg" role="group" aria-label="סוג משחק">
+      <span class="label">{t('home.newTable')}</span>
+      <div class="seg" role="group" aria-label={t('home.gameType')}>
         {[GAMES.holdem, GAMES.blackjack].map(x => (
           <button data-a="cgame" data-v={x.id} aria-pressed={x === g}>
             {x.name}
           </button>
         ))}
       </div>
-      <NumField id="cstack" bind="create.stack" label="צ'יפים לכל שחקן" value={form.stack} />
+      <NumField id="cstack" bind="create.stack" label={t('home.stack')} value={form.stack} />
       <div class="grid2">
         {g.limits.map(f => (
           <NumField key={f.id} id={'c' + f.id} bind={'create.' + f.key} label={f.label} value={form[f.key]} />
@@ -52,9 +54,9 @@ export function CreateCard({ form }: { form: CreateForm }) {
         {' ' + g.playLabel}
       </label>
       <button class="btn primary wide" data-a="create">
-        פתיחת שולחן
+        {t('home.open')}
       </button>
-      <span class="muted">מי שפותח את השולחן הוא הדילר: מתחיל ידיים, מקדם רחובות ומחלק את הקופה לזוכים.</span>
+      <span class="muted">{t('home.dealerNote')}</span>
     </div>
   );
 }
@@ -65,14 +67,16 @@ export function Home({ session }: { session: Session }) {
     <>
       <header class="brand">
         <h1>
-          צ'יפים<span>.</span>
+          {t('app.name')}
+          <span>.</span>
         </h1>
-        <p>הקלפים אמיתיים, הצ'יפים כאן. כל אחד מהטלפון שלו.</p>
+        <p>{t('app.tagline')}</p>
+        <LangSwitch />
       </header>
       <div class="stack">
         {session.installAvailable() && (
           <button class="btn ghost wide" data-a="install">
-            התקנת האפליקציה בטלפון
+            {t('home.install')}
           </button>
         )}
         <ModeBanner mode={S.mode} />
@@ -80,31 +84,31 @@ export function Home({ session }: { session: Session }) {
           <div class="me-row">
             <AvatarButton who={session.myAvatar()} />
             <label class="field">
-              <span class="label">השם שלך</span>
+              <span class="label">{t('common.yourName')}</span>
               <input
                 id="name"
                 data-bind="name"
                 value={S.name}
                 maxLength={20}
-                placeholder="למשל: סמי"
+                placeholder={t('home.namePlaceholder')}
                 autocomplete="nickname"
               />
             </label>
           </div>
         </div>
         <div class="card">
-          <span class="label">הצטרפות לשולחן</span>
+          <span class="label">{t('home.join')}</span>
           <div class="row">
             <input
               id="jcode"
               data-bind="joinCode"
               value={S.joinCode}
               maxLength={4}
-              placeholder="קוד חדר"
+              placeholder={t('home.code')}
               style="direction:ltr;text-align:center;letter-spacing:6px;font-weight:700;text-transform:uppercase"
             />
             <button class="btn primary" data-a="join">
-              הצטרפות
+              {t('home.joinBtn')}
             </button>
           </div>
           <RoomsList rooms={S.rooms} />

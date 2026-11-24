@@ -3,6 +3,7 @@
  * running old code. Each deploy writes a new `APP_BUILD` into config.js; when the live one differs, the app reloads
  * as soon as the player is idle, or shows the "new version" button until then.
  */
+import { t } from './i18n';
 
 /** How often the live config.js is checked while the app is open. */
 const CHECK_EVERY_MS = 3 * 60 * 1000;
@@ -60,14 +61,14 @@ export function createUpdater(d: UpdaterDeps) {
     maybeReload(): void {
       if (!newBuild || reloading || !d.idle()) return;
       reloading = true;
-      d.toast('מעדכן לגרסה החדשה…');
+      d.toast(t('upd.updating'));
       setTimeout(() => location.reload(), RELOAD_AFTER_MS);
     },
     /** The update screen's button: check now, and reload or say this is the latest. */
     async updateNow(): Promise<void> {
       await check();
       if (newBuild) reload();
-      else d.toast('זו כבר הגרסה האחרונה. אם השולחן עדיין לא נפתח, נסו שוב עוד רגע.');
+      else d.toast(t('upd.latest'));
     },
     /** Checks when the app comes back to the screen, gets the focus or goes online, and every few minutes. */
     start(): void {

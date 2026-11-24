@@ -28,3 +28,11 @@
 .roomrow{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:12px;background:var(--bg);border:1px solid var(--line);width:100%;text-align:start}
 .code{font-family:var(--f-display);font-size:28px;font-weight:700;letter-spacing:3px;line-height:1;direction:ltr}
 
+/* the language switch, in the home screen's top corner (R-006) */
+.brand{position:relative}
+/* over the tagline's empty top, at the far side from the title: left in Hebrew, right in English (the button itself is
+   always left-to-right, so "EN / HE" reads in the same order in both) */
+.lang-btn{position:absolute;top:0;display:flex;gap:5px;align-items:center;padding:5px 11px;border-radius:999px;border:1px solid var(--line);font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--faint)}
+html[dir=rtl] .lang-btn{left:0} html[dir=ltr] .lang-btn{right:0}
+.lang-btn i{font-style:normal}
+.lang-btn .on{color:var(--ink)}

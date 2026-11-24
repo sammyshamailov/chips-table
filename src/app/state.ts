@@ -9,6 +9,7 @@ import { holdemState, type HoldemState } from '../domain/holdem/rules';
 import type { KeyValueStore } from '../data/browser-storage';
 import type { Store, Unsubscribe } from '../data/store';
 import type { Standing } from '../data/schema';
+import { storedEvent, t, type Key, type Params } from '../i18n';
 import { validAv } from '../ui/avatars';
 import type { AppState, SeatView } from '../ui/session';
 
@@ -85,7 +86,9 @@ export function isHost(S: State): boolean {
 
 /** A player's name; the dealer's from the room when they don't sit at the table. */
 export function nameOf(S: State, id: string): string {
-  return (S.players[id] && S.players[id].name) || (S.room && S.room.hostId === id && S.room.hostName) || 'שחקן';
+  return (
+    (S.players[id] && S.players[id].name) || (S.room && S.room.hostId === id && S.room.hostName) || t('common.player')
+  );
 }
 
 /** The Hold'em hand as the rules see it (src/domain/holdem/rules.ts). Only inside a table. */
@@ -118,7 +121,7 @@ export function pendChips(S: State): number[] {
 /** A new player document for this phone's player (or, with its name changed, for one the dealer adds). */
 export function newPlayer(S: State, stack: number, now: number) {
   return {
-    name: S.name.trim().slice(0, 20) || 'שחקן',
+    name: S.name.trim().slice(0, 20) || t('common.player'),
     joinedAt: now,
     stack,
     handId: 0,
@@ -144,5 +147,11 @@ export const roomPath = (S: State): string => 'rooms/' + S.code;
 /** A player's document path (this phone's player by default). */
 export const playerPath = (S: State, id: string = S.myId): string => 'rooms/' + S.code + '/players/' + id;
 
-/** The line under the room's header (`lastEvent`), with the room's `updatedAt`. */
-export const eventLine = (t: string, now: number) => ({ lastEvent: { t, ts: now }, updatedAt: now });
+/**
+ * The line under the room's header (`lastEvent`), with the room's `updatedAt`: its key and parameters, read in each
+ * phone's language, and its Hebrew text for phones on older versions (src/i18n/, `storedEvent`).
+ */
+export const eventLine = (key: Key, p: Params, now: number) => ({
+  lastEvent: { ...storedEvent(key, p), ts: now },
+  updatedAt: now,
+});

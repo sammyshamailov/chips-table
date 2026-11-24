@@ -4,6 +4,7 @@
 import type { VNode } from 'preact';
 import { AV_SET, avatarBg, initial, validAv } from '../avatars';
 import type { AvatarOwner } from '../session';
+import { t } from '../../i18n';
 
 const HAIR: Record<string, (hc: string) => VNode | VNode[]> = {
   short: hc => (
@@ -142,12 +143,12 @@ export function Avatar({ who, class: cls = 'av', tag: Tag = 'div', k }: AvatarPr
   );
 }
 
-/** The button that opens the avatar sheet: your circle with "תמונה" under it. */
+/** The button that opens the avatar sheet: your circle with "Photo" under it. */
 export function AvatarButton({ who }: { who: AvatarOwner }) {
   return (
-    <button class="avbtn" data-a="sheet" data-v="avatar" aria-label="בחירת תמונה">
+    <button class="avbtn" data-a="sheet" data-v="avatar" aria-label={t('common.choosePhoto')}>
       <Avatar who={who} tag="span" />
-      <span>תמונה</span>
+      <span>{t('common.photo')}</span>
     </button>
   );
 }

@@ -7,6 +7,7 @@ import { validAv } from '../../ui/avatars';
 import { avatarFromPhoto } from '../../ui/photo';
 import type { Actions, AppContext } from '../context';
 import { me, playerPath } from '../state';
+import { t } from '../../i18n';
 
 const PHOTO_INPUTS = ['avcam', 'avfile'];
 
@@ -23,14 +24,14 @@ function setAvatar(c: AppContext, a: unknown): void {
 async function loadPhoto(c: AppContext, file: File | undefined): Promise<void> {
   if (!file) return;
   if (!/^image\//.test(file.type || 'image/')) {
-    c.toast('זה לא קובץ תמונה');
+    c.toast(t('toast.notImage'));
     return;
   }
   try {
     setAvatar(c, { k: 'img', v: await avatarFromPhoto(file) });
-    c.toast('התמונה עודכנה');
+    c.toast(t('toast.photoSet'));
   } catch {
-    c.toast('לא הצלחנו לקרוא את התמונה. נסו תמונה אחרת.');
+    c.toast(t('toast.photoFailed'));
   }
 }
 

@@ -3,7 +3,7 @@
  * has bet on this street. The dealer who runs the table without playing has a row of their own at the top.
  */
 import { Avatar } from '../../components/avatar';
-import { fmt } from '../../format';
+import { formatChips, t } from '../../../i18n';
 import type { AvatarOwner } from '../../session';
 
 /** A tag after the name: `btn-d` (the button), `fold`, `allin`, or plain (blinds, break, waiting). */
@@ -28,7 +28,7 @@ export interface HoldemSeatView {
   stack: number;
   /** What the player has bet on this street (0: nothing shown). */
   streetBet: number;
-  /** The last action under the name ("השווה 10"), or ''. */
+  /** The last action under the name ("Called 10"), or ''. */
   action: string;
   /** Single-device mode: a button to play as this player. */
   claim: boolean;
@@ -45,14 +45,14 @@ export function SeatRow({ seat: p }: { seat: HoldemSeatView }) {
       <div class="who">
         <div class="nm">
           <b>{p.name}</b>
-          {p.mine && <span class="tag">את/ה</span>}
-          {p.host && <span class="tag host">דילר</span>}
+          {p.mine && <span class="tag">{t('common.you')}</span>}
+          {p.host && <span class="tag host">{t('common.dealer')}</span>}
           {p.tags.map(t => (
             <Tag tag={t} />
           ))}
         </div>
         <div class="sub">
-          <span class="num">{fmt(p.stack) + " צ'יפים"}</span>
+          <span class="num">{t('common.amountChips', { amt: p.stack })}</span>
           {p.action && <span>{p.action}</span>}
         </div>
       </div>
@@ -60,12 +60,12 @@ export function SeatRow({ seat: p }: { seat: HoldemSeatView }) {
         {p.streetBet ? (
           <div class="amt num">
             <span class="mini"></span>
-            {fmt(p.streetBet)}
+            {formatChips(p.streetBet)}
           </div>
         ) : null}
         {p.claim && (
           <button class="btn small ghost" data-a="claim" data-v={p.pid}>
-            שחק בתור
+            {t('common.playAs')}
           </button>
         )}
       </div>
@@ -89,11 +89,11 @@ export function DealerRow({ d }: { d: DealerRowView }) {
       <div class="who">
         <div class="nm">
           <b>{d.name}</b>
-          {d.mine && <span class="tag">את/ה</span>}
-          <span class="tag host">דילר</span>
+          {d.mine && <span class="tag">{t('common.you')}</span>}
+          <span class="tag host">{t('common.dealer')}</span>
         </div>
         <div class="sub">
-          <span>מנהל את השולחן</span>
+          <span>{t('hseat.runs')}</span>
         </div>
       </div>
       <div></div>

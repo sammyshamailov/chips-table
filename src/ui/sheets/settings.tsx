@@ -3,6 +3,8 @@
  * also switches the game and changes the limits; anyone else can take over as dealer.
  */
 import { GAMES, gameMode, type GameMode } from '../../games/registry';
+import { t } from '../../i18n';
+import { LangChoice } from '../components/lang';
 import { NumField } from '../components/field';
 import { Option } from '../components/option';
 import { SheetHead } from '../components/sheet-head';
@@ -40,7 +42,7 @@ export function settingsProps(s: Session): SettingsProps {
 function DealerSettings({ game, edit, busy }: { game: GameMode; edit: EditForm; busy: boolean }) {
   return (
     <>
-      <span class="label">סוג משחק</span>
+      <span class="label">{t('home.gameType')}</span>
       <div class="seg">
         {[GAMES.holdem, GAMES.blackjack].map(x => (
           <button data-a="setgame" data-v={x.id} aria-pressed={x === game} disabled={busy}>
@@ -48,7 +50,7 @@ function DealerSettings({ game, edit, busy }: { game: GameMode; edit: EditForm; 
           </button>
         ))}
       </div>
-      {busy && <span class="muted">אפשר להחליף משחק כשאין צ'יפים על השולחן.</span>}
+      {busy && <span class="muted">{t('set.busy')}</span>}
       <div class="grid2">
         {game.limits.map(f => (
           <NumField
@@ -60,56 +62,55 @@ function DealerSettings({ game, edit, busy }: { game: GameMode; edit: EditForm; 
           />
         ))}
       </div>
-      <NumField id="estack" bind="edit.startStack" label="צ'יפים למצטרפים חדשים" value={edit.startStack} />
+      <NumField id="estack" bind="edit.startStack" label={t('set.newStack')} value={edit.startStack} />
       <button class="btn primary" data-a="saveset">
-        שמירה
+        {t('set.save')}
       </button>
     </>
   );
 }
 
 export function SettingsSheet({ code, game, sound, edit, busy, dealerName, myId, build }: SettingsProps) {
-  const off = sound.on ? '' : ' · הצלילים כבויים כרגע';
+  const off = sound.on ? '' : ' · ' + t('set.soundsOff');
   return (
     <>
-      <SheetHead title="הגדרות" />
+      <SheetHead title={t('room.settings')} />
       <div class="card" style="padding:12px">
-        <span class="muted">שתפו את הקישור לעמוד הזה ואת הקוד</span>
+        <span class="muted">{t('set.share')}</span>
         <div class="row" style="justify-content:space-between">
           <span class="code">{code}</span>
           <button class="btn small" data-a="copy">
-            שיתוף הזמנה
+            {t('set.invite')}
           </button>
         </div>
-        <span class="muted">
-          להתקנה: באנדרואיד, תפריט הדפדפן ← "התקנת אפליקציה". באייפון, ספארי ← שיתוף ← "הוספה למסך הבית".
-        </span>
+        <span class="muted">{t('set.install')}</span>
       </div>
       <Option a="ambi" pressed={sound.ambiOn}>
-        <b>אווירת קזינו ברקע</b>
+        <b>{t('set.ambi')}</b>
         <br />
-        <span class="muted">{'מכונות מזל ואנשים מדברים בשקט, מדי פעם' + off}</span>
+        <span class="muted">{t('set.ambiNote') + off}</span>
       </Option>
       <Option a="voice" pressed={sound.voiceOn}>
-        <b>קריינות הדילרית</b>
+        <b>{t('set.voice')}</b>
         <br />
-        <span class="muted">{'הדילרית אומרת בקול מה קורה: הימורים, קלפים, תשלום' + off}</span>
+        <span class="muted">{t('set.voiceNote') + off}</span>
       </Option>
+      <LangChoice />
       {edit ? (
         <DealerSettings game={game} edit={edit} busy={busy} />
       ) : (
         <>
-          <span class="muted">{dealerName + ' הוא הדילר. אם הוא עזב, אפשר לקחת את התפקיד.'}</span>
+          <span class="muted">{t('set.dealerIs', { name: dealerName })}</span>
           <button class="btn ghost" data-a="mkhost" data-v={myId}>
-            אני הדילר עכשיו
+            {t('set.takeOver')}
           </button>
         </>
       )}
       <button class="btn ghost" data-a="home">
-        יציאה למסך הראשי
+        {t('set.leave')}
       </button>
       <span class="muted num" style="text-align:center">
-        {'גרסה ' + (build ? build.slice(0, 7) : 'מקומית')}
+        {build ? t('set.version', { v: build.slice(0, 7) }) : t('set.localVersion')}
       </span>
     </>
   );

@@ -1,6 +1,6 @@
 /** The standings: place, avatar, name and chips, highest first. Equal stacks share a place. */
 import type { Standing } from '../../data/schema';
-import { fmt } from '../format';
+import { formatChips } from '../../i18n';
 import { Avatar } from './avatar';
 
 interface RankProps {
@@ -24,7 +24,7 @@ export function Rank({ list, players }: RankProps) {
           <span class="pl num">{place[i]}</span>
           <Avatar who={players[x.pid] ? { ...x, avatar: players[x.pid].avatar } : x} />
           <b>{x.name}</b>
-          <span class="num">{fmt(x.stack)}</span>
+          <span class="num">{formatChips(x.stack)}</span>
         </li>
       ))}
     </ol>

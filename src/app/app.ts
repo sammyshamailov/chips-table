@@ -7,6 +7,8 @@ import type { Sound } from '../audio/synth';
 import type { KeyValueStore } from '../data/browser-storage';
 import { createWriter } from '../data/writes';
 import { tableUnsupported } from '../domain/guard';
+import { setLang, t, type Lang } from '../i18n';
+import { applyLang } from '../i18n/document';
 import type { FxLayer } from '../fx/layer';
 import type { DomainEvent } from '../sync/domain-events';
 import type { EventBus } from '../sync/events';
@@ -126,6 +128,15 @@ export function createApp({ bus, snd, layer, storage, ambiSync, ui }: AppDeps): 
     unlockTurn,
   });
 
+  /** Switches the language: the phone remembers it, the page and the narration follow, and every screen is redrawn. */
+  function setLanguage(l: Lang): void {
+    setLang(l);
+    storage.set('chips.lang', l);
+    applyLang(document, l);
+    snd.voiceLoad();
+    render();
+  }
+
   const actions = {
     ...lobbyActions(c, nav),
     ...tableActions(c),
@@ -133,7 +144,7 @@ export function createApp({ bus, snd, layer, storage, ambiSync, ui }: AppDeps): 
     ...holdemActions(c),
     ...blackjackActions(c),
     ...avatarActions(c),
-    ...appActions(c, { updates, ceremony, install: install.install, ambiSync }),
+    ...appActions(c, { updates, ceremony, install: install.install, ambiSync, setLanguage }),
   };
 
   return {
@@ -157,8 +168,8 @@ export function createApp({ bus, snd, layer, storage, ambiSync, ui }: AppDeps): 
 /** A failed write as a toast, by Firestore's error code. */
 function writeFailed(toast: (t: string) => void, e: unknown): void {
   const code = e && (e as { code?: string }).code;
-  if (code === 'permission-denied') toast('השרת חסם את העדכון. בדקו שהדבקתם את חוקי האבטחה של Firestore.');
-  else if (code === 'resource-exhausted') toast('נגמרה המכסה היומית החינמית של Firebase. נסו שוב מחר.');
-  else if (code === 'not-found') toast('השולחן או השחקן כבר לא קיימים.');
-  else toast('העדכון לא נשמר. בדקו חיבור ונסו שוב.');
+  if (code === 'permission-denied') toast(t('toast.writeDenied'));
+  else if (code === 'resource-exhausted') toast(t('toast.quota'));
+  else if (code === 'not-found') toast(t('toast.gone'));
+  else toast(t('toast.writeFailed'));
 }

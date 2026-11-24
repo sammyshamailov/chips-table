@@ -1,6 +1,7 @@
 /** The dealer ends the game: the standings, then the ceremony on every phone and the table closes. */
 import type { Standing } from '../../data/schema';
 import { gameMode } from '../../games/registry';
+import { t } from '../../i18n';
 import { Rank } from '../components/rank';
 import { SheetHead } from '../components/sheet-head';
 import type { Session } from '../session';
@@ -24,12 +25,12 @@ export function endProps(s: Session): EndProps {
 export function EndSheet({ list, players, settleFirst }: EndProps) {
   return (
     <>
-      <SheetHead title="סיום המשחק" />
-      <span class="muted">מכריזים על המנצח, כולם רואים את הטקס, והשולחן נסגר. אפשר לפתוח אותו מחדש אחר כך.</span>
-      {settleFirst && <div class="banner">{`יש עדיין צ'יפים על השולחן. ${settleFirst} לפני ההכרזה.`}</div>}
+      <SheetHead title={t('host.end')} />
+      <span class="muted">{t('end.help')}</span>
+      {settleFirst && <div class="banner">{t('end.busy', { todo: settleFirst })}</div>}
       <Rank list={list} players={players} />
       <button class="btn primary wide" data-a="endgame" disabled={!!settleFirst || !list.length}>
-        הכרזה על המנצח וסגירת השולחן
+        {t('end.announce')}
       </button>
     </>
   );

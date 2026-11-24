@@ -44,7 +44,7 @@ function prepare(sha){
   const sha = baseRef(), head = git('rev-parse HEAD');
   console.log(`pixel comparison: this version (${head.slice(0, 10)}) against ${sha.slice(0, 10)}, both rendered here`);
   // Baselines changed in between are intended visual changes.
-  const changed = new Set(tryGit(`log --diff-filter=M --name-only --format= ${sha}..HEAD -- tests/baseline`).split('\n')
+  const changed = new Set(tryGit(`log --diff-filter=AM --name-only --format= ${sha}..HEAD -- tests/baseline`).split('\n')
     .filter(Boolean).map(f => path.basename(f, '.png')));
   const names = visual.SCREENS.map(s => s.name), only = names.filter(n => !changed.has(n));
   names.filter(n => changed.has(n)).forEach(n => console.log(`SKIP  visual ${n}  (baseline changed since ${sha.slice(0, 10)}: an intended change)`));

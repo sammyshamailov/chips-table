@@ -3,8 +3,8 @@
  * break (Hold'em), hands the dealer role over and removes players (with a second tap). You change your picture here.
  */
 import { gameMode } from '../../games/registry';
+import { formatChips, t } from '../../i18n';
 import { SheetHead } from '../components/sheet-head';
-import { fmt } from '../format';
 import type { Session } from '../session';
 
 interface PlayerLine {
@@ -53,7 +53,7 @@ export function playersProps(s: Session): PlayersProps {
 function SitOut({ p }: { p: PlayerLine }) {
   return (
     <button class="btn small ghost" data-a="sitout" data-v={p.pid}>
-      {p.sittingOut ? 'חזרה למשחק' : 'הפסקה'}
+      {p.sittingOut ? t('players.backIn') : t('players.break')}
     </button>
   );
 }
@@ -64,21 +64,21 @@ function Manage({ p, sitOut, confirm }: { p: PlayerLine; sitOut: boolean; confir
       <div class="row">
         <input id={'adj-' + p.pid} data-bind={'adj.' + p.pid} inputMode="numeric" value={p.adj} />
         <button class="btn small" data-a="adj" data-v={p.pid + '|1'}>
-          הוספה
+          {t('common.add')}
         </button>
         <button class="btn small ghost" data-a="adj" data-v={p.pid + '|-1'}>
-          הורדה
+          {t('players.take')}
         </button>
       </div>
       <div class="row" style="flex-wrap:wrap">
         {sitOut && <SitOut p={p} />}
         {!p.isDealer && (
           <button class="btn small ghost" data-a="mkhost" data-v={p.pid}>
-            העברת דילר
+            {t('players.makeDealer')}
           </button>
         )}
         <button class="btn small danger" data-a="remove" data-v={p.pid}>
-          {confirm === p.pid ? 'בטוח? להסיר' : 'הסרה'}
+          {confirm === p.pid ? t('players.removeSure') : t('players.remove')}
         </button>
       </div>
     </>
@@ -88,23 +88,18 @@ function Manage({ p, sitOut, confirm }: { p: PlayerLine; sitOut: boolean; confir
 export function PlayersSheet({ list, host, seated, myId, sitOut, newName, confirm }: PlayersProps) {
   return (
     <>
-      <SheetHead title="שחקנים" />
+      <SheetHead title={t('room.players')} />
       {seated && (
         <button class="btn ghost" data-a="sheet" data-v="avatar">
-          החלפת התמונה שלי
+          {t('players.myPhoto')}
         </button>
       )}
-      {host && (
-        <span class="muted">
-          כאן מוסיפים צ'יפים (ריביי), מורידים, ומעבירים את תפקיד הדילר. אפשר גם להוסיף שחקן בלי טלפון, ואז מנהלים אותו
-          מכאן.
-        </span>
-      )}
+      {host && <span class="muted">{t('players.help')}</span>}
       {host && (
         <div class="row">
-          <input id="newp" data-bind="newName" value={newName} maxLength={20} placeholder="שם שחקן חדש" />
+          <input id="newp" data-bind="newName" value={newName} maxLength={20} placeholder={t('players.newName')} />
           <button class="btn small" data-a="addp">
-            הוספה
+            {t('common.add')}
           </button>
         </div>
       )}
@@ -113,14 +108,14 @@ export function PlayersSheet({ list, host, seated, myId, sitOut, newName, confir
           list.map(p => (
             <div key={p.pid} class="mgr">
               <div class="row" style="justify-content:space-between">
-                <b>{p.name + (p.isDealer ? ' · דילר' : '')}</b>
-                <span class="num">{fmt(p.stack)}</span>
+                <b>{p.isDealer ? t('common.nameDealer', { name: p.name }) : p.name}</b>
+                <span class="num">{formatChips(p.stack)}</span>
               </div>
               {host ? <Manage p={p} sitOut={sitOut} confirm={confirm} /> : p.pid === myId && sitOut && <SitOut p={p} />}
             </div>
           ))
         ) : (
-          <span class="muted">אין שחקנים עדיין.</span>
+          <span class="muted">{t('players.none')}</span>
         )}
       </div>
     </>

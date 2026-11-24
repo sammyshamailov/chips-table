@@ -21,8 +21,20 @@ import { subscribeHoldemFx } from './fx/holdem';
 import { subscribeRoomFx } from './fx/room';
 import { createUi } from './ui/app';
 import { createApp, type App } from './app/app';
+import { pickLang, setLang } from './i18n';
+import { applyLang } from './i18n/document';
 
 const storage = browserStorage();
+// The language first, so the first render is already in it (and in its direction). A phone that has used the app
+// before (it has a player id) stays in Hebrew until its player switches; the choice is saved either way.
+const language = pickLang(
+  storage.get('chips.lang'),
+  navigator.languages || [navigator.language],
+  storage.get('chips.pid') != null,
+);
+storage.set('chips.lang', language);
+setLang(language);
+applyLang(document, language);
 const bus = createEventBus<DomainEvent>();
 // The sound engine and the effects layer call back into the app only later (a touch, a timer, an event), never
 // while they are being created, so `app` is set by then.

@@ -12,6 +12,7 @@ import type { DocSnap, Store, StoreError, Unsubscribe } from '../data/store';
 import { diffPlayers, diffRoom } from './diff';
 import type { DomainEvent } from './domain-events';
 import type { EventBus } from './events';
+import { t } from '../i18n';
 
 /** How long the home list shows a table after its last change. */
 const LIST_FOR_MS = 1000 * 60 * 60 * 48;
@@ -103,7 +104,7 @@ export function createRoomSession(d: RoomSessionDeps) {
     const onErr = (e: StoreError) => {
       if (S.code !== mine) return;
       S.syncErr = (e && e.code) || 'error';
-      d.toast('שגיאת סנכרון: ' + S.syncErr);
+      d.toast(t('toast.syncError', { code: S.syncErr }));
       d.render();
       if (e && (e.code === 'unavailable' || e.code === 'internal'))
         setTimeout(() => {

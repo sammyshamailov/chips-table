@@ -379,11 +379,15 @@ describe('diffRoom', () => {
     const a = { ...BJ_ROOM, phase: 'playing', roundId: 3 },
       b = { ...BJ_ROOM, phase: 'betting', roundId: 4 };
     expect(diffRoom(a, { ...b, roundEnd: 'paid' }, ctx)).toEqual([{ type: 'RoundPaid', roundId: 3 }]);
-    expect(diffRoom(a, { ...b, roundEnd: 'cancelled', lastEvent: { t: 'סיבוב 3 שולם', ts: 1 } }, ctx)).toEqual([]);
-    expect(diffRoom(a, { ...b, lastEvent: { t: 'סיבוב 3 שולם · הבית +10', ts: 1 } }, ctx)).toEqual([
+    // What older phones wrote, in Hebrew: "round 3 paid · house +10" and "the round was cancelled", spelled with escapes
+    // because Hebrew letters live only in src/i18n/he.ts.
+    const paid = '\u05e1\u05d9\u05d1\u05d5\u05d1 3 \u05e9\u05d5\u05dc\u05dd',
+      cancelled = '\u05d4\u05e1\u05d9\u05d1\u05d5\u05d1 \u05d1\u05d5\u05d8\u05dc';
+    expect(diffRoom(a, { ...b, roundEnd: 'cancelled', lastEvent: { t: paid, ts: 1 } }, ctx)).toEqual([]);
+    expect(diffRoom(a, { ...b, lastEvent: { t: paid + ' · +10', ts: 1 } }, ctx)).toEqual([
       { type: 'RoundPaid', roundId: 3 },
     ]);
-    expect(diffRoom(a, { ...b, lastEvent: { t: 'הסיבוב בוטל', ts: 1 } }, ctx)).toEqual([]);
+    expect(diffRoom(a, { ...b, lastEvent: { t: cancelled, ts: 1 } }, ctx)).toEqual([]);
     expect(diffRoom(a, { ...b, lastEvent: null }, ctx)).toEqual([]);
     expect(diffRoom(a, { ...b, roundId: 3, roundEnd: 'paid' }, ctx)).toEqual([]);
     expect(diffRoom({ ...a, game: 'holdem' }, { ...b, roundEnd: 'paid' }, ctx)).toEqual([]);

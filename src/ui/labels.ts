@@ -1,46 +1,29 @@
-/** Hebrew words shared by the components and the app. */
-import { fmt } from './format';
+/** Words shared by the components and the app, in the phone's language. */
+import { formatChips, hasKey, t } from '../i18n';
 
-/** How a Blackjack hand ended. */
-export const RESULT_HE: Record<string, string> = {
-  win: 'ניצחון',
-  bj: "בלאק ג'ק",
-  push: 'תיקו',
-  lose: 'הפסד',
-  surrender: 'כניעה',
-};
+/** How a Blackjack hand ended (`win`, `bj`, `push`, `lose`, `surrender`); '' for an unknown result. */
+export function resultText(r: string): string {
+  const k = 'result.' + r;
+  return hasKey(k) ? t(k) : '';
+}
 
-/** The streets of a Hold'em hand (and between hands), as the table, the event line and the narration name them. */
-export const STAGE_HE: Record<string, string> = {
-  idle: 'בין ידיים',
-  preflop: 'פרה-פלופ',
-  flop: 'פלופ',
-  turn: 'טרן',
-  river: 'ריבר',
-  showdown: 'שואודאון',
-};
+/** A street of a Hold'em hand (or `idle`, between hands), as the table names it; '' for an unknown one. */
+export function stageText(stage: string): string {
+  const k = 'stage.' + stage;
+  return hasKey(k) ? t(k) : '';
+}
 
-/** A player's last action, as a Hold'em seat shows it under the name ("השווה 10"); '' for none or an unknown one. */
+/** A player's last action, as a Hold'em seat shows it under the name ("Called 10"); '' for none or an unknown one. */
 export function actionText(a: { k: string; amt?: number } | null | undefined): string {
   if (!a) return '';
-  const x = fmt(a.amt);
-  const amt = a.amt || 0;
-  const said: Record<string, string> = {
-    fold: 'קיפל',
-    check: "צ'ק",
-    call: `השווה ${x}`,
-    raise: `העלה ל-${x}`,
-    bet: `הימר ${x}`,
-    allin: `אול-אין ${x}`,
-    blind: `בליינד ${x}`,
-    won: `זכה ב-${x}`,
-    refund: `הוחזר ${x}`,
-    clear: 'ביטל הימור',
-    double: 'דאבל דאון',
-    split: 'ספליט',
-    ins: 'ביטוח',
-    surrender: 'כניעה',
-    bjres: amt > 0 ? `הרוויח ${x}` : amt < 0 ? `הפסיד ${fmt(-amt)}` : 'תיקו',
-  };
-  return Object.prototype.hasOwnProperty.call(said, a.k) ? said[a.k] : '';
+  const amt = a.amt || 0,
+    p = { amt };
+  if (a.k === 'bjres') return amt > 0 ? t('act.bjWon', p) : amt < 0 ? t('act.bjLost', { amt: -amt }) : t('common.push');
+  const k = 'act.' + a.k;
+  return /^\w+$/.test(a.k) && hasKey(k) && k !== 'act.bjWon' && k !== 'act.bjLost' ? t(k, p) : '';
+}
+
+/** A signed amount: `+150`, `−150` (a real minus sign), and 0 as `+0`. */
+export function signed(n: number): string {
+  return (n >= 0 ? '+' : '−') + formatChips(Math.abs(n));
 }

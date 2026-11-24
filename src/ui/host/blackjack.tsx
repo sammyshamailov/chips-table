@@ -2,37 +2,38 @@
  * The dealer's Blackjack controls: deal (which locks the bets) while bets are open; then settle and pay, pay a
  * blackjack at once, or cancel the round; and end the game.
  */
+import { t } from '../../i18n';
 import type { BlackjackHostProps } from '../tables/blackjack/select';
 
 export function BlackjackHost({ betting, bettors, canPayNow }: BlackjackHostProps) {
   return (
     <section class="host">
-      <h3>בקרת דילר</h3>
+      <h3>{t('host.title')}</h3>
       <div class="btns">
         {betting ? (
           <button class="btn primary" data-a="deal" disabled={!bettors}>
-            חלוקת קלפים (נועל הימורים)
+            {t('bjhost.deal')}
           </button>
         ) : (
           <>
             <button class="btn primary" data-a="sheet" data-v="settle">
-              סימון זוכים ותשלום
+              {t('bjhost.settle')}
             </button>
             {canPayNow && (
               <button class="btn" data-a="sheet" data-v="bjnow">
-                בלאק ג'ק לשחקן
+                {t('bjhost.payBj')}
               </button>
             )}
             <button class="btn ghost" data-a="sheet" data-v="cancel">
-              ביטול הסיבוב
+              {t('bjhost.cancel')}
             </button>
           </>
         )}
         <button class="btn ghost" data-a="sheet" data-v="end">
-          סיום המשחק
+          {t('host.end')}
         </button>
       </div>
-      {betting && !bettors && <span class="muted">מחכים שמישהו יהמר.</span>}
+      {betting && !bettors && <span class="muted">{t('bjhost.waiting')}</span>}
     </section>
   );
 }
