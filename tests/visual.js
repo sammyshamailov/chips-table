@@ -307,10 +307,10 @@ async function shoot(browser, url, s, errors){
   return png;
 }
 
-async function compare(name, actual){
+async function compare(name, actual, base = BASE){
   const { PNG } = require('pngjs');
   const pixelmatch = (await import('pixelmatch')).default;
-  const file = path.join(BASE, name + '.png');
+  const file = path.join(base, name + '.png');
   if (!fs.existsSync(file)) return { ok: false, detail: 'no baseline (run with --update)' };
   const a = PNG.sync.read(fs.readFileSync(file)), b = PNG.sync.read(actual);
   const save = () => fs.writeFileSync(path.join(OUT, `visual-${name}-actual.png`), actual);
@@ -323,11 +323,12 @@ async function compare(name, actual){
 
 const arg = name => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : null; };
 
-// Returns the number of failed screens (or page errors). `only`: screen names; `jobs`: screens shot at the same time.
-async function run({ update = false, browser: given, url: givenUrl, only = null, jobs = 4 } = {}){
-  fs.mkdirSync(OUT, { recursive: true }); fs.mkdirSync(BASE, { recursive: true });
+// Returns the number of failed screens (or page errors). `only`: screen names; `jobs`: screens shot at the same time;
+// `dist`: the folder to serve (the build by default); `baseline`: the folder of reference images (tests/baseline/).
+async function run({ update = false, browser: given, url: givenUrl, only = null, jobs = 4, dist, baseline = BASE, quiet = false } = {}){
+  fs.mkdirSync(OUT, { recursive: true }); fs.mkdirSync(baseline, { recursive: true });
   const { chromium } = requirePlaywright();
-  const srv = givenUrl ? null : await serve(), url = givenUrl || srv.url;
+  const srv = givenUrl ? null : await serve(dist), url = givenUrl || srv.url;
   const browser = given || await chromium.launch(), errors = [];
   const list = only ? SCREENS.filter(s => only.includes(s.name)) : SCREENS;
   if (only) only.filter(n => !SCREENS.some(s => s.name === n)).forEach(n => { console.log(`FAIL  visual ${n}  no such screen`); errors.push(n + ': no such screen'); });
@@ -338,13 +339,13 @@ async function run({ update = false, browser: given, url: givenUrl, only = null,
       const i = next++, s = list[i];
       const png = await shoot(browser, url, s, errors);
       fs.writeFileSync(path.join(OUT, `visual-${s.name}.png`), png);
-      if (update){ fs.writeFileSync(path.join(BASE, s.name + '.png'), png); lines[i] = 'baseline ' + s.name; }
+      if (update){ fs.writeFileSync(path.join(baseline, s.name + '.png'), png); lines[i] = 'baseline ' + s.name; }
       else {
-        const r = await compare(s.name, png);
+        const r = await compare(s.name, png, baseline);
         lines[i] = `${r.ok ? 'PASS' : 'FAIL'}  visual ${s.name}${r.n != null ? ` (${r.n} px differ)` : ''}${r.ok ? '' : '  ' + (r.detail || 'see tests/out/visual-' + s.name + '-diff.png')}`;
         if (!r.ok) failed++;
       }
-      console.log(lines[i]);
+      if (!quiet) console.log(lines[i]);
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, jobs) }, worker));

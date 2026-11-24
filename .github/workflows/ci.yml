@@ -1,0 +1,88 @@
+# Every check on every push and pull request: lint, types, unit tests with coverage, the build, then the browser
+# tests against the build. See docs/TESTING.md ("CI").
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    # The pixel comparison photographs 73 screens twice (the earlier version and this one).
+    timeout-minutes: 60
+    env:
+      # The browser tests reuse the build made below instead of building again.
+      SKIP_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The upgrade test extracts the old single-file app from history; the pixel comparison builds an earlier commit.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Unit tests with coverage
+        run: npm run coverage
+      - run: npm run build
+      # What Netlify publishes: the build plus config.js next to index.html. Done on a copy with placeholder settings,
+      # because the browser tests serve dist/ without a config.js (single-device mode) unless they fake one.
+      - name: Check the site as Netlify builds it
+        run: |
+          cp -r dist "$RUNNER_TEMP/site"
+          node scripts/build-config.js "$RUNNER_TEMP/site"
+          for f in index.html config.js sw.js manifest.webmanifest; do test -f "$RUNNER_TEMP/site/$f"; done
+          grep -q 'window.APP_BUILD = "' "$RUNNER_TEMP/site/config.js"
+          ls "$RUNNER_TEMP"/site/assets/index-*.js "$RUNNER_TEMP"/site/assets/index-*.css
+        env:
+          FIREBASE_API_KEY: ci-placeholder
+          FIREBASE_PROJECT_ID: ci-placeholder
+          FIREBASE_MESSAGING_SENDER_ID: '0'
+          FIREBASE_APP_ID: ci-placeholder
+          COMMIT_REF: ${{ github.sha }}
+
+      # The same Playwright as package.json pins, with Chromium and the system libraries it needs.
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - run: node tests/two-phones.test.js
+      - run: node tests/race.test.js
+      - run: node tests/holdem.test.js
+      - run: node tests/guard.test.js
+      - run: node tests/upgrade.test.js
+      - run: node tests/behaviour.test.js
+      - name: Screenshots (written to tests/out/, uploaded on failure)
+        run: node tests/screenshots.js --no-compare
+
+      # Fonts differ between this runner and the machine tests/baseline/ was taken on, so the pixel comparison here
+      # photographs the earlier version on this runner and compares with it: the base of a pull request, the previous
+      # head of a push (the merge base with main for a new branch). Screens whose baseline changed in between are
+      # intended changes and are skipped.
+      - name: Pixel comparison with the earlier version, rendered here
+        run: node tests/visual-against.js "$BASE_REF"
+        env:
+          BASE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+
+      - name: Keep the test pictures and diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-out
+          path: |
+            tests/out/
+            !tests/out/base-*/
+            !tests/out/old-app/
+          retention-days: 14

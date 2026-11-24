@@ -1,5 +1,5 @@
 // Shared helpers for the browser tests. See docs/TESTING.md.
-// Needs Node 18+ and Playwright with Chromium (npm i -g playwright && npx playwright install chromium).
+// Needs Node 22 and Playwright with Chromium (npm install && npx playwright install chromium).
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -22,7 +22,7 @@ build();
 
 function requirePlaywright(){
   try { return require('playwright'); }
-  catch(e){ console.error('Playwright is not installed. Run: npm i -g playwright && npx playwright install chromium'); process.exit(2); }
+  catch(e){ console.error('Playwright is not installed. Run: npm install && npx playwright install chromium'); process.exit(2); }
 }
 
 // A tiny static server for the built app (dist/), so tests don't depend on anything else running.

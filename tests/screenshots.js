@@ -1,6 +1,7 @@
 // Screenshots of the table for a visual check, written to tests/out/. Run: node tests/screenshots.js
 // Uses single-device mode (no config.js), where one phone can sit several players and switch between them.
-// Then runs the pixel comparison of tests/visual.js against tests/baseline/ (--update takes a new baseline).
+// Then runs the pixel comparison of tests/visual.js against tests/baseline/ (--update takes a new baseline;
+// --no-compare skips it: CI compares with tests/visual-against.js instead, see docs/TESTING.md).
 const fs = require('fs');
 const path = require('path');
 const { OUT, requirePlaywright, serve, setPending } = require('./lib');
@@ -30,9 +31,9 @@ const visual = require('./visual');
     console.log('wrote', path.join(OUT, `table-${label}.png`));
     await pg.close();
   }
-  const vfail = await visual.run({ update: process.argv.includes('--update'), browser, url: srv.url });
+  const vfail = process.argv.includes('--no-compare') ? 0 : await visual.run({ update: process.argv.includes('--update'), browser, url: srv.url });
   await browser.close(); srv.close();
   console.log(errors.length ? 'errors:\n' + errors.join('\n') : 'no errors');
-  console.log(vfail ? `${vfail} visual check(s) failed` : 'visual: all screens match');
+  if (!process.argv.includes('--no-compare')) console.log(vfail ? `${vfail} visual check(s) failed` : 'visual: all screens match');
   process.exit(errors.length || vfail ? 1 : 0);
 })();
