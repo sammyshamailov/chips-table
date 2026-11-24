@@ -10,6 +10,8 @@ export const STATIC_SHELL = [
   'index.html',
   'config.js',
   'manifest.webmanifest',
+  'manifest.he.webmanifest',
+  'manifest.en.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
