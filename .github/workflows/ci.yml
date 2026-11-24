@@ -16,8 +16,8 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    # The pixel comparison photographs 73 screens twice (the earlier version and this one).
-    timeout-minutes: 60
+    # The pixel comparison photographs 146 screens (73 in Hebrew, the same in English) twice: the earlier version and this one.
+    timeout-minutes: 75
     env:
       # The browser tests reuse the build made below instead of building again.
       SKIP_BUILD: '1'
@@ -44,7 +44,7 @@ jobs:
         run: |
           cp -r dist "$RUNNER_TEMP/site"
           node scripts/build-config.js "$RUNNER_TEMP/site"
-          for f in index.html config.js sw.js manifest.webmanifest; do test -f "$RUNNER_TEMP/site/$f"; done
+          for f in index.html config.js sw.js manifest.webmanifest manifest.he.webmanifest manifest.en.webmanifest sounds/voice/open.mp3 sounds/voice/en/open.mp3; do test -f "$RUNNER_TEMP/site/$f"; done
           grep -q 'window.APP_BUILD = "' "$RUNNER_TEMP/site/config.js"
           ls "$RUNNER_TEMP"/site/assets/index-*.js "$RUNNER_TEMP"/site/assets/index-*.css
         env:
@@ -69,8 +69,8 @@ jobs:
 
       # Fonts differ between this runner and the machine tests/baseline/ was taken on, so the pixel comparison here
       # photographs the earlier version on this runner and compares with it: the base of a pull request, the previous
-      # head of a push (the merge base with main for a new branch). Screens whose baseline changed in between are
-      # intended changes and are skipped.
+      # head of a push (the merge base with main for a new branch). Screens whose baseline changed (or was added) in
+      # between are intended changes (or new screens) and are skipped.
       - name: Pixel comparison with the earlier version, rendered here
         run: node tests/visual-against.js "$BASE_REF"
         env:

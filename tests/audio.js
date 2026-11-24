@@ -1,6 +1,6 @@
 // Renders the casino background (a steady quiet crowd murmur bed plus a slot-machine one-shot now and then) and the dealer narration offline,
-// through the app's own master chain, measures them and writes tests/out/ambience.wav and tests/out/narration.wav
-// to listen to. Run: node tests/audio.js
+// through the app's own master chain, measures them and writes tests/out/ambience.wav, tests/out/narration.wav (Hebrew)
+// and tests/out/narration-en.wav (English, R-006) to listen to. Run: node tests/audio.js
 // Files that don't exist yet are reported as "missing: ..." instead of failing.
 // AUDIO_PLACEHOLDERS=1 serves generated tones for sounds/amb and sounds/voice (for developing without the real files).
 // AUDIO_SEED=<number> makes Math.random repeatable (which machine, when, pan, gain), so two builds print the same numbers
@@ -65,11 +65,14 @@ function toneWav(sec, peakDb, f, mod){
         const res = await c.startRendering(), L = res.getChannelData(0);
         out.amb = { events: a.events, avg: rmsDb(L, 0, L.length), avgSum: db(Math.pow(10, rmsDb(L, 0, L.length) / 10) + Math.pow(10, rmsDb(res.getChannelData(1), 0, L.length) / 10)), loud: loudest(L, sr / 20), peak: peakDb(L), wav: wav(res) };
       } }
-    // 2. narration: three lines over the running background, 10 s
-    { const c0 = new OfflineAudioContext(2, sr, sr), lines = [], clips = [];
+    // 2. narration, in each language: three lines over the running background, 10 s (the same seeded background for both)
+    for (const lang of ['he', 'en']){ const c0 = new OfflineAudioContext(2, sr, sr), lines = [], clips = [];
       for (const m of B.manifest){ const buf = await dec(c0, m.url); if (buf) clips.push({ kind: m.kind, url: m.url, buf }); }
-      for (const k of B.voiceKeys){ const buf = await dec(c0, B.voiceUrl(k)); if (buf) lines.push({ k, buf }); }
-      out.lines = lines.map(l => l.k);
+      for (const k of B.voiceKeys){ const buf = await dec(c0, B.voiceUrl(k, lang)); if (buf) lines.push({ k, buf }); }
+      // every English line, alone at the master: its speech level, to compare with the Hebrew
+      if (lang === 'en' && lines.length){ out.each = [];
+        for (const l of lines){ const c = new OfflineAudioContext(2, Math.ceil((l.buf.duration + .2) * sr), sr); window.ChipsLine(c, chain(c), l.buf, .05, B.voiceLevel);
+          const res = await c.startRendering(), L = res.getChannelData(0); out.each.push([l.k, rmsDb(L, Math.floor(.05 * sr), Math.floor((.05 + l.buf.duration) * sr)), peakDb(L)]); } }
       if (lines.length){
         const c = new OfflineAudioContext(2, 10 * sr, sr), o = chain(c), duckBus = c.createGain(); duckBus.connect(o);
         const a = window.ChipsAmbience(c, duckBus, B.level, clips); a.sched(10);
@@ -80,7 +83,7 @@ function toneWav(sec, peakDb, f, mod){
           window.ChipsLine(c, o, l.buf, t, B.voiceLevel); wins.push([t, e]);
         });
         const res = await c.startRendering(), L = res.getChannelData(0);
-        out.nar = { used: pick.map(l => l.k), speech: wins.map(([t, e]) => rmsDb(L, Math.floor(t * sr), Math.floor(e * sr))), peak: peakDb(L), wav: wav(res) };
+        out[lang === 'he' ? 'nar' : 'narEn'] = { used: pick.map(l => l.k), speech: wins.map(([t, e]) => rmsDb(L, Math.floor(t * sr), Math.floor(e * sr))), peak: peakDb(L), wav: wav(res) };
       } }
     return out;
   });
@@ -95,5 +98,10 @@ function toneWav(sec, peakDb, f, mod){
     console.log(`narration (${r.nar.used.join(', ')}) over the background: speech RMS ${r.nar.speech.map(x => x.toFixed(1)).join(' / ')} dBFS (target about -20) · peak ${r.nar.peak.toFixed(1)} dBFS`);
     fs.writeFileSync(path.join(OUT, 'narration.wav'), Buffer.from(r.nar.wav, 'base64')); console.log('wrote', path.join(OUT, 'narration.wav'));
   } else console.log('narration: no voice files found, nothing rendered');
+  if (r.narEn){
+    console.log(`English narration (${r.narEn.used.join(', ')}) over the background: speech RMS ${r.narEn.speech.map(x => x.toFixed(1)).join(' / ')} dBFS (target: about the Hebrew's) · peak ${r.narEn.peak.toFixed(1)} dBFS`);
+    fs.writeFileSync(path.join(OUT, 'narration-en.wav'), Buffer.from(r.narEn.wav, 'base64')); console.log('wrote', path.join(OUT, 'narration-en.wav'));
+  } else console.log('English narration: no voice files found, nothing rendered');
+  if (r.each) console.log('English lines alone (speech RMS / peak dBFS): ' + r.each.map(([k, a, p]) => `${k} ${a.toFixed(1)}/${p.toFixed(1)}`).join(' · '));
   await browser.close(); srv.close();
 })();

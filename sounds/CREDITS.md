@@ -43,6 +43,30 @@ ElevenLabs on the owner's account (one take each), then trimmed, faded, peak-nor
 | allin.mp3 | אול אין! |
 | closed.mp3 | השולחן נסגר. תודה ששיחקתם! |
 
+### sounds/voice/en/ (narration, English)
+
+Generated on 2026-11-23 with ElevenLabs on the owner's account, for this app (R-006), and approved by the owner after
+a preview. Voice "Marie - Professional, warm.", voice_id `wsL2AB1kHVzgox3WvQP2`, model `eleven_v3`, one take per
+line, flow `PGmCwGJ1qWM0CI3jovz4`. Processing: silence trimmed (−45 dB), 10 ms fade in and 40 ms fade out, gain set so
+the mean level matches the Hebrew lines (about −17 dB mean, peaks at most −1 dB), mono 44.1 kHz MP3 at 64 kb/s.
+Measured with `node tests/audio.js` (`AUDIO_SEED=7`): speech −21.6 / −21.4 / −21.2 dBFS over the background at the app's
+master (the Hebrew: −19.8 / −22.3 / −19.9), each line alone −21.5 to −23.0 dBFS. The Hebrew lines stay where they were,
+because phones still on an older version load them from there.
+
+| File | Text |
+| --- | --- |
+| open.mp3 | Place your bets. |
+| locked.mp3 | No more bets. |
+| blackjack.mp3 | Blackjack! |
+| payout.mp3 | Paying the winners. |
+| winner.mp3 | We have a winner! |
+| newhand.mp3 | New hand. |
+| flop.mp3 | The flop. |
+| turn.mp3 | The turn. |
+| river.mp3 | The river. |
+| allin.mp3 | All in! |
+| closed.mp3 | The table is closed. Thanks for playing! |
+
 ### sounds/amb/ (casino ambience, prompt suffix "in a large calm casino room, no music bed, about N seconds" omitted where noted)
 
 | File | Prompt |

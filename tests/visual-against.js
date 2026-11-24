@@ -5,8 +5,8 @@
 //   node tests/visual-against.js <git ref>     e.g. origin/main, HEAD~1, a commit
 // Without a ref (or the all-zero ref of a new branch): the merge base with origin/main, or HEAD~1 on main itself.
 // A version from before the Vite build (no package.json) is served as it is, like the old single-file app.
-// Screens whose baseline image was changed between the two versions (an intended visual change, see
-// tests/baseline/) are skipped: they are expected to differ. The screens are tests/visual.js's.
+// Screens whose baseline image was changed or added between the two versions (an intended visual change, or a screen
+// the earlier version doesn't have, like the English screens of R-006) are skipped. The screens are tests/visual.js's.
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -43,7 +43,7 @@ function prepare(sha){
 (async () => {
   const sha = baseRef(), head = git('rev-parse HEAD');
   console.log(`pixel comparison: this version (${head.slice(0, 10)}) against ${sha.slice(0, 10)}, both rendered here`);
-  // Baselines changed in between are intended visual changes.
+  // Baselines changed in between are intended visual changes; baselines added in between are new screens.
   const changed = new Set(tryGit(`log --diff-filter=AM --name-only --format= ${sha}..HEAD -- tests/baseline`).split('\n')
     .filter(Boolean).map(f => path.basename(f, '.png')));
   const names = visual.SCREENS.map(s => s.name), only = names.filter(n => !changed.has(n));
