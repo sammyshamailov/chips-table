@@ -1,8 +1,8 @@
 // What a render must keep, now that Preact patches the page instead of replacing it (R-005 phase 5): the caret and the
-// avatar letter while you type, the landscape side panel's element and scroll, a sheet's scroll and the amounts typed in
-// it, the sheet and the toast showing and hiding; the Blackjack table's elements (each seat stays with its player), the
+// avatar letter while you type, the landscape side panel's element and scroll, a sheet's scroll, the amounts typed in it
+// and the focus and caret in its field through a render, the sheet and the toast showing and hiding; the Blackjack table's elements (each seat stays with its player), the
 // dealer's blink rhythm, your chips in hand landing on your spot; the Hold'em table's elements (each row stays with its
-// player), the blink, the dock's buttons. Single-device mode. Run: node tests/behaviour.test.js
+// player), the blink, the dock's buttons; the ceremony's winner circles and chip rain. Single-device mode. Run: node tests/behaviour.test.js
 const { requirePlaywright, serve, setPending, check, failures } = require('./lib');
 
 async function addPlayers(p, names){
@@ -56,6 +56,13 @@ async function addPlayers(p, names){
     await p.fill(`[id="adj-${pid}"]`, '77');
     await p.fill('#newp', 'רונית'); await p.focus(`[id="adj-${pid}"]`); await p.click('[data-a=addp]'); await p.waitForTimeout(300);
     check('players sheet: a typed amount stays with its player', (await p.inputValue(`[id="adj-${pid}"]`)) === '77');
+    // The focus and the caret stay in a field while the screens are drawn again (render() doesn't restore them: Preact
+    // keeps the element).
+    await p.click('#newp'); await p.keyboard.type('אבג'); await p.keyboard.press('ArrowRight');
+    const caret = await p.$eval('#newp', e => [e.selectionStart, e.selectionEnd]);
+    await setPending(p, 40); await p.waitForTimeout(200);                 // a render of the room and the sheet
+    const after = await p.evaluate(() => { const a = document.activeElement; return [a && a.id, a && a.selectionStart, a && a.selectionEnd]; });
+    check('players sheet: the focus and the caret stay through a render', after[0] === 'newp' && after[1] === caret[0] && after[2] === caret[1] && caret[0] === 2, JSON.stringify({ caret, after }));
 
     // 5. A closed sheet is hidden and empty; the toast shows and hides.
     await p.click('[data-a=close]'); await p.waitForTimeout(100);
@@ -106,6 +113,22 @@ async function addPlayers(p, names){
     check("holdem: the dealer keeps her blink rhythm across renders", (await p.$eval('.lids', e => e.getAttribute('style'))) === hLids);
     await addPlayers(p, ['מיכל']);
     check("holdem: a row stays with its player when someone sits down", await p.$eval(row(hDana), e => e.__mark === 1) && await p.$$eval('.seats .seat', e => e.length) === 4);
+
+    // 8. The ceremony (Preact in #fin, outside the screens' render): each winner's circle has that player's colour, as
+    //    in the standings under it, and the raining chips survive the standings sliding in (a second render of #fin).
+    p = await page(390, 844);
+    await p.fill('#name', 'סמי'); await p.click('[data-a=create]'); await p.waitForTimeout(300);
+    await addPlayers(p, ['דנה', 'יוסי']);
+    await p.click('[data-a=sheet][data-v=end]'); await p.waitForTimeout(200); await p.click('[data-a=endgame]');
+    await p.waitForSelector('#fin .fin-rest.on', { timeout: 8000 }); await p.waitForTimeout(300);
+    const circles = await p.evaluate(() => ({
+      fin: [...document.querySelectorAll('#fin .fin-av')].map(e => e.getAttribute('style')),
+      rank: [...document.querySelectorAll('#fin .rank .av')].map(e => e.getAttribute('style')),
+    }));
+    check('ceremony: each winner\'s circle has their own colour, as in the standings', circles.fin.length === 3 && new Set(circles.fin).size === 3 && circles.fin.every((c, i) => c === circles.rank[i]), JSON.stringify(circles));
+    check('ceremony: the raining chips are still falling after the standings slide in', await p.$$eval('#fin .cf', e => e.length) > 0);
+    await p.click('[data-a=finclose]'); await p.waitForTimeout(200);
+    check('ceremony: closed, #fin hidden and empty', await p.$eval('#fin', e => e.hidden && !e.children.length));
   } catch(e){ check('test ran to the end', false, e.stack || e.message); }
   check('no page errors', !errors.length, errors.join(' | '));
   await browser.close(); srv.close();

@@ -1,6 +1,6 @@
 /**
  * The app's screens, mounted with Preact: `App` in `#app` (home or a table), `SheetScreen` in `#sheet`, the toast in
- * `#toast`. `src/legacy.ts` calls `paint`/`paintSheet` from its `render()`, synchronously, between measuring the old
+ * `#toast`. The app's `render()` (src/app/render.ts) calls `paint`/`paintSheet` synchronously, between measuring the old
  * positions (`FX.rects`) and the effects that run after the render (see docs/ARCHITECTURE.md, Effects).
  */
 import { render } from 'preact';

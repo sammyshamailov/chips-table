@@ -20,22 +20,14 @@ import { subscribeBlackjackFx } from './fx/blackjack';
 import { subscribeHoldemFx } from './fx/holdem';
 import { subscribeRoomFx } from './fx/room';
 import { createUi } from './ui/app';
-import { createLegacyApp } from './legacy';
-
-interface LegacyApp {
-  start(): void;
-  render(): void;
-  ceremony(): void;
-  myId(): string | null;
-  inTable(): boolean;
-}
+import { createApp, type App } from './app/app';
 
 const storage = browserStorage();
 const bus = createEventBus<DomainEvent>();
 // The sound engine and the effects layer call back into the app only later (a touch, a timer, an event), never
 // while they are being created, so `app` is set by then.
-let app: LegacyApp | null = null;
-const theApp = () => app as LegacyApp;
+let app: App | null = null;
+const theApp = () => app as App;
 const inTable = () => theApp().inTable();
 const snd = createSound({ storage, sync: () => ambiSync() });
 const ambiSync = createAmbiSync(snd, inTable);
@@ -48,7 +40,7 @@ const layer = createFxLayer({
 // The screens (Preact components, src/ui/): mounted on the page's elements, drawn by the app's render().
 const el = (id: string) => document.getElementById(id) as HTMLElement;
 const ui = createUi({ app: el('app'), sheet: el('sheet'), toast: el('toast') });
-app = createLegacyApp({ bus, snd, layer, storage, ambiSync, ui }) as LegacyApp;
+app = createApp({ bus, snd, layer, storage, ambiSync, ui });
 
 // The table's events → effects. The order matters where two react to one event: animations and their sounds
 // first, the dealer's narration after (as it always ran). The ceremony is the app's own screen.

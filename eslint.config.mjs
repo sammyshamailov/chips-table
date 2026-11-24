@@ -1,6 +1,5 @@
-// ESLint flat config: typescript-eslint's recommended rules for the new code.
-// src/legacy.ts (the original app script, moved unchanged in R-005 phase 1) and the Playwright scripts in tests/ are
-// not linted yet; later phases take the legacy code apart into linted modules.
+// ESLint flat config: typescript-eslint's recommended rules for everything in src/ and the build scripts, plus the
+// purity rules below. The Playwright scripts in tests/ (plain CommonJS) are not linted.
 import js from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -56,7 +55,8 @@ function domainPurity() {
 }
 
 // src/sync/ turns documents into events: pure like the domain (no DOM, timers, clock or randomness), and it may import
-// only the domain and itself, so the same documents give the same events on every phone.
+// only the domain and itself, so the same documents give the same events on every phone. The one exception is
+// room-session.ts, the store's listeners that feed the diff: it reads the store, normalises and retries on a timer.
 function syncPurity() {
   const rules = tests => ({
     'no-restricted-imports': [
@@ -82,13 +82,13 @@ function syncPurity() {
     ],
   });
   return [
-    { files: ['src/sync/*.ts'], rules: rules(false) },
-    { files: ['src/sync/*.test.ts'], rules: rules(true) },
+    { files: ['src/sync/*.ts'], ignores: ['src/sync/room-session*.ts'], rules: rules(false) },
+    { files: ['src/sync/*.test.ts'], ignores: ['src/sync/room-session*.ts'], rules: rules(true) },
   ];
 }
 
 export default tseslint.config(
-  { ignores: ['dist/', 'node_modules/', 'src/legacy.ts', 'tests/', 'config.js', 'config.example.js'] },
+  { ignores: ['dist/', 'node_modules/', 'coverage/', 'tests/', 'config.js', 'config.example.js'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   { files: ['src/**/*.{ts,tsx}'], languageOptions: { globals: globals.browser } },

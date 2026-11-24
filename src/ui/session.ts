@@ -1,6 +1,6 @@
 /**
- * What the screens read: the app's state and the questions they ask about it. `src/legacy.ts` builds the session (the
- * state and the actions still live there; every view is a component since R-005 phase 5).
+ * What the screens read: the app's state and the questions they ask about it. The app builds it (`createSession()`,
+ * src/app/session.ts); the state itself is `State` in src/app/state.ts.
  *
  * Only screens (`App`, `Home`, `RoomScreen`, `SheetScreen`) and the selectors of the sheets and the game views read the
  * session; every component below them gets plain data through its props.
@@ -41,7 +41,7 @@ export interface EditForm {
   startStack: string;
 }
 
-/** The app's state (`S` in `src/legacy.ts`), as far as the screens read it. */
+/** The app's state (`S`, src/app/state.ts), as far as the screens read it. */
 export interface AppState {
   /** `pending` until connected, then `cloud` (Firestore) or `local` (this phone only). */
   mode: string;
