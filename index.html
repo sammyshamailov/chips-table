@@ -156,6 +156,13 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .acts{display:grid;grid-template-columns:1fr 1.6fr;gap:8px}
 .acts3{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px}
 .status{text-align:center;color:var(--dim);font-size:14px;padding:6px}
+.dock-in{grid-template-columns:minmax(0,1fr)}.mystack{min-width:0}.mystack .muted{line-height:1.2}
+.dh-r{display:flex;align-items:center;gap:8px;min-width:0}
+.tapb{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;flex:0 0 auto;width:54px;height:46px;padding:0;border-radius:12px;background:var(--felt);border:1px solid var(--line);color:var(--ink);font-size:11px;font-weight:600;line-height:1.1;white-space:nowrap}
+.btns .tapb{width:auto;height:auto;min-height:44px;flex-direction:row;gap:8px;padding:10px 12px;font-size:15px;grid-column:1/-1}
+.tapb svg{width:21px;height:21px;flex:0 0 auto}
+.tapb:active:not(:disabled){background:var(--felt-3)}
+.hand{position:absolute;transform-origin:50% 100%;will-change:transform;filter:drop-shadow(0 3px 3px rgba(0,0,0,.45))}
 
 /* sheet */
 #sheet{position:fixed;inset:0;z-index:40;display:flex;align-items:flex-end;justify-content:center;background:rgba(3,8,6,.6)}
@@ -382,7 +389,7 @@ const S = {
   myId: ls.get('chips.pid') || ('p_' + rid(10)),
   name: ls.get('chips.name') || '',
   code: null, room: null, roomLoaded: false, players: {}, unsubs: [],
-  pending: 0, pendChips: [], sheet: null, sel: [], settle: {}, dealerBJ: false, confirm: null, adj: {},
+  pending: 0, pendChips: [], tapAt: 0, sheet: null, sel: [], settle: {}, dealerBJ: false, confirm: null, adj: {},
   rooms: [], joinCode: '', newName: '',
   create: { game: 'holdem', stack: '1000', sb: '5', bb: '10', minBet: '10', maxBet: '500', play: true },
   edit: null
@@ -550,6 +557,15 @@ const SND = (() => {
       for (let i = 0; i < n; i++){ clack(t, .6 + Math.random() * .3, bus, 2600, 2000); t += .16 + Math.random() * .12; }
     }
   ];
+  function chipsAt(t, n, v){ for (let i = 0; i < n; i++){ clack(t, v * (1 - i * .07)); t += .028 + Math.random() * .05; } }
+  // One knuckle on a wooden table: a low body that drops in pitch, a short woody overtone and a very brief filtered
+  // slap. Pitch from the player's seed (0..1), a little different on every hit.
+  function thump(t, seed, i){
+    const k = .86 + seed * .34, f = (118 + Math.random() * 14) * k, v = (i === 0 ? 1 : .8 + Math.random() * .2);
+    tone(t, f * 1.6, .11, .075 * v, 'sine', f * .62, .002);
+    tone(t, f * 3.1, .045, .018 * v, 'triangle', f * 1.7, .002);
+    noise(t, .03, 750 * k + Math.random() * 250, .9, .06 * v, 'lowpass');
+  }
   const notes = (t, list, gap, d, peak, type = 'triangle') => list.forEach((f, i) => { tone(t + i * gap, f, d, peak, type); tone(t + i * gap, f * 2, d * .6, peak * .25, 'sine'); });
   const api = {
     init,
@@ -577,10 +593,21 @@ const SND = (() => {
     chips(n = 3, v = 1){
       if (!ready()) return; const t0 = ctx.currentTime;
       if (t0 - lastT < .07){ if (++burst > 4) return; } else burst = 0; lastT = t0;   // many chips at once: keep it pleasant
-      let t = t0; for (let i = 0; i < n; i++){ clack(t, v * (1 - i * .07)); t += .028 + Math.random() * .05; }
+      chipsAt(t0, n, v);
+    },
+    // A hand knocking on the table (R-016): one thump per hit, `times` are seconds from now (the animation's hits).
+    // `seed` (from the player's id) sets the pitch so several hands sound like several hands.
+    hand(seed, times){
+      if (!ready()) return; const t0 = ctx.currentTime + .02; times.forEach((d, i) => thump(t0 + d, seed, i));
+    },
+    // Test hook (tests/audio.js): runs fn(synth) with the synth wired to an offline context, bypassing ready().
+    offline(c, o, fn){
+      const keep = [ctx, out, nbuf]; ctx = c; out = o; nbuf = c.createBuffer(1, c.sampleRate, c.sampleRate);
+      const d = nbuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      try { return fn({ chips: (t, n, v) => chipsAt(t, n, v), thump: (t, seed, i) => thump(t, seed, i) }); } finally { [ctx, out, nbuf] = keep; }
     },
     ambient(){ if (!ready()) return; AMB[Math.floor(Math.random() * AMB.length)](ctx.currentTime + .05, ambBus()); },
-    tap(){ if (!ready()) return; const t = ctx.currentTime; clack(t, .9); clack(t + .05, .35); },
+    tap(){ if (!ready()) return; const t = ctx.currentTime; clack(t, .9); clack(t + .05, .35); },   // the buzz of a dealer's button; the hand on the table is `hand`
     tick(){ if (!ready()) return; tone(ctx.currentTime, 1900, .014, .035, 'triangle'); },
     slide(){ if (!ready()) return; noise(ctx.currentTime, .24, 700, .7, .14, 'lowpass', 2400); },
     whoosh(){ if (!ready()) return; noise(ctx.currentTime, .3, 350, 1.3, .22, 'bandpass', 2800); },
@@ -618,6 +645,7 @@ const SND = (() => {
   };
   return api;
 })();
+window.ChipsSND = SND;      // for tests/audio.js (SND.offline)
 ['pointerdown', 'touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => SND.init(), { passive: true, capture: true }));
 // The casino in the background runs only inside a table, with the screen on, sound on, and ambience on.
 let AMBI_ON = ls.get('chips.ambi') !== '0', VOICE_ON = ls.get('chips.voice') !== '0';
@@ -635,7 +663,7 @@ document.addEventListener('visibilitychange', () => ambiSync());
    While chips are in the air, FX.ov holds what a player's spot and stack looked like before, and the
    table keeps showing that until the chips land. */
 const RM = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){ return false; } })();
-const FX = { rects: {}, ov: {}, pendFly: 0, n: 0, signDrop: 0, cer: false };      // pendFly: how many of your pending chips are still in the air
+const FX = { rects: {}, ov: {}, pendFly: 0, n: 0, signDrop: 0, cer: false, hands: 0 };      // pendFly: how many of your pending chips are still in the air
 const fxLayer = document.getElementById('fx');
 const pageRect = el => { const b = el.getBoundingClientRect(); return (b.width || b.height) ? { x: b.left + scrollX + b.width / 2, y: b.top + scrollY + b.height / 2, w: b.width, h: b.height } : null; };
 function measure(){ const m = {}; document.querySelectorAll('[data-k]').forEach(el => { const r = pageRect(el); if (r) m[el.dataset.k] = r; }); return m; }
@@ -683,6 +711,87 @@ function floatText(at, text, cls = ''){
   setTimeout(() => el.remove(), 1700);
 }
 function pulse(k, s = 1.14){ const el = document.querySelector('[data-k="' + k + '"]'); if (!el || RM) return; try { el.animate([{ scale: '1' }, { scale: String(s) }, { scale: '1' }], { duration: 300, easing: 'ease-out' }); } catch(e){} }
+/* ---------- a hand drumming on the table (R-016) ----------
+   Played from the `tap` field of a player (or `dealerTap` of the room) changing in a snapshot, never from the click, so the
+   phone that pressed the button plays it exactly like everyone else. The hand lives on #fx (rule 3). */
+const hashN = s => { let h = 2166136261; for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const TAP_GAP = 2000, TAP_MAX = 4;
+// The tap button: a small fist and "דפיקה". Dimmed for TAP_GAP after a press (S.tapAt; the end of it re-renders).
+const HAND_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5C5.6 11 5 12.7 5 14.6 5 18 6.8 20 9.5 20h5c2.7 0 4.5-2 4.5-5.4 0-1.9-.6-3.6-2-5.1z" fill="currentColor"/><g fill="currentColor"><rect x="5.2" y="4" width="3.2" height="7" rx="1.6"/><rect x="8.9" y="2.6" width="3.2" height="8" rx="1.6"/><rect x="12.6" y="2.6" width="3.2" height="8" rx="1.6"/><rect x="16.3" y="4" width="3.2" height="7" rx="1.6"/></g><path d="M3 3.2l1.4 1.4M21 3.2l-1.4 1.4M12 .8v1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>`;
+function tapCooling(){ return now() - S.tapAt < TAP_GAP; }
+function tapButton(){ return `<button class="tapb" data-a="tap" aria-label="דפיקה על השולחן" ${tapCooling() ? 'disabled' : ''}>${HAND_ICON}<span>דפיקה</span></button>`; }
+// Three hands, seen from above (the back of the hand, fingers toward the felt, sleeve behind): a loose fist, a flat
+// palm, and a fist in a different sleeve. The tip of the fingers is the bottom centre of the 64x130 box.
+const HAND_TONES = [['#e7b78c', '#b98558', '#f3cfae'], ['#d8a276', '#a8714a', '#e6bd98'], ['#f0c5a0', '#c08f68', '#f8dcc3']];
+const HAND_SLEEVES = [['#2c3a57', '#f1efe8', '#c9c6bb'], ['#7b2f36', '#e9e4da', '#bfb9ac'], ['#4a4f55', '#d6d9dc', '#9fa4a9']];
+function handSVG(pid){
+  const h = hashN(pid), v = h % 3, [sk, sh, hi] = HAND_TONES[(h >>> 3) % 3], [sl, cf, cs] = HAND_SLEEVES[(h >>> 5) % 3];
+  const sleeve = `<path d="M13 0H51L53 40H11Z" fill="${sl}"/><path d="M20 4L22 38M32 2V39M44 4L42 38" stroke="rgba(0,0,0,.18)" stroke-width="1.2" fill="none"/>
+    <rect x="9.5" y="37" width="45" height="13" rx="4" fill="${cf}" stroke="${cs}" stroke-width="1"/><circle cx="48" cy="43.5" r="1.7" fill="${cs}"/>
+    <path d="M19 50H45L44 66H20Z" fill="${sk}"/><path d="M19 50H45" stroke="rgba(0,0,0,.18)" stroke-width="2"/>`;
+  const st = `stroke="${sh}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"`;
+  let hand;
+  if (v === 1){        // flat palm: spread fingers, nails, thumb out to the side
+    hand = `<ellipse cx="10.5" cy="86" rx="5.2" ry="14" transform="rotate(26 10.5 86)" fill="${sk}" ${st}/><rect x="3.4" y="97" width="5.4" height="6" rx="2.7" transform="rotate(26 6 100)" fill="${hi}" opacity=".85"/>
+      <path d="M19.5 64C14 74 12 84 12 96H53C53 84 50 74 44.5 64Z" fill="${sk}" ${st}/>
+      ${[[12.4, 31], [23.2, 37.5], [34, 35.5], [44.8, 28]].map(([x, l]) => `<rect x="${x}" y="88" width="9.2" height="${l + 2}" rx="4.6" fill="${sk}" ${st}/><rect x="${x + 1.6}" y="${88 + l - 7}" width="6" height="7.5" rx="3" fill="${hi}" opacity=".85"/>`).join('')}
+      <path d="M24 70L22 90M33 68V90M42 70L44 90" stroke="${sh}" stroke-width="1" opacity=".45" fill="none"/>`;
+  } else {             // loose fist: four curled fingers, knuckles toward the table, thumb tucked at the side
+    const w = v === 2 ? 0 : 1;
+    hand = `<ellipse cx="11.5" cy="84" rx="5" ry="12" transform="rotate(-8 11.5 84)" fill="${sk}" ${st}/><path d="M20 62C13 72 9 82 9 94C9 106 15 112 23 112H41C49 112 55 106 55 94C55 82 51 72 44 62Z" fill="${sk}" ${st}/>
+      ${[10.5, 22, 33.5, 45].map((x, i) => `<rect x="${x}" y="${97 + (i === 1 ? -2 : i === 3 ? 3 : 0)}" width="10.6" height="${21 + (i === 1 ? 2 : 0)}" rx="5.3" fill="${sk}" ${st}/><ellipse cx="${x + 5.3}" cy="${103 + (i === 1 ? -2 : i === 3 ? 3 : 0)}" rx="3" ry="2" fill="${hi}" opacity=".7"/>`).join('')}
+      <path d="M25 70L22 92M33 68V92M41 70L44 92" stroke="${sh}" stroke-width="1" opacity="${w ? .5 : .3}" fill="none"/>`;
+  }
+  return `<svg viewBox="0 0 64 130" width="100%" height="100%" aria-hidden="true">${sleeve}${hand}</svg>`;
+}
+// Where the hand lands and which way its arm comes from (unit vector pointing away from the table).
+function tapGeom(pid, dealer){
+  const u = unitPx();
+  if (dealer){ const r = rectOf('dealer'); return r && { x: r.x + r.w * .22, y: r.y + r.h / 2 + u * 2.6, ux: .5, uy: -.866 }; }      // the arm comes from the upper right, past the dealer's shoulder
+  const s = rectOf('seat:' + pid); if (!s || !onScreen(s)) return null;
+  const sp = rectOf(`spot:${pid}:0`), dl = rectOf('dealer');
+  let px, py; if (sp){ px = sp.x; py = sp.y; } else if (dl){ const d = Math.hypot(dl.x - s.x, dl.y - s.y) || 1; px = s.x + (dl.x - s.x) / d * u * 9; py = s.y + (dl.y - s.y) / d * u * 9; } else { px = s.x; py = s.y - u * 9; }
+  const dx = s.x - px, dy = s.y - py, d = Math.hypot(dx, dy);
+  if (d < 1) return { x: s.x, y: s.y - u * 6, ux: 0, uy: 1 };
+  const ux = dx / d, uy = dy / d, r = sp ? sp.w / 2 : u * 4, off = Math.min(d * .75, r + u * 1.4);
+  return { x: px + ux * off, y: py + uy * off, ux, uy };
+}
+function handTap(pid, dealer){
+  if (document.visibilityState === 'hidden' || FX.hands >= TAP_MAX) return;
+  const seed = (hashN(pid) % 1000) / 1000, n = 3 + (Math.random() < .5 ? 1 : 0), g = tapGeom(pid, dealer);
+  const IN = 300, rnd = a => Math.random() * a, hits = [], hovers = []; let hover = IN;
+  for (let i = 0; i < n; i++){ hovers.push(hover); const hit = hover + 70 + rnd(25); hits.push(hit); hover = hit + 135 + rnd(70); }
+  const outAt = hits[n - 1] + 110, total = outAt + 320, delay = FX.hands * 35 + rnd(40);
+  SND.hand(seed, hits.map(t => (delay + t) / 1000));
+  const key = dealer ? 'dealer' : 'seat:' + pid;
+  if (RM){ hits.forEach(t => setTimeout(() => { const el = document.querySelector('[data-k="' + key + '"]'); if (el) try { el.animate([{ translate: '0 0' }, { translate: '-2px 0' }, { translate: '2px 0' }, { translate: '0 0' }], { duration: 180 }); } catch(e){} }, delay + t)); return; }
+  if (!g) return;
+  const u = unitPx(), W = u * 9, H = W * 130 / 64, far = H + W * 1.4, lift = u * 1.1, th = Math.atan2(g.ux, -g.uy) * 180 / Math.PI;
+  const el = document.createElement('div'); el.className = 'hand'; el.dataset.pid = dealer ? 'dealer' : pid;
+  el.style.cssText = `left:${g.x}px;top:${g.y}px;width:${W}px;height:${H}px;margin:${-H}px 0 0 ${-W / 2}px;opacity:0`;
+  el.innerHTML = handSVG(pid); fxLayer.appendChild(el); FX.hands++;
+  const pose = (d, s, a, o = 1) => ({ transform: `translate(${(g.ux * d).toFixed(1)}px,${(g.uy * d).toFixed(1)}px) rotate(${(th + a).toFixed(1)}deg) scale(${s})`, opacity: o });
+  const kf = [{ ...pose(far, 1.12, 0, 0), offset: 0, easing: 'cubic-bezier(.2,.75,.3,1)' }];
+  hits.forEach((t, i) => {
+    const hov = hovers[i], a = (Math.random() - .5) * 7;
+    kf.push({ ...pose(lift, 1.2, a), offset: hov / total, easing: 'cubic-bezier(.65,0,.95,.55)' });
+    kf.push({ ...pose(0, 1, a * .4), offset: t / total, easing: 'cubic-bezier(.1,.6,.3,1)' });
+  });
+  kf.push({ ...pose(0, 1, 0), offset: outAt / total, easing: 'cubic-bezier(.6,0,.9,.6)' }, { ...pose(far, 1.12, 0, 0), offset: 1 });
+  let done = false;
+  const rm = () => { if (done) return; done = true; el.remove(); FX.hands = Math.max(0, FX.hands - 1); };
+  try { const an = el.animate(kf, { duration: total, delay, fill: 'both' }); an.onfinish = rm; } catch(e){ rm(); return; }
+  setTimeout(rm, delay + total + 400);
+  if (!dealer) hits.forEach(t => setTimeout(() => document.querySelectorAll('[data-k^="spot:' + pid + ':"] .stk, [data-k^="spot:' + pid + ':"] .duo').forEach(c => { try { c.animate([{ translate: '0 0' }, { translate: '0 -1.6px', offset: .35 }, { translate: '0 0' }], { duration: 150, easing: 'ease-out' }); } catch(e){} }), delay + t));
+}
+// A player's `tap` (or the room's `dealerTap`) is newer than what this phone had. Never from the first snapshot of a table
+// (no old document), so a phone that opens or reloads the table never replays old taps.
+const tapNew = (a, b, k) => !!a && !!b && typeof b[k] === 'number' && b[k] > (a[k] || 0);
+function fxTaps(old, nw, r){
+  if (!r || r.game !== 'blackjack' || r.closed) return [];
+  const runs = []; for (const pid in nw) if (tapNew(old[pid], nw[pid], 'tap')) runs.push(() => handTap(pid, false));
+  return runs;
+}
 const ghostChips = () => { const c = pendChips(); return c.slice(0, Math.max(0, c.length - FX.pendFly)); };
 function paintGhost(){ const el = document.querySelector('[data-k="ghost"]'); if (el){ const g = ghostChips(); el.innerHTML = g.length ? stackHTML(g) : ''; } }
 const LAND = matchMedia('(orientation: landscape)');
@@ -966,7 +1075,7 @@ function pendChips(){ if (sumOf(S.pendChips) !== S.pending) S.pendChips = chipsO
    Each handler may set an override before the render, and returns a function that runs after it. */
 function fxPlayers(old, nw){
   const r = S.room; if (!r) return [];
-  const runs = [];
+  const runs = fxTaps(old, nw, r);                     // taps don't touch lastAction/ts, so they are diffed on their own
   for (const pid in nw){
     const a = old[pid], b = nw[pid];
     if (!a || !b || !b.lastAction || (b.ts || 0) === (a.ts || 0)) continue;
@@ -1102,6 +1211,7 @@ function fxHold(pid, a, b, r){
 function fxRoom(a, b){
   if (!a || !b || a.code !== b.code) return null;
   const runs = [];
+  if (b.game === 'blackjack' && !b.closed && tapNew(a, b, 'dealerTap')) runs.push(() => handTap(b.hostId, true));   // an unseated dealer's hand
   if (!a.closed && b.closed && b.final) runs.push(() => ceremony());              // the ceremony says 'winner' at the reveal
   if (b.game === 'blackjack' && a.phase === 'betting' && b.phase === 'playing' && a.roundId === b.roundId) runs.push(() => { lockFx(); SND.say('locked'); });
   // a round that was paid (not cancelled): the payout line, then the dealer opens the next round
@@ -1710,9 +1820,15 @@ function bjView(){
   </section>`;
 }
 
+function doTap(){
+  if (!S.room || S.room.game !== 'blackjack' || S.room.closed || tapCooling()) return;
+  const m = me(); if (!m && !isHost()) return;
+  S.tapAt = now(); buzz(); setTimeout(() => { if (S.code) render(); }, TAP_GAP + 40); render();
+  w(m ? pPath() : roomPath(), 'update', m ? { tap: now() } : { dealerTap: now() });      // only this field: no lastAction/ts, so nothing but the hand reacts
+}
 function bjDock(){
   const r = S.room, m = me(), c = cur(m);
-  const head = `<div class="dock-head"><div class="mystack"><span class="big num" data-k="mystack">${fmt(shownStack(m))}</span><span class="muted">הצ'יפים שלך</span></div>${r.phase === 'betting' ? pendingBox() : ''}</div>`;
+  const head = `<div class="dock-head"><div class="mystack"><span class="big num" data-k="mystack">${fmt(shownStack(m))}</span><span class="muted">הצ'יפים שלך</span></div><div class="dh-r">${r.phase === 'betting' ? pendingBox() : ''}${tapButton()}</div></div>`;
   if (r.phase === 'betting'){
     const curBet = c ? m.hands[0].bet : 0;
     return `${head}
@@ -1736,6 +1852,7 @@ function bjHost(){
   return `<section class="host"><h3>בקרת דילר</h3><div class="btns">
     ${r.phase === 'betting' ? `<button class="btn primary" data-a="deal" ${n ? '' : 'disabled'}>חלוקת קלפים (נועל הימורים)</button>` : `<button class="btn primary" data-a="sheet" data-v="settle">סימון זוכים ותשלום</button>${players().some(bjEligible) ? `<button class="btn" data-a="sheet" data-v="bjnow">בלאק ג'ק לשחקן</button>` : ''}<button class="btn ghost" data-a="sheet" data-v="cancel">ביטול הסיבוב</button>`}
     <button class="btn ghost" data-a="sheet" data-v="end">סיום המשחק</button>
+    ${me() ? '' : tapButton()}
   </div>${r.phase === 'betting' && !n ? '<span class="muted">מחכים שמישהו יהמר.</span>' : ''}</section>`;
 }
 
@@ -1892,6 +2009,7 @@ const A = {
   cancelhand: () => cancelHand(),
   bjbet: () => bjBet(),
   bjclear: () => bjClear(),
+  tap: () => doTap(),
   bj: v => { const [k, i] = v.split(':'); bjDo(k, Number(i)); },
   deal: async () => { buzz(); await w(roomPath(), 'update', { phase:'playing', dealerBJ:false, ...setEvent(`סיבוב ${S.room.roundId}: הקלפים חולקו`) }); },
   res: v => { const [k, rv] = v.split('|'); S.settle[k] = rv; render(); },

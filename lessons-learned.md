@@ -134,3 +134,13 @@ earlier, blocked commit would have written; it matched nothing, and the changelo
 
 **Background processes don't survive between commands in some environments.** The local test server kept
 disappearing between tool calls. The test scripts now start their own server in-process.
+
+**Effect errors don't show up as page errors.** The snapshot handlers run each effect inside `try/catch` (so one bad
+animation can't stop the table), which turns a thrown error into `console.error`. A hash used with `>>` (signed)
+instead of `>>>` gave a negative array index for some player ids: the tap hand silently never appeared for them, and
+the first test run passed because its two ids happened to work. *Rule:* tests of effects also fail on console errors
+(`tests/tap.test.js` does; ignore the aborted font requests), and effect code that picks by hash uses unsigned maths.
+
+**A new item in a dock row can widen the whole page.** The dock is a grid; adding the tap button to the betting row
+made its minimum width larger than the phone, so the grid column grew and the chip tray and buttons were cut off at the
+edge, only visible in a screenshot. `.dock-in` now has `minmax(0,1fr)` and the chip-count label may wrap.

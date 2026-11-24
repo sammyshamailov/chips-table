@@ -26,6 +26,13 @@ const { OUT, requirePlaywright, serve, setPending } = require('./lib');
     await pg.click('[data-a=bj][data-v="double:1"]'); await pg.waitForTimeout(1200);
     await pg.screenshot({ path: path.join(OUT, `table-${label}.png`) });
     console.log('wrote', path.join(OUT, `table-${label}.png`));
+    // R-016: the tap button in the dock, pressed; the hand's animation is paused mid-tap (just before the first hit) for the picture.
+    await pg.click('[data-a=tap]'); await pg.waitForSelector('#fx .hand', { state: 'attached', timeout: 1500 }).catch(() => {});
+    const hands = await pg.evaluate(() => { const hs = document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.classList.contains('hand')); hs.forEach(a => { a.pause(); a.currentTime = 345; }); return hs.length; });
+    if (hands !== 1) errors.push(`${label}: expected one tapping hand, found ${hands}`);
+    await pg.waitForTimeout(100);
+    await pg.screenshot({ path: path.join(OUT, `tap-${label}.png`) });
+    console.log('wrote', path.join(OUT, `tap-${label}.png`), `(${hands} hand)`);
     await pg.close();
   }
   await browser.close(); srv.close();

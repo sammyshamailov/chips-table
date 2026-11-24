@@ -5,7 +5,18 @@ development branch.
 
 ## Not yet live
 
-_Nothing yet._
+### Added
+- **Tapping on the table (R-016), Blackjack only.** A "דפיקה" button (a small fist) in every player's dock, and in
+  the dealer's controls for a dealer who isn't seated. Pressing it makes your hand drum on the felt at your seat
+  (the dealer's, at the chip rack) three or four times, with a knock for every hit, on every phone at the table.
+  Several players at once drum together (at most four hands on screen). One press every 2 seconds; the button dims
+  meanwhile. With reduced motion the seat just shakes. The hand is original art (three variants, picked by player),
+  the knock is synthesized (a low thump plus a short slap, pitched per player) and kept under the chip sounds
+  (`node tests/audio.js`). Stored data: the optional `tap` on a player and `dealerTap` on the room (number, time of
+  the press); neither touches `lastAction`/`ts`, older phones ignore them, no change to `firestore.rules`. A phone
+  that opens or reloads the table never replays old taps. Test: `tests/tap.test.js`. The card-mode ace pulse waits for R-011.
+- The blackjack dock no longer widens the page when the chip count, the chips in hand and the new button don't fit
+  on one line (the chip-count label wraps instead).
 
 ## 2026-11-22 (2)
 

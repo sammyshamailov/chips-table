@@ -149,6 +149,10 @@ the knocks. If several players press at once, several hands drum together.
    to the room document, and `fxRoom` plays the hand at the dealer's rack. A dealer who also sits as a
    player taps from their seat, like everyone else.
 
+**Progress (2026-11-24).** Steps 1, 2, 3, 4, 5 and 7 are built on this branch (`handSVG`, `handTap`, `fxTaps`,
+`SND.hand`, `tapButton`/`doTap`, the dealer button in `bjHost`) with `tests/tap.test.js`. The sound is synthesized and
+needs no ElevenLabs take unless the owner finds it doesn't sound like a hand on a table. **Step 6 waits for R-011.**
+
 **Stored data.** Optional player `tap` (number, time of the last press) and optional room `dealerTap`
 (number, the same for a dealer who isn't seated). Fallback: missing or not a number = never tapped. Neither
 touches `lastAction`/`ts`. `firestore.rules` doesn't change.
@@ -161,11 +165,11 @@ animation and the knocks.
 that opens the table later must not replay old taps: only taps newer than the moment it joined play.
 
 **Tests.**
-- [ ] Two-phone test: phone A presses the button; phone B plays one tap at A's seat; pressing again within
-      2 seconds does nothing
-- [ ] A reloaded phone doesn't replay old taps
-- [ ] Screenshots mid-tap, portrait and landscape; `node tests/audio.js` for the knock
-- [ ] Card mode (with R-011): the button works the same; a first-card ace makes the button pulse on every
+- [x] Two-phone test: phone A presses the button; phone B plays one tap at A's seat; pressing again within
+      2 seconds does nothing (`tests/tap.test.js`)
+- [x] A reloaded phone doesn't replay old taps
+- [x] Screenshots mid-tap, portrait and landscape (`tests/out/tap-*.png`); `node tests/audio.js` for the knock
+- [ ] (waits for R-011) Card mode: the button works the same; a first-card ace makes the button pulse on every
       phone; nothing taps by itself
 
 **Docs to update.** `docs/ARCHITECTURE.md`, `README.md` (play), `CHANGELOG.md`.

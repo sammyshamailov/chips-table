@@ -79,6 +79,14 @@ function toneWav(sec, peakDb, f, mod){
         const res = await c.startRendering(), L = res.getChannelData(0);
         out.nar = { used: pick.map(l => l.k), speech: wins.map(([t, e]) => rmsDb(L, Math.floor(t * sr), Math.floor(e * sr))), peak: peakDb(L), wav: wav(res) };
       } }
+    // 3. the hand knocking on the table (R-016) against the chip sounds, same master chain: the loudest 50 ms of each
+    { const lvl = async fn => { const c = new OfflineAudioContext(2, 3 * sr, sr), o = chain(c); window.ChipsSND.offline(c, o, fn); const res = await c.startRendering(), L = res.getChannelData(0); return { loud: loudest(L, sr / 20), peak: peakDb(L), avg: rmsDb(L, 0, Math.floor(1.6 * sr)), wav: res }; };
+      const chips = []; for (let i = 0; i < 12; i++) chips.push(await lvl(s => s.chips(.1, 4, 1)));
+      const hit = async seed => { const a = []; for (let i = 0; i < 5; i++) a.push(await lvl(s => [.05, .27, .5, .74].forEach((d, k) => s.thump(d + .1, seed, k)))); return a; };
+      const avg = a => a.reduce((x, y) => x + y, 0) / a.length, mx = a => Math.max(...a);
+      const seeds = [0, .5, 1], taps = {}; for (const sd of seeds) taps[sd] = await hit(sd);
+      const one = await lvl(s => s.thump(.1, .5, 0));
+      out.tap = { chipsLoud: avg(chips.map(x => x.loud)), chipsPeak: mx(chips.map(x => x.peak)), tapLoud: seeds.map(sd => avg(taps[sd].map(x => x.loud))), tapPeak: seeds.map(sd => mx(taps[sd].map(x => x.peak))), oneLoud: one.loud, onePeak: one.peak, wav: wav(taps[.5][0].wav) }; }
     return out;
   });
   const miss = [...new Set(r.missing)];
@@ -92,5 +100,12 @@ function toneWav(sec, peakDb, f, mod){
     console.log(`narration (${r.nar.used.join(', ')}) over the background: speech RMS ${r.nar.speech.map(x => x.toFixed(1)).join(' / ')} dBFS (target about -20) · peak ${r.nar.peak.toFixed(1)} dBFS`);
     fs.writeFileSync(path.join(OUT, 'narration.wav'), Buffer.from(r.nar.wav, 'base64')); console.log('wrote', path.join(OUT, 'narration.wav'));
   } else console.log('narration: no voice files found, nothing rendered');
+  if (r.tap){
+    console.log(`chips (4 clacks) at the app's master: loudest 50 ms ${r.tap.chipsLoud.toFixed(1)} dBFS, peak ${r.tap.chipsPeak.toFixed(1)} dBFS`);
+    console.log(`hand tapping (4 knocks, pitch seeds 0 / .5 / 1): loudest 50 ms ${r.tap.tapLoud.map(x => x.toFixed(1)).join(' / ')} dBFS, peak ${r.tap.tapPeak.map(x => x.toFixed(1)).join(' / ')} dBFS · a single knock ${r.tap.oneLoud.toFixed(1)} dBFS (loudest 50 ms), peak ${r.tap.onePeak.toFixed(1)} `);
+    const under = Math.max(...r.tap.tapPeak) < r.tap.chipsPeak - 1;
+    console.log(`the knocks' peak is ${under ? 'under' : 'NOT under'} the chips' peak (the rule: tap peak at least 1 dB below; the 50 ms average is higher for a knock only because a clack is a 26 ms click while a knock has a 100 ms body)`); if (!under) process.exitCode = 1;
+    fs.writeFileSync(path.join(OUT, 'tap.wav'), Buffer.from(r.tap.wav, 'base64')); console.log('wrote', path.join(OUT, 'tap.wav'));
+  }
   await browser.close(); srv.close();
 })();

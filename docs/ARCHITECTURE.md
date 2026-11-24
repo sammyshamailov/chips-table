@@ -45,6 +45,7 @@ them missing.
 | `roundEnd` *added* | Blackjack: how the last round ended, `'paid'` or `'cancelled'`. Set with the new `roundId`; the dealer narration says "payout" only for `'paid'`. Missing when an older phone ended the round (readers then fall back to the `lastEvent` text) |
 | `mode` *added, read-only for now* | Table type. Missing = `'chips'`. Known to this build: `'chips'`. Nothing writes it yet (card tables will) |
 | `appMin` *added, read-only for now* | Lowest `FEATURE_LEVEL` that can play this table. Missing = 0. Nothing writes it yet |
+| `dealerTap` *added* | Number: the time of the last tap by a dealer who isn't seated (the same button in the dealer controls). Missing or not a number = never. Read by `fxRoom` only; written alone |
 | `closed` *added* | The game is over; the table shows the final standings |
 | `final {at, list:[{pid, name, stack}]}` *added* | Standings frozen when the dealer ended the game, highest first |
 
@@ -69,13 +70,14 @@ when a build really plays tables with that `appMin`. Card tables will also set t
 | `hands[i].chips` *added* | The exact chips placed, bottom to top. Used only when they add up to `bet` |
 | `hands[i].paid` *added* | A blackjack the dealer paid mid-round. The payout and a cancelled round skip it |
 | `bjPaidRound` *added* | Number: the round the dealer last paid or refunded this player in. `bjPayout`/`bjCancelRound` skip a player whose value equals the current `roundId`, so a retry after a failed room write doesn't pay twice. Missing means not settled |
+| `tap` *added* | Number: the time of this player's last press of the tap button (Blackjack, R-016). Written alone (never with `lastAction`/`ts`). Missing or not a number = never tapped. Readers: `fxTaps` only |
 | `lastAction {k, amt, chips?}`, `ts` | The last thing that happened to this player; drives the animations |
 | `avatar` *added* | `{k:'set', v:'<id from AV_SET>'}` or `{k:'img', v:'data:image/jpeg;base64,…'}` (about 5–14 KB), or `null` |
 
 `lastAction.k` values: Hold'em `blind`, `check`, `call`, `bet`, `raise`, `allin`, `fold`, `won`, `refund`;
 Blackjack `bet`, `clear`, `double`, `split`, `ins`, `surrender`, `bjpay` *added*, `bjres`, `refund`.
 
-Writes that don't set `lastAction`/`ts` (avatar changes, sitting out) don't animate.
+Writes that don't set `lastAction`/`ts` (avatar changes, sitting out) don't animate. The one exception is `tap`, which has its own diff (see Effects).
 
 **Dealer writes to a player's stack are increments** (`stack: inc(n)`): `bjPayout`, `bjCancelRound`, `bjNow`,
 `award`, `cancelHand`. They add to whatever the server holds, so they cannot overwrite a bet the player placed
@@ -110,6 +112,22 @@ A phone that loads an already-closed table shows the final card without the cere
 3. The returned functions run: `fly()` moves chip stacks on `#fx` (page coordinates) from old to new
    positions, and on landing clears the override and renders again.
 
+**Taps (R-016).** A press writes only `{ tap: now() }` to your player document (`doTap`; an unseated dealer writes
+`{ dealerTap }` to the room). `fxPlayers` calls `fxTaps(old, new, room)` first, which runs for every player,
+independent of the `ts` check: it plays when the game is Blackjack and not closed, the old document existed
+(so the first snapshot of a table, a reload or a late join never replays anything), `typeof tap === 'number'`
+and `tap` is greater than the old one. `fxRoom` does the same for `dealerTap`. The pressing phone plays its own
+hand from the snapshot too, so it is exactly once everywhere. `handTap(pid, dealer)` draws the hand on `#fx`
+(WAAPI, removed when done): `tapGeom` picks the landing point between the seat and its first betting spot (for
+the dealer, below the rack) and the direction the arm comes from (away from the table centre); the fist or palm
+(`handSVG`, three variants and skin/sleeve colours by a hash of the pid, `--u` sized) slides in, hits 3-4 times
+(down fast, up slower, random timing and angle; the scale change is the "up and down" seen from above), the chips of
+that player's `spot:<pid>:*` jump 1-2 px on each hit, and it slides out; about 1.5 s. At most `TAP_MAX` (4)
+hands at once, extras are skipped; several start 35 ms apart. A seat that is off screen or under the dock gets the
+sound only; with reduced motion (`RM`) the seat (or rack) shakes instead. A hidden page plays nothing. The button
+cooldown is `S.tapAt` (`TAP_GAP` 2000 ms, never in the DOM): the button renders disabled and a timer re-renders when it ends; a press
+during the cooldown writes nothing. Everything `render()` reaches (`tapButton`, `tapCooling`, `HAND_ICON`) is above the local-store section.
+
 `data-k` keys: `seat:<pid>`, `spot:<pid>:<i>`, `ins:<pid>`, `dealer`, `pot`, `mystack`, `pend`, `ghost`.
 
 ## Layout
@@ -125,6 +143,13 @@ never overlap. In landscape (`@media (orientation: landscape)`) the room becomes
 `SND` owns one AudioContext created on the first touch (browsers require it). Effects are synthesized:
 clay-chip clacks are short band-passed noise plus a click; the bell, drumroll, fanfare and applause are
 oscillators and filtered noise.
+
+**Tap knocks.** `SND.hand(seed, times)` schedules one `thump` per hit (`times` are the animation's hit times in
+seconds): a sine body gliding down from 160-250 Hz to 60-100 Hz (by player), a short triangle overtone and 30 ms of low-passed
+noise, a little different on every hit, pitched by `seed` (0..1 from the pid) so several hands sound like several
+hands. Respects the speaker button (`ready()`). Level: peak about -21 dBFS at the master against about -17 for four chip
+clacks (`node tests/audio.js` prints both through `SND.offline`, a test hook that points the synth at an offline context).
+(`SND.tap` is the older buzz of a dealer button; the hand is `SND.hand`.)
 
 **Background.** A quiet steady murmur of people plus a slot machine now and then. `AMB_MANIFEST` lists
 `sounds/amb/crowd-bed.mp3` (kind `bed`, a generated ~39 s murmur already looped and filtered, see
