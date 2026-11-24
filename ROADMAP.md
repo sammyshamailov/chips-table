@@ -349,8 +349,38 @@ src/
        in the two-phone and Hold'em tests; all browser tests, upgrade, lint, typecheck
      - Found, not changed (no visible change allowed here): the ceremony's winner circle takes its colour from a
        document without a pid, so a winner without a picture always gets the same colour (see lessons-learned)
-6. **Clean-up and CI.** GitHub Actions on every push: lint, typecheck, unit tests, two-phone and
+6. **Clean-up and CI.** *(Built on the branch.)* GitHub Actions on every push: lint, typecheck, unit tests, two-phone and
    Hold'em tests, screenshots. Delete `legacy.ts`. Rewrite `docs/ARCHITECTURE.md` for the new layout.
+   - [x] First, the turn-the-phone prompt added to `tests/visual.js` (a touch phone held upright; 73 screens), baseline
+     from the code before the change
+   - [x] `src/legacy.ts` deleted. `src/app/`: `app.ts` (`createApp()`, `start()`), `state.ts` (`State` and pure
+     questions), `context.ts`, `actions/` (`lobby`, `table`, `chips`, `holdem`, `blackjack`, `avatar`, `app`),
+     `dom-events.ts`, `navigation.ts`, `session.ts`, `render.ts`, `ceremony.ts`, `device.ts`, `ids.ts`;
+     `src/sync/room-session.ts`; `src/update.ts`; `src/ui/ceremony.tsx`, `rotate.tsx`, `scale.ts`, `photo.ts`;
+     `src/globals.d.ts`. Typed, strict, no `@ts-nocheck` and nothing ignored by ESLint in `src/`. Listeners and timers
+     start in `start()`, not when a module is created
+   - [x] Deviation from the target structure: `room-session.ts` is in `src/sync/` as planned, but `src/sync/` is pure by
+     rule 10 and the session listens to the store and retries on a timer, so ESLint exempts that one file (the purity
+     rules still apply to every other file there, checked with a deliberate violation). The state, actions and
+     ceremony went to `src/app/`, which the target structure didn't name
+   - [x] The ceremony's card is a component (`Ceremony`, rendered into `#fin` by its timeline, the chip rain in an
+     element Preact leaves alone); `to-html.tsx` deleted. The turn-the-phone prompt is a component (`#rot`)
+   - [x] The ceremony's avatar colour fixed (each winner passed with its pid): only the `ceremony` baseline changed;
+     `tests/behaviour.test.js` checks the circles against the standings and that the chip rain survives the second
+     render of `#fin`
+   - [x] The focus restore in `render()` removed: `tests/behaviour.test.js` checks the focus and caret in a sheet's
+     field through a render (seen failing with a blur in `render()`)
+   - [x] CI: `.github/workflows/ci.yml` on every push and pull request (lint, typecheck, unit tests with coverage, build,
+     the site as Netlify publishes it, `two-phones`, `race`, `holdem`, `guard`, `upgrade`, `behaviour`, screenshots,
+     the pixel comparison; `tests/out/` uploaded on failure); `playwright` pinned as a devDependency (1.63.0, the version
+     here), the browser installed in the workflow only. YAML parsed locally; the workflow itself first runs on GitHub
+   - [x] Pixel comparison in CI: the fallback fonts depend on the machine, so CI compares with the earlier version
+     rendered on the runner (`tests/visual-against.js`), skipping screens whose baseline changed on purpose;
+     `tests/baseline/` stays the reference here. Checked locally against `origin/main` (the single-file version) and
+     the previous commit
+   - [x] Docs: `docs/ARCHITECTURE.md` rewritten (module map, how it fits together: reading and acting, the app),
+     `CLAUDE.md` (files, rules 2, 3, 8 and 10, running locally), `docs/TESTING.md` (CI, `visual-against.js`),
+     `README.md`, `lessons-learned.md`, `CHANGELOG.md`
 
 **Stored data.** None. Phones on the old single-file version and the new build share tables.
 
@@ -372,14 +402,20 @@ src/
   times, `guard` and `upgrade`; phase 4: passed, with the new flight counts, `race` three times, `guard`, `upgrade` and
   `audio`; phase 5 part A: passed, with the flight counts, `race`, `guard` and `upgrade`; part B: passed, with the flight counts,
   `race`, `guard`, `upgrade` and `behaviour`; part C: passed, with the flight counts, `race`, `guard`, `upgrade` and
-  `behaviour`)
+  `behaviour`; phase 6: passed, with the flight counts, `race`, `guard`, `upgrade` and `behaviour`)
 - [ ] Screenshot comparison shows no difference after each phase (phases 1, 2, 3 and 4: zero pixels on all ten screens; phase 5 part A: zero on the ten and on 37 more
-  screens compared with the old build; part B: zero on all 56 screens of `tests/visual.js`; part C: zero on all 72)
+  screens compared with the old build; part B: zero on all 56 screens of `tests/visual.js`; part C: zero on all 72;
+  phase 6: zero on 72 of 73, the ceremony changed on purpose (the avatar colour fix), and zero against the live
+  single-file version with `tests/visual-against.js origin/main`)
 - [x] Upgrade path: a phone on today's version updates itself into the new build (automated in
   `tests/upgrade.test.js`: old service worker and cache, self-update reload, new worker drops `chips-v6`, offline start)
 - [ ] Single-device mode by hand (phase 1: `npm run dev` and the build, home and a new table, no page errors; phase 2:
   `npm run dev`, a Hold'em table with an added player, blinds and a call, no page errors; phase 3: `npm run dev`, a
-  Hold'em table, an added player, blinds posted (pot 15), the table still there after a reload, no page errors)
+  Hold'em table, an added player, blinds posted (pot 15), the table still there after a reload, no page errors; phase 6:
+  the same on `npm run dev`, scripted).
+  **Still needs the owner, before R-005 reaches `main`:** on a real phone with the installed app on today's version,
+  check that it updates itself into the new build (the automated upgrade test covers a desktop Chromium only), and a
+  game on two real phones against the real Firebase project
 
 **Docs to update.** `CLAUDE.md` (files, rules 2 and 3 rewritten for the new structure, running locally
 with `npm run dev`), `docs/ARCHITECTURE.md` (rewritten), `docs/TESTING.md`, `README.md` (deploy),

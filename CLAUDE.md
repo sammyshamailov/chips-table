@@ -9,9 +9,8 @@ start-up, rendering, stored data or sound: most of the rules below were learned 
 table; the app only replaces the chips. Each player uses their own phone; the dealer (whoever opened the
 table) runs the round. Hebrew, right-to-left, phone first.
 
-- Static PWA, built by Vite from `src/` (R-005 is splitting it into modules, phase by phase). For now
-  the app's code is still mostly one script, `src/legacy.ts` (moved from the old `index.html`), with
-  the game rules in `src/domain/`, storage in `src/data/` and the styles in `src/styles/`; `index.html` is the shell.
+- Static PWA, built by Vite from `src/` (TypeScript, strict; Preact for the screens). `index.html` is the shell;
+  the code is in modules with one job each (below, and `docs/ARCHITECTURE.md`).
 - Firebase Firestore (compat SDK from gstatic) syncs the table between phones in real time.
   Without a Firebase config the app runs in **single-device mode** (`src/data/local-store.ts`, in localStorage).
 - Hosted on Netlify: `npm run build && node scripts/build-config.js dist`, publishing `dist/`.
@@ -25,13 +24,14 @@ table) runs the round. Hebrew, right-to-left, phone first.
 |---|---|
 | `index.html` | The shell: head, the elements the script needs, `config.js` and the Firebase compat scripts (classic scripts), then `src/main.ts` |
 | `src/main.ts` | Composition root: imports the styles, creates the storage, event bus, sound engine and effects layer, creates the app, wires the event subscribers, then `app.start()`; registers the service worker (build only) |
-| `src/legacy.ts` | `createLegacyApp()`: the app script (state, room session, actions, the ceremony), moved from `index.html`; it calls the game rules in `src/domain/`, stores through `src/data/` and diffs snapshots into events with `src/sync/`. `// @ts-nocheck` until later phases |
+| `src/app/` | The app: `app.ts` (`createApp()`: puts it together; `start()`), `state.ts` (the state `S` and pure questions about it), `context.ts` (what the actions get), `actions/` (the `data-a` actions by concern: `lobby`, `table`, `chips`, `holdem`, `blackjack`, `avatar`, `app`), `dom-events.ts` (the page's click/input/keydown listeners), `navigation.ts` (connect, enter a table, home), `session.ts` (what the screens read), `render.ts` (`render()`, `paint()`), `ceremony.ts` (the end-of-game timeline), `device.ts` (vibration, wake lock, install prompt), `ids.ts` |
+| `src/update.ts` | Staying up to date: `APP_BUILD` against the live `config.js`, reload when idle |
 | `src/domain/` | The game rules as pure, typed functions with unit tests beside them: `chips.ts`, `holdem/` (`rules.ts`, `pots.ts`), `blackjack/` (`rules.ts`, `actions.ts`, `round.ts`), `types.ts` (the stored documents). Commands return the fields to write or a refusal code |
 | `src/data/` | Storage behind the `Store` port (`store.ts`): `firestore-store.ts` (compat SDK), `local-store.ts` (single-device mode), `connect.ts` (picks one at start-up), `writes.ts` (one write at a time per document, `inc`), `schema.ts` (`Room`/`Player` and `normalizeRoom`/`normalizePlayer`: every fallback for stored fields). Contract tests run the same cases against `local-store` and `tests/fakefs.js` |
-| `src/sync/` | `diff.ts` (old/new documents → domain events, pure, unit tested), `domain-events.ts` (the event types), `events.ts` (the two-phase event bus: before → render → after) |
+| `src/sync/` | `diff.ts` (old/new documents → domain events, pure, unit tested), `domain-events.ts` (the event types), `events.ts` (the two-phase event bus: before → render → after), `room-session.ts` (the store's listeners for the table and the home list: normalise → diff → emit; the one impure file here) |
 | `src/fx/` | `layer.ts` (`#fx`, `fly`, `floatText`, `pulse`, the overrides `FX`), and the effects subscribed to events: `blackjack.ts`, `holdem.ts`, `room.ts` |
 | `src/audio/` | `synth.ts` (`SND`: AudioContext, synthesized effects, settings), `ambience.ts` (casino background), `narration.ts` (dealer's voice and its triggers), `control.ts` (`ambiSync`, first-touch unlock) |
-| `src/ui/` | The screens as Preact components (R-005 phase 5): `app.tsx` (`App`, `createUi`: mounts `#app`, `#sheet`, `#toast`), `session.ts` (what screens read), `screens/` (home, room shell, update screen), `sheets/` (one per sheet, each a pure component plus a selector), `tables/` (`ChipStack`, `DealerFigure`, `ClosedSign`; `blackjack/`: table, seats and circles, geometry, selectors; `holdem/`: table, player rows, selectors), `docks/` (dock parts, one dock per game), `host/` (the dealer controls per game), `components/` (avatar, header, final card, rank…), `labels.ts` (shared Hebrew words), `to-html.tsx` (`toHtml`: components as HTML for the ceremony's card); plus `fmt`, `stackHTML`, `chipStyle` shared with the effects |
+| `src/ui/` | The screens as Preact components (R-005 phase 5): `app.tsx` (`App`, `createUi`: mounts `#app`, `#sheet`, `#toast`), `session.ts` (what screens read), `screens/` (home, room shell, update screen), `sheets/` (one per sheet, each a pure component plus a selector), `tables/` (`ChipStack`, `DealerFigure`, `ClosedSign`; `blackjack/`: table, seats and circles, geometry, selectors; `holdem/`: table, player rows, selectors), `docks/` (dock parts, one dock per game), `host/` (the dealer controls per game), `components/` (avatar, header, final card, rank…), `labels.ts` (shared Hebrew words), `ceremony.tsx` (the ceremony's picture in `#fin`), `rotate.tsx` (the turn-the-phone prompt in `#rot`), `scale.ts` (the table's `--u`), `photo.ts` (shrinking a photo for the avatar); plus `fmt`, `stackHTML`, `chipStyle` shared with the effects |
 | `src/games/registry.ts` | One `GameMode` per game (Strategy): names, form fields and wording that differ between Hold'em and Blackjack, and `views` (the game's table, dock and dealer controls as components) |
 | `src/styles/*.css` | The styles, split at their old section comments, imported in order by `main.ts` |
 | `src/sw-template.js` | Service worker: network-first for the app's own files, cache as offline fallback. `dist/sw.js` is generated from it |
@@ -43,7 +43,8 @@ table) runs the round. Hebrew, right-to-left, phone first.
 | `firestore.rules` | Security rules. Only `rooms/{CODE}` and `rooms/{CODE}/players/{pid}` are reachable. Changing them means the owner pastes them in the Firebase console, so avoid it |
 | `netlify.toml` | Build command, publish folder `dist`, Node version, cache headers |
 | `sounds/CREDITS.md` | The source and licence of every sound in `public/sounds/` (kept outside `public/` so it isn't published) |
-| `tests/` | Browser tests with Playwright, run against the build (see `docs/TESTING.md`); `tests/baseline/` holds the reference screenshots |
+| `tests/` | Browser tests with Playwright, run against the build (see `docs/TESTING.md`); `tests/baseline/` holds the reference screenshots; `visual-against.js` compares with an earlier version rendered on the same machine (CI) |
+| `.github/workflows/ci.yml` | CI on every push and pull request: lint, types, unit tests with coverage, the build, every browser test, the pixel comparison |
 | `docs/ARCHITECTURE.md` | How the app is organised, the stored data model, flows, effects, sound |
 | `docs/TESTING.md` | How to test, including two phones syncing |
 | `lessons-learned.md` | Bugs and mistakes worth not repeating |
@@ -59,22 +60,24 @@ table) runs the round. Hebrew, right-to-left, phone first.
    unit test for a document from before the field (example: `hands[i].chips` is dropped there when it doesn't
    add up, so readers fall back to the amount). Normalise on read only; writes stay patches. Document new
    fields in `docs/ARCHITECTURE.md`.
-2. **Start-up order.** No module does work when it is imported. `main.ts` creates everything, wires the event
-   subscribers, and only then calls `app.start()`, which connects and renders the first screen. Keep it that way: a
+2. **Start-up order.** No module does work when it is imported: a module exports functions and types, and a
+   `create…()` builds its part without rendering, listening or touching the store. `main.ts` (the composition root)
+   creates the infrastructure and the app (`createApp()` in `src/app/app.ts`), wires the event subscribers, and only
+   then calls `app.start()`, which starts the listeners, connects and renders the first screen. Keep it that way: a
    render (or a snapshot) that can happen before everything is created brings back "Cannot access X before
    initialization", which left the app stuck on the home screen three times when the script rendered while it was
    still loading. Callbacks into the app (`render`, `myId`, `inTable`) may only run from a touch, a timer or an event.
-3. **Rendering draws `#app` and `#sheet` from the state with Preact**, which patches the page: an element that is
-   still wanted stays (with its focus, scroll and running animations). Never keep state in the DOM; the state is `S`,
-   and a component gets what it shows through props (only screens and selectors read the session). `render()` is
-   synchronous (measure `FX.rects` → Preact → `after` effects); never draw anything an effect measures from a
-   `useEffect`. Key repeated rows and seats by pid, so an element stays with its player. Outside `#app`, made by the
-   app itself: the file inputs (the photo picker must survive anything), `#fx` (flying chips, positioned on the page),
-   `#fin` (the ceremony, a timeline of timers over everything) and `#rot` (the rotate prompt, a dialog over the
-   room). Something a string view recomputed on every render to survive being rebuilt now runs on: take a phase once
-   (the dealer's blink, `useState`), never per render, or it jumps. Where the old HTML had one run of text, build one
-   string (`{'a ' + b}`, not `a {b}`): Chrome kerns across text nodes differently, and the pixel comparison sees it.
-   `toHtml` (the ceremony's card) must never run inside a render.
+3. **Rendering draws the screens from the state with Preact**, which patches the page: an element that is still
+   wanted stays (with its focus, caret, scroll and running animations; nothing saves and restores them). Never keep
+   state in the DOM; the state is `S` (`src/app/state.ts`), changed only by the actions and the room session, and a
+   component gets what it shows through props (only screens and selectors read the session; `src/ui/` never imports
+   `src/app/`). `render()` (`src/app/render.ts`) is synchronous (measure `FX.rects` → Preact on `#app`, `#rot`,
+   `#sheet` → `after` effects); never draw anything an effect measures from a `useEffect`. Key repeated rows and seats
+   by pid, so an element stays with its player. Outside the screens: the file inputs (in `index.html`: the photo picker
+   must survive anything), `#fx` (flying chips, positioned on the page) and `#fin` (the ceremony: a timeline of timers
+   that renders its own component there, never inside `render()`). Take a phase once (the dealer's blink, `useState`),
+   never per render, or a running animation jumps. Where the old HTML had one run of text, build one string
+   (`{'a ' + b}`, not `a {b}`): Chrome kerns across text nodes differently, and the pixel comparison sees it.
 4. **Animations come from document changes, as events.** Every player write sets `lastAction` and `ts`; each
    snapshot is diffed (`src/sync/diff.ts`) into domain events, and subscribers in `src/fx/` (animations) and
    `src/audio/narration.ts` play them: `before(event)` (set the override `FX.ov`, read old positions) → render →
@@ -91,17 +94,25 @@ table) runs the round. Hebrew, right-to-left, phone first.
    Measure before shipping (`node tests/audio.js`): background about −38 dBFS average, narration about
    −20 dBFS, both under the chip sounds.
 7. **Hebrew copy**: short, plain, gender-neutral where it matters (`את/ה`, `ניצח/ה`).
-8. **Test before pushing**: `npm run lint`, `npm run typecheck`, `npm test` (unit tests; `npm run coverage` after a rule or data-layer change), `node tests/two-phones.test.js`, `node tests/race.test.js`, `node tests/holdem.test.js` (any Hold'em change), `node tests/guard.test.js` (anything about room fields or opening a table), `node tests/upgrade.test.js` (anything about start-up, the service worker, `config.js` or the build), `node tests/behaviour.test.js` (anything on screen: what a render must keep), `node tests/screenshots.js`, and look at the
-   screenshots. The browser tests build the app first (`SKIP_BUILD=1` reuses `dist/`). `screenshots.js` also compares
-   72 screens (`tests/visual.js`: every sheet, both tables in their states, home, the update and closed screens) with `tests/baseline/` pixel by pixel; take a new baseline (`--update`) only for an intended visual
-   change, after looking at the new images. A single-device test can't catch sync bugs; use the two-phone harness
-   for anything that other players see.
+8. **Test before pushing**: `npm run lint`, `npm run typecheck`, `npm test` (unit tests; `npm run coverage` after a
+   rule or data-layer change), `node tests/two-phones.test.js`, `node tests/race.test.js`, `node tests/holdem.test.js`
+   (any Hold'em change), `node tests/guard.test.js` (anything about room fields or opening a table),
+   `node tests/upgrade.test.js` (anything about start-up, the service worker, `config.js` or the build),
+   `node tests/behaviour.test.js` (anything on screen: what a render must keep), `node tests/screenshots.js`, and look
+   at the screenshots. The browser tests build the app first (`SKIP_BUILD=1` reuses `dist/`). `screenshots.js` also
+   compares 73 screens (`tests/visual.js`: every sheet, both tables in their states, home, the update and closed
+   screens, the ceremony, the turn-the-phone prompt) with `tests/baseline/` pixel by pixel; take a new baseline
+   (`--update`) only for an intended visual change, after looking at the new images. A single-device test can't catch
+   sync bugs; use the two-phone harness for anything that other players see. CI (`.github/workflows/ci.yml`) runs all
+   of it on every push; its pixel comparison is against the earlier version rendered on the runner
+   (`tests/visual-against.js`), because fonts differ between machines.
 9. Keep `CHANGELOG.md`, `docs/ARCHITECTURE.md` and `lessons-learned.md` up to date in the same change.
 10. **Game rules are pure, in `src/domain/`.** No DOM, Firebase, timers, clock (`Date.now`: pass `now` in), randomness,
     `S`, or imports from outside `src/domain/` (ESLint and `tsconfig.domain.json` enforce it). A rule returns the fields
     to write or a refusal code; the caller writes (dealer stack changes as `inc(n)`) and shows the text. Every rule
-    change gets a unit test; keep side pots and payouts at full branch coverage. The document diff (`src/sync/`) is
-    pure the same way (ESLint), importing only the domain, so every phone gets the same events from the same documents.
+    change gets a unit test; keep side pots and payouts at full branch coverage. The document diff (`src/sync/`, except
+    `room-session.ts`, the store's listeners) is pure the same way (ESLint), importing only the domain, so every phone
+    gets the same events from the same documents.
 11. **Plan in `ROADMAP.md` first.** Every update or fix gets an entry with a full plan before code is
     written; keep its status and steps current while building, and move it to Done when it reaches `main`.
 
@@ -119,9 +130,9 @@ table) runs the round. Hebrew, right-to-left, phone first.
 ## Running locally
 
 ```
-npm install
-npm run dev                        # Vite dev server; open the address it prints
+npm install && npm run dev         # Vite dev server; open the address it prints
 npm run build && npm run preview   # the built site (dist/), as Netlify serves it
+npm test                           # unit tests; the browser tests are node tests/*.test.js (rule 8)
 ```
 
 Without `config.js` the app is in single-device mode: the dealer can add players and "שחק בתור"

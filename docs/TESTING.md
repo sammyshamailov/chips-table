@@ -7,9 +7,8 @@ app once (`npx vite build`; `SKIP_BUILD=1` reuses the `dist/` that is there) and
 Setup once:
 
 ```
-npm install
-npm i -g playwright
-npx playwright install chromium
+npm install                        # includes Playwright (the version CI uses)
+npx playwright install chromium    # the browser, unless one is already installed for this Playwright version
 ```
 
 Checks without a browser: `npm run lint` (ESLint, including the purity rules for `src/domain/` and `src/sync/`),
@@ -68,6 +67,16 @@ A rule change needs a unit test first; the browser tests then prove the app stil
   event text, the lock's spots in seat order, and several room events in their old order.
 - `events.test.ts`: before → render → after, event and subscription order, the value handed from `before` to `after`,
   unsubscribing (only that subscription), a subscriber added during an emit, a subscriber that throws.
+- `room-session.test.ts` (the store's listeners, on single-device mode's store with its notices flushed by hand): the
+  room and players read normalised with the sync flags, a missing table, the effects around a change (`before` sees the
+  old players, `after` the new), snapshots of a table already left ignored, listeners stopped, the home list (closed
+  and two-day-old tables left out, redrawn only on home), a listener error shown and a lost connection retried after
+  2.5 s. Coverage: all but the two defensive `catch`es around the diff.
+
+`src/app/state.test.ts`: the state at start-up from what the phone remembers (the player id made only when missing, a
+damaged or unknown avatar dropped), the player list in seat order, `me`, `isHost`, `nameOf`, the standings, the chips in
+hand, a new player's document, the paths and the event line, and the id and code alphabets. The rest of `src/app/`
+(actions, render, ceremony) acts on the page and the store and is checked by the browser tests.
 
 The effects themselves (`src/fx/`, DOM and Web Animations) are checked in the browser: the two-phone and Hold'em tests
 count the flying chips another phone shows for one bet (exactly one; two would mean a doubled subscription, none a lost
@@ -75,9 +84,9 @@ event), and the pixel comparison and screenshots wait for them to land.
 
 ## The screens
 
-The components in `src/ui/` (R-005 phase 5) are checked in the browser: the pixel comparison (zero pixels on all 72
+The components in `src/ui/` (R-005 phase 5) are checked in the browser: the pixel comparison (zero pixels on all 73
 screens, below) and every browser test click them by their `data-a` attributes; `tests/behaviour.test.js` checks what a
-render must keep now that Preact patches the page. When changing something none of the 72 screens shows, add a screen
+render must keep now that Preact patches the page. When changing something none of the 73 screens shows, add a screen
 for it to `tests/visual.js` first and take its baseline from the code *before* the change (`--update --only <name>`),
 then convert and require zero differing pixels. Their pure parts have unit tests: `src/ui/avatars.test.ts` (which stored avatars are shown, the letter and its
 colour), `src/ui/components/rank.test.ts` (shared places), `src/games/registry.test.ts`,
@@ -98,13 +107,31 @@ the minimum raise, bet, raise, all-in) and the presets; the one-tap winner) and 
 | `node tests/two-phones.test.js` | A blackjack table on **two separate phones** that sync: avatars (character and photo), one bet flying exactly once on the other phone and not at all on the bettor's (`watchFlies` in `tests/lib.js`), exact chip stacks seen by the other phone, deal, paying a blackjack mid-round, the payout not paying it twice, house balance, ending the game, the ceremony on the other phone, and a reloaded phone seeing the closed table. Prints PASS/FAIL per check and exits 1 on any failure |
 | `node tests/holdem.test.js` | Texas Hold'em on **three phones** (dealer who also plays + two players), driving the real buttons. After every step it checks, on every phone, each stack as shown on the seats, the pot (`data-k="pot"`) and the stage label, plus that stacks + pot equal the chips at the table. Hand 1: blinds, preflop call/check, flop bet/call/fold (the flop bet flies exactly once on each other phone), turn, river, award. Hand 2: the button and blinds moved; three unequal stacks all-in, main pot and side pot awarded to different players through the award sheet, the excess returned. Hand 3 and 4: a cancelled hand (and a cancel right after the blinds) returns exactly what each player put in. Hand 5: a tied showdown on an odd pot (25) split between two winners, the odd chip goes to the first winner in seat order (13 and 12), chips at the table unchanged. Page errors on any phone fail it |
 | `node tests/screenshots.js` | Seven players, a split and a double, in portrait, landscape and a small phone. Writes `tests/out/table-*.png`. **Look at them**: layout problems don't throw errors. Then runs the pixel comparison below and fails if a screen differs |
-| `node tests/visual.js` | The pixel comparison on its own: 72 screens compared with `tests/baseline/*.png` using pixelmatch. The first ten (since phase 1): home empty and with a name, the Blackjack create form, the Blackjack scenario in portrait, landscape and small portrait, a Hold'em hand in portrait and landscape, the Players and Settings sheets. Then (phase 5) every sheet and its states (avatar, settle, blackjack now, end, cancel, award, players and settings as a guest), the home list with a table and with "צריך עדכון", the update and not-found screens, the join cards, the ceremony and the final card, the cloud header, the "new version" button, the install button, a toast, the sound off; and the Blackjack table's states: chips in hand on your spot, mid-round (insurance, a surrender, a blackjack paid at once) and paid (the result badges), no bet this round, a crowded table, an empty one, the closed table; and (part C) Hold'em's: blinds posted with an avatar in a row, short of the call, under the minimum raise, a fold on the flop (portrait and landscape), three unequal stacks all-in (portrait and landscape), the showdown, the side pot left in the award sheet, everyone folded to one player, between hands, sitting out, waiting for the next hand, a small phone, an empty table. A screen that differs leaves `tests/out/visual-<name>-actual.png` and `-diff.png`. `--only a,b` (or `ONLY=a,b`) runs some screens; `--jobs n` shoots n at a time (default 4). `--update` (also on `screenshots.js`) writes a new baseline: only for an intended visual change, after looking at the new images, and commit them |
-| `node tests/behaviour.test.js` | What a render must keep now that Preact patches the page instead of replacing it: the caret and the avatar letter while you type your name, the landscape side panel (the same element, its scroll), a sheet's scroll (kept on a re-render, the top for another sheet), an amount typed in the Players sheet staying with its player, a closed sheet hidden and empty, the toast showing and hiding; at the Blackjack table, the table and the dealer kept across renders, each seat staying with its player when someone sits down, the blink's phase unchanged, chips from the tray landing on your spot one by one and the bet moving them onto it (the last three fail on the string views, which replaced everything); at the Hold'em table, the table, the dealer and the dock's main button kept across renders (the button's label following the chips in hand), each row staying with its player when someone sits down, the blink's phase unchanged (all four fail on the string views) |
+| `node tests/visual.js` | The pixel comparison on its own: 73 screens compared with `tests/baseline/*.png` using pixelmatch. The first ten (since phase 1): home empty and with a name, the Blackjack create form, the Blackjack scenario in portrait, landscape and small portrait, a Hold'em hand in portrait and landscape, the Players and Settings sheets. Then (phase 5) every sheet and its states (avatar, settle, blackjack now, end, cancel, award, players and settings as a guest), the home list with a table and with "צריך עדכון", the update and not-found screens, the join cards, the ceremony and the final card, the cloud header, the "new version" button, the install button, a toast, the sound off; and the Blackjack table's states: chips in hand on your spot, mid-round (insurance, a surrender, a blackjack paid at once) and paid (the result badges), no bet this round, a crowded table, an empty one, the closed table; and (part C) Hold'em's: blinds posted with an avatar in a row, short of the call, under the minimum raise, a fold on the flop (portrait and landscape), three unequal stacks all-in (portrait and landscape), the showdown, the side pot left in the award sheet, everyone folded to one player, between hands, sitting out, waiting for the next hand, a small phone, an empty table; and (phase 6) the turn-the-phone prompt (a touch phone held upright, `touch: true`). A screen that differs leaves `tests/out/visual-<name>-actual.png` and `-diff.png`. `--only a,b` (or `ONLY=a,b`) runs some screens; `--jobs n` shoots n at a time (default 4). `--update` (also on `screenshots.js`) writes a new baseline: only for an intended visual change, after looking at the new images, and commit them |
+| `node tests/behaviour.test.js` | What a render must keep now that Preact patches the page instead of replacing it: the caret and the avatar letter while you type your name, the landscape side panel (the same element, its scroll), a sheet's scroll (kept on a re-render, the top for another sheet), an amount typed in the Players sheet staying with its player, the focus and the caret in a sheet's field through a render (nothing restores them since phase 6; seen failing with a blur in `render()`), a closed sheet hidden and empty, the toast showing and hiding; at the Blackjack table, the table and the dealer kept across renders, each seat staying with its player when someone sits down, the blink's phase unchanged, chips from the tray landing on your spot one by one and the bet moving them onto it (the last three fail on the string views, which replaced everything); at the Hold'em table, the table, the dealer and the dock's main button kept across renders (the button's label following the chips in hand), each row staying with its player when someone sits down, the blink's phase unchanged (all four fail on the string views) |
+| `node tests/visual-against.js <ref>` | The pixel comparison against an earlier version rendered on the same machine, for CI (see below): the version at `<ref>` (a commit, `origin/main`, `HEAD~1`; by default the merge base with `origin/main`) is extracted into `tests/out/base-*`, built (`npm ci` unless its lockfile is the same, `vite build`; a version from before the Vite build is served as it is), photographed with this `tests/visual.js`, then this build is compared with those pictures. Screens whose `tests/baseline/` image was changed in between are skipped as intended changes. Useful locally too: `node tests/visual-against.js origin/main` compares with what players have |
 | `node tests/upgrade.test.js` | A phone on the old single-file version (commit `568fddc`, extracted into `tests/out/old-app/`) with its service worker installed and a table open; the same origin then serves `dist/` with a new `APP_BUILD`. Checks that the old app's update check reloads it into the new build, the table is still there, a new table can be created, the new service worker replaced `chips-v6` with its own cache of the hashed files, and the app opens offline |
 | `node tests/guard.test.js` | The R-009 guard: a room with `appMin: 99` or an unknown `mode` shows the update screen (no controls, nothing but home/update acts), the phone makes **zero writes** to it (`hub.writes` in `tests/lib.js` logs every write the server received), it appears in the home list as "צריך עדכון" and renders normally once supported. `mode: 'chips'` plays as usual. Legacy proof: on a Blackjack room with `phase: 'cards'` and a Hold'em room with `stage: 'cards'` a player's taps cause no writes (the same taps on normal tables do write, as controls) |
 | `node tests/audio.js` | Renders 60 s of the random casino one-shots offline through the app's master chain and prints the average level, the loudest 50 ms and the number of events (`tests/out/ambience.wav`), plus 10 s of three narration lines over the background (`tests/out/narration.wav`). Files that don't exist yet print `missing: …`. `AUDIO_PLACEHOLDERS=1` serves generated tones instead of the real files. The background's numbers vary by a few dB from run to run (which machine plays, when, panned where); `AUDIO_SEED=<n>` makes them repeatable, so two builds can be compared number for number |
 
 `tests/out/` is git-ignored.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push and pull request (Ubuntu, Node 22): `npm ci`, lint, typecheck, the unit
+tests with coverage, the build, the site as Netlify publishes it (the build plus `config.js` from placeholder settings,
+on a copy), then Playwright's Chromium (`npx playwright install --with-deps chromium`, the version `package.json` pins)
+and the browser tests on the build: `two-phones`, `race`, `holdem`, `guard`, `upgrade`, `behaviour`, `screenshots.js
+--no-compare`, and the pixel comparison. On a failure `tests/out/` (pictures, diffs) is kept as the `tests-out` artifact.
+
+**Why CI doesn't compare with `tests/baseline/`.** The pictures are taken with web fonts blocked, so the text is drawn in
+whatever fallback fonts the machine has (here a Hebrew fallback chosen by fontconfig from the installed fonts); a
+GitHub runner has other fonts, and every screen with text would differ by thousands of pixels although nothing
+changed. Serving the real fonts from the repository would still leave font rasterisation to each machine. So CI
+renders the earlier version (the base of a pull request, the previous head of a push, the merge base with `main` for a
+new branch) on the same runner and requires zero differing pixels against it (`tests/visual-against.js`), skipping the
+screens whose baseline the change updated on purpose. `tests/baseline/` stays the reference on the development
+machine (`tests/visual.js`, `tests/screenshots.js`).
 
 **How the pixel comparison stays deterministic.** Each screen gets a fresh browser context at device scale 1 with
 service workers blocked, web fonts blocked (the fallback fonts are used, the same every run), and an init script
@@ -154,4 +181,8 @@ real phones against the real project.
 - Navigating from `index.html` to `index.html#CODE` only changes the hash; the app doesn't reload. Open
   the invite link directly.
 - After a re-render, element handles go stale. Use locators or selectors, not saved handles.
+- The pixel comparison's colour threshold (`THRESHOLD` 0.1 in `tests/visual.js`) lets some colour changes of similar
+  brightness through: when the ceremony's winner circles got their own colours, two of four circles changed from green
+  to blue and yellow and were counted, two changed to a yellower green and to cyan and were not. A change of colour needs a
+  check of its own (`tests/behaviour.test.js` compares the circles' styles), not only the picture.
 - Pages need a moment after each tap for the snapshot round trip (`waitForTimeout(300–800)`).

@@ -9,8 +9,9 @@ bottom of each section. Add to it whenever something breaks in a way that could 
 before its first `render()`, so it renders synchronously while the script is still being read. A
 `const`/`let` declared further down is still in its temporal dead zone: "Cannot access 'X' before
 initialization", and the app is stuck on the home screen. Hit three times (`rotEl`, `newBuild`, the
-avatar helpers). *Rule:* anything a render can reach goes above the `connect` section (until R-005 phase 3,
-the `local single-device store` section) or is a `function` declaration. Every test script reports page errors, so this shows up at once.
+avatar helpers). *Rule (since R-005 phase 6, when the script became modules):* no module does work when it is
+imported; `create…()` builds its part without rendering or listening, and `start()` (called last by `main.ts`) begins.
+Every test script reports page errors, so a break shows up at once.
 
 **A full re-render resets the DOM.** `#app` is rebuilt with `innerHTML` on every update. Consequences
 we hit:
@@ -71,14 +72,22 @@ component (R-005 phase 5, part C), it turned out the ceremony passes the stored 
 colour behind the letter is worked out from the pid, so every winner without a picture has been shown on the colour of
 the text "undefined" instead of their own. Nothing errors and it looks fine. It was kept as it is in the refactor (no
 visible change allowed) and noted for a fix. *Rule:* when a helper takes an "owner" object, check every caller passes
-the fields it reads, not just an object that type-checks loosely; `// @ts-nocheck` code hides exactly this.
+the fields it reads, not just an object that type-checks loosely; `// @ts-nocheck` code hides exactly this. (Fixed in
+R-005 phase 6: the ceremony passes each winner's document with its pid. With the app typed, `AvatarOwner` requires the
+pid, so the old call no longer compiles.)
 
 **Wire everything, then start.** Moving the effects into event subscribers meant they had to exist before the first
 snapshot, and the sound engine and the effects layer need the app (`render`, `myId`, "inside a table") while the app
 needs them. Rendering while the script was still loading would have made that a new start-up trap. Instead the app is
-created first and started last (`createLegacyApp()`, the subscribers, then `app.start()` in `main.ts`), and the engine
+created first and started last (`createApp()`, the subscribers, then `app.start()` in `main.ts`), and the engine
 and the layer call back into the app only from a touch, a timer or an event. *Rule:* creating a module never renders,
 listens to the store or plays anything; `main.ts` decides when.
+
+**Preact owns the children of what it renders into.** The ceremony rains chips by adding elements to `#fin`, which
+Preact now renders the card into. Preact keeps a container's children in step with its own tree: a first render
+there can remove children it didn't make, and a later one can insert its own between them. The rain goes into its own empty element (`display: contents`, so the chips are
+still positioned against `#fin`), whose children Preact never looks at. *Rule:* anything added to the page by hand
+goes into an element Preact renders empty, never next to Preact's own children.
 
 ## Stored data and sync
 
@@ -223,6 +232,13 @@ earlier, blocked commit would have written; it matched nothing, and the changelo
 `.css` as `application/octet-stream`; every screen rendered unstyled, with no page error. The other tests check the DOM,
 not the styles; the pixel comparison failed on all ten screens at once. *Rule:* compare pixels, not just "no page errors", after any change to how files are
 built or served.
+
+**A pixel baseline belongs to the machine that took it.** The pixel tests block web fonts so the text is drawn in the
+fallback fonts, the same on every run; but "the same" holds only on one machine: fontconfig picks the fallback from
+the fonts installed (here a Hebrew fallback the runner doesn't have), so a CI runner would differ on every screen with
+text. CI photographs the earlier version on the runner and compares with that instead (`tests/visual-against.js`).
+*Rule:* compare pictures taken on the same machine; check a new test machine by comparing the old version with
+itself first.
 
 **Background processes don't survive between commands in some environments.** The local test server kept
 disappearing between tool calls. The test scripts now start their own server in-process.

@@ -2,78 +2,101 @@
 
 ## Where things are
 
-R-005 is moving the app from one hand-written `index.html` to modules built by Vite, in phases (see `ROADMAP.md`).
-After phase 4 the game rules are in `src/domain/`, storage in `src/data/`, the document diff and its events in
-`src/sync/`, the effects in `src/fx/` and the sound in `src/audio/`. Phase 5 part A made home, the room's shell and
-every sheet Preact components in `src/ui/` (see "Screens" below), part B the Blackjack table, dock and dealer controls,
-part C Hold'em's; every view is now a component. The state, the room session, the actions and the end-of-game ceremony
-are still in `src/legacy.ts`:
+The app is built by Vite from `src/` (TypeScript, strict; Preact for the screens). `index.html` is only the shell. Each
+folder has one job, and the arrows between them only point one way: the rules (`domain/`) know nothing else; storage
+(`data/`) and the document diff (`sync/`) know the rules; the screens (`ui/`) draw what they are given; the app
+(`app/`) holds the state and the actions and ties it together; `main.ts` creates everything.
 
 | Path | What |
 |---|---|
-| `index.html` | The shell: the same `<head>` (manifest, icons, metas, fonts), the elements the script expects (`#app`, `#sheet`, `#toast`, `#fx`, `#rot`, `#fin`, the two file inputs), `config.js` and the two Firebase compat scripts as classic scripts, then `<script type="module" src="/src/main.ts">` |
-| `src/main.ts` | The composition root (see Start-up): imports the styles, creates the storage, the event bus, the sound engine and the effects layer, creates the app, wires the subscribers, calls `app.start()`, and registers `sw.js` on `load` (in a build only: the dev server has no `sw.js`) |
-| `src/legacy.ts` | The app script as it was in `index.html`, with `// @ts-nocheck` on top, now `createLegacyApp(deps)`: it imports the game rules from `src/domain/`, stores through `src/data/`, diffs snapshots with `src/sync/diff.ts` and uses the sound engine and the effects layer it is given. Sections below |
+| `index.html` | The shell: the `<head>` (manifest, icons, metas, fonts), the elements the app draws into (`#app`, `#sheet`, `#toast`, `#fx`, `#rot`, `#fin`, the two photo inputs), `config.js` and the two Firebase compat scripts as classic scripts, then `<script type="module" src="/src/main.ts">` |
+| `src/main.ts` | The composition root (see Start-up): imports the styles, creates the storage, the event bus, the sound engine, the effects layer and the screens, creates the app, wires the event subscribers, calls `app.start()`, and registers `sw.js` on `load` (in a build only: the dev server has no `sw.js`) |
+| `src/app/` | The app: the state `S`, the actions, the render, the ceremony. See "The app" below |
 | `src/domain/` | The game rules as pure, typed functions with unit tests next to them. See "The domain" below |
 | `src/data/` | Storage: the `Store` port and its adapters, the write queue, and `normalize*()`; `browser-storage.ts` (localStorage with errors swallowed). See "The data layer" below |
-| `src/sync/` | `events.ts` (the two-phase event bus), `domain-events.ts` (the event types), `diff.ts` (old/new documents → events, pure). See "Effects" below |
+| `src/sync/` | `diff.ts` (old/new documents → events, pure), `domain-events.ts` (the event types), `events.ts` (the two-phase event bus), and `room-session.ts` (the store's listeners that feed them). See "Reading a table" and "Effects" below |
 | `src/fx/` | `layer.ts` (`#fx`, `fly`, `floatText`, `pulse`, `measure`, `rectOf`, the overrides `FX`), and the subscribers `blackjack.ts`, `holdem.ts`, `room.ts` (lock, new hand, `dealerNod`) |
 | `src/audio/` | `synth.ts` (the engine `SND`: AudioContext, synthesized effects, settings), `ambience.ts` (the casino background), `narration.ts` (the dealer's voice and its triggers), `control.ts` (`ambiSync`, the first-touch unlock, the ambient chips). See "Sound" below |
-| `src/ui/` | The screens as Preact components (see "Screens"), plus `format.ts` (`fmt`) and `chips-html.ts` (`chipStyle`, `stackHTML`, `stackColumns`), HTML helpers shared by the effects (the chips in the air) and the ceremony (chip rain) |
-| `src/games/registry.ts` | `GAMES` / `gameMode(game)`: one `GameMode` per game (Strategy), what differs between Hold'em and Blackjack on the screens |
-| `src/styles/*.css` | The old `<style>`, split at its section comments: `base`, `brand` (also cards, fields, buttons), `room` (header, table, seats, host panel, dock), `sheet` (also the toast), `blackjack`, `layout` (portrait/landscape), `rotate`, `end` |
+| `src/ui/` | The screens as Preact components (see "Screens"), the ceremony's picture (`ceremony.tsx`), the turn-the-phone prompt (`rotate.tsx`), the table's scale (`scale.ts`), photo shrinking (`photo.ts`), plus `format.ts` (`fmt`) and `chips-html.ts` (`chipStyle`, `stackHTML`, `stackColumns`), shared with the effects (the chips in the air) and the ceremony (chip rain) |
+| `src/games/registry.ts` | `GAMES` / `gameMode(game)`: one `GameMode` per game (Strategy), what differs between Hold'em and Blackjack on the screens, and each game's table, dock and dealer controls |
+| `src/update.ts` | Staying up to date: compares `APP_BUILD` with the live `config.js` and reloads when idle (see Updates) |
+| `src/globals.d.ts` | What the classic scripts put on `window`: `APP_BUILD`, `FIREBASE_CONFIG`, `firebase` |
+| `src/styles/*.css` | The styles, split at their old section comments: `base`, `brand` (also cards, fields, buttons), `room` (header, table, seats, host panel, dock), `sheet` (also the toast), `blackjack`, `layout` (portrait/landscape), `rotate`, `end` |
 | `public/` | Copied to the site root as is, so the URLs didn't change: `icons/`, `manifest.webmanifest`, `sounds/amb/`, `sounds/voice/` |
 | `src/sw-template.js`, `scripts/sw-plugin.mts` | The service worker and the build step that writes `dist/sw.js` from it (see Updates) |
 
-**Start-up.** `config.js` and the Firebase scripts are classic scripts in `<head>`, so they have run before the module
-starts. The module is deferred: it runs once the body is parsed, before `DOMContentLoaded`, which is where the old inline
-script at the end of `<body>` ran. Module code is strict mode; the script was checked for anything strict mode treats
-differently (undeclared variables, function declarations inside blocks) and has none.
+**Which folder may use which.** Enforced where it matters most: `src/domain/` imports nothing outside itself and uses
+no DOM, timers, clock or randomness (ESLint and `tsconfig.domain.json`); `src/sync/` (except `room-session.ts`)
+imports only the domain and is pure the same way (ESLint), so every phone turns the same documents into the same
+events. By convention: `data/` imports only the domain; `ui/` components get what they show through props (only the
+screens and the selectors read the session) and never import `app/`; `app/` may use everything below it.
 
-No module does work when it is imported. `main.ts`, in order: `browserStorage()`, `createEventBus()`, `createSound()`
-and `createAmbiSync()`, `startAudioControl()` (first-touch unlock, screen on/off, the ambient chips loop),
-`createFxLayer()`, `createUi({ app, sheet, toast })` (mounts nothing yet: the screens' renderer on those elements),
-`createLegacyApp({ bus, snd, layer, storage, ambiSync, ui })` (builds the app's state, listeners and views; renders
-nothing), the subscribers (`GameEnded` → `app.ceremony()`, then `subscribeBlackjackFx`,
-`subscribeHoldemFx`, `subscribeRoomFx`, then `subscribeNarration`), the `window.ChipsAmbience`/`ChipsLine`/`CHIPS_BG`
-hooks for `tests/audio.js`, and finally `app.start()`: connect (`connect()`), list the open tables, enter the last table
-or render home, synchronously, as `dbReady` always did. Because `start()` runs after `createLegacyApp()` has returned,
-every `const` in `legacy.ts` is initialised before the first render (rule 2), and the subscribers exist before the first
-snapshot. The sound engine and the layer call back into the app (`render`, `myId`, `inTable`) only from a touch, a timer
-or an event, never while they are being created.
+## How it fits together
+
+**Start-up.** `config.js` and the Firebase scripts are classic scripts in `<head>`, so they have run before the module
+starts. The module is deferred: it runs once the body is parsed, before `DOMContentLoaded`.
+
+No module does work when it is imported (CLAUDE.md rule 2). `main.ts`, in order: `browserStorage()`, `createEventBus()`,
+`createSound()` and `createAmbiSync()`, `startAudioControl()` (first-touch unlock, screen on/off, the ambient chips
+loop), `createFxLayer()`, `createUi({ app, sheet, toast })` (the screens' renderer on those elements; mounts nothing
+yet), `createApp({ bus, snd, layer, storage, ambiSync, ui })` (builds the state, the write queue, the room session, the
+actions and the renderer; renders nothing, listens to nothing), the subscribers (`GameEnded` → `app.ceremony()`, then
+`subscribeBlackjackFx`, `subscribeHoldemFx`, `subscribeRoomFx`, then `subscribeNarration`), the
+`window.ChipsAmbience`/`ChipsLine`/`CHIPS_BG` hooks for `tests/audio.js`, and finally `app.start()`: it starts the
+listeners (resize and turning, the update check, the photo inputs, the screen wake lock, the install prompt, the page's
+click/input/keydown), connects (`connect()`), lists the open tables, enters the last table or renders home,
+synchronously. Because everything is created before `start()`, a render can reach only what exists, and the
+subscribers exist before the first snapshot. The sound engine and the layer call back into the app (`render`, `myId`,
+`inTable`) only from a touch, a timer or an event.
+
+**Reading a table** (store → session → normalise → state → diff → events → effects, render → Preact):
+
+1. The store (`src/data/`: Firestore, or this phone only) calls the room session's listeners
+   (`src/sync/room-session.ts`) with a snapshot of the room or of its players.
+2. The session normalises it (`normalizeRoom` / `normalizePlayer`, `src/data/schema.ts`: every missing field filled in)
+   and diffs it against what the phone had (`diffRoom` / `diffPlayers`, `src/sync/diff.ts`) into domain events.
+3. `bus.emit(events, commit)` (`src/sync/events.ts`): every subscriber's `before` (an effect keeps the old picture in
+   `FX.ov`), then `commit` stores the documents in the state (`S.room`, `S.players`) and calls `render()`, then every
+   `after` (the effects in `src/fx/` animate, `src/audio/` plays and narrates).
+4. `render()` (`src/app/render.ts`) measures the positions the effects need (`FX.rects`), then Preact patches `#app`
+   and `#sheet` from the state through the session (`src/ui/`). See "Screens" and "Effects".
+
+**Acting** (tap → action → domain → patch → write):
+
+1. A tap on any `[data-a]` element reaches the one click listener (`src/app/dom-events.ts`), which runs the action of
+   that name with the element's `data-v`. Typing in a `[data-bind]` field writes the state directly.
+2. The action (`src/app/actions/`) reads the state and asks the rules (`src/domain/`), which return the fields to write
+   or a refusal code.
+3. The action writes the patch through the write queue (`src/data/writes.ts`: one write at a time per document),
+   adding `ts`, and the dealer's stack changes as increments (`inc(n)`); a refusal becomes a Hebrew toast.
+4. The store sends the new document back to every phone, the acting one included, and "Reading a table" takes over:
+   the effects come from the change itself, so every phone plays them.
 
 **Build.** `npm run build` (`vite build`) writes `dist/`: `index.html` with the hashed `assets/index-*.js` and
 `assets/index-*.css` (relative URLs, `base: './'`), the `public/` files and the generated `sw.js`. `config.js` is not
 part of the bundle: Netlify writes it afterwards with `node scripts/build-config.js dist`, because the self-update
 fetches it by name and it must stay un-hashed.
 
-## `src/legacy.ts`, top to bottom
+## The app (`src/app/`)
 
-The script is one function, `createLegacyApp(deps)` (it was an IIFE until phase 4). Sections are marked with `/* ---------- name ---------- */` comments, in this order:
-
-| Section | What it does |
+| File | What |
 |---|---|
-| state (`S`) | Everything the UI needs: identity (`myId`, `name`, `avatar`), current table (`code`, `room`, `players`), chips in hand (`pending`, `pendChips`), open sheet |
-| sound | A pointer: the engine `SND` and `ambiSync` are handed in (`src/audio/`) |
-| effects | `FX`, `fly`, `pulse`, `rectOf`, `ov`, `shownStack`… taken from the layer it is given (`src/fx/layer.ts`); the chips in hand (`ghostChips`; `paintGhost` redraws the components when one lands) and the table scale (`setU`) stay here |
-| staying up to date | Compares `APP_BUILD` with the live `config.js` and reloads when idle |
-| avatars | Your avatar (`setAvatar`, saved on the phone and on your player document) and photo processing; the characters and the circle are `src/ui/avatars.ts` and `components/avatar.tsx` |
-| connect | Creates the write queue (`writer`) and `connectStore()`, which `start()` (at the end) runs as `dbReady`: `connect()` picks Firestore or single-device mode, `subRooms()` lists the open tables (normalised), and the last table is entered or the home screen rendered, synchronously |
-| writes | `w(path, op, data)` (hoisted) hands the write to `writer` (`src/data/writes.ts`); `handleErr` turns a failure into a toast. `inc(n)` (hoisted) is the store's increment for the dealer's stack changes: `FieldValue.increment(n)` on Firestore, `{__inc: n}` in single-device mode |
-| room session | Snapshot listeners for the room and its players. Each snapshot is normalised (`normalizeRoom`, `normalizePlayer`), diffed against what the phone had (`diffRoom`, `diffPlayers`) and handed to `bus.emit(events, () => { store it in S; render(); })` (see Effects) |
-| chips | `denoms()` (the room's chip set, from `domain/chips.ts`), `pendChips()`. The chip rules are in `src/domain/chips.ts`, `chipStyle`/`stackHTML` in `src/ui/chips-html.ts` |
-| Hold'em model / Blackjack model | Each action: read `S`, call the domain command, write the patch it returns (adding `ts`, wrapping dealer stack amounts in `inc()`), map a refusal to its toast, write the Hebrew event line. `H()`, `cur`, `bjEligible`, `computeAward` are thin wrappers over the domain |
-| create / join | New table, join, claim a seat |
-| turn-the-phone prompt | Shown inside a table on a phone held upright |
-| end of the game | Standings, `endGame`, `ceremony` (its card is HTML in `#fin`, built from components with `toHtml`: the winner's avatar, crown and standings), chip rain, `finHide` |
-| dealer figure | A pointer: the figure is `DealerFigure` (`src/ui/tables/dealer-figure.tsx`), the nod `dealerNod` (`src/fx/room.ts`) |
-| views | `session` (what the screens read), `render()` and `paint()` (see "Screens") |
-| events | `A` (all `data-a` actions), click/input handlers; then `start()` and the handle `main.ts` gets back (`start`, `render`, `ceremony`, `myId`, `inTable`) |
+| `app.ts` | `createApp(deps)`: creates the state, the write queue (with the unsupported-table refusal and the error toasts), the update check, the install prompt, the wake lock, the table scale, the ceremony, the session, the renderer, the room session, navigation and the actions; returns `start`, `render`, `ceremony`, `myId`, `inTable` for `main.ts` |
+| `state.ts` | `State` (`S`): identity (`myId`, `name`, `avatar`), the store and connection (`db`, `mode`, `readOnly`), the current table (`code`, `room`, `players`, sync flags, the listeners), chips in hand (`pending`, `pendChips`), the open sheet and its selections, the forms. `createState()` reads what the phone remembers; pure questions about it: `playerList`, `me`, `isHost`, `nameOf`, `holdem`, `roomDenoms`, `standings`, `pendChips`, `newPlayer`, the paths and `eventLine` |
+| `context.ts` | `AppContext`: what the actions work with (the state, storage, the sound engine, the effects layer, `write`, `inc`, `render`, `paint`, `toast`, `now`, `buzz`); `Action`, `Actions` |
+| `actions/` | The `data-a` actions, by concern: `lobby.ts` (new table, join, open, sit down, "play as", home, single-device mode), `table.ts` (sheets, the dealer's players list and settings, switch game, invite, end and reopen the game), `chips.ts` (chips in hand: a chip from the tray flying to your spot, presets, clear), `holdem.ts`, `blackjack.ts` (each action: read the state, call the domain command, write the patch, map a refusal to its toast, write the Hebrew event line), `avatar.ts` (your picture, the photo inputs), `app.ts` (sound switches, install, update, the ceremony's buttons, the turn-the-phone prompt) |
+| `dom-events.ts` | The page's listeners: `data-a` clicks (on the update screen only home/update/reload/sound/retry act), `data-bind` input, Enter in the code field, Escape |
+| `navigation.ts` | `connectStore()` (picks the store, lists the open tables, enters the last table or the invite's), `enter(code)`, `home()`, `useLocal()`, `ready()` (creating or joining waits for the connection) |
+| `session.ts` | `createSession()`: the `Session` the screens read (see Screens), answered from the state, the rules and the effects layer |
+| `render.ts` | `render()` and `paint()` (see Screens) |
+| `ceremony.ts` | The end-of-game timeline (spotlight and drumroll, the reveal with the card and raining chips, the standings), drawing `Ceremony` (`src/ui/ceremony.tsx`) into `#fin` with Preact at each step; `hide()` |
+| `device.ts` | `buzz()`, the screen wake lock at a table, the install prompt |
+| `ids.ts` | Random player ids and table codes |
 
 ## The domain (`src/domain/`)
 
 The game rules, with no DOM, no Firebase, no timers, no clock and no `S`: functions of the stored documents that
-return what to write. `legacy.ts` imports them (`HR`, `Pots`, `BJ`, `BJA`, `BJR`, and the chip helpers by name).
+return what to write. The actions (`src/app/actions/`) call them; the session and the screens' selectors ask them.
 
 | File | What |
 |---|---|
@@ -84,7 +107,7 @@ return what to write. `legacy.ts` imports them (`HR`, `Pots`, `BJ`, `BJA`, `BJR`
 | `blackjack/rules.ts` | `isCurrent` (the old `cur`), `stake`, `betLimitError`, `handReturn` (what each result gives back), `handRefund`, `insuranceCost`, `surrenderReturn`, `blackjackEligible`, `hasOpenBets` (paid spots are done), `alreadySettled` (`bjPaidRound`), `nextRoundId`, constants (`MAX_HANDS`, `BLACKJACK_PAYS`, `INSURANCE_RETURN`) |
 | `blackjack/actions.ts` | A player's `placeBet`, `clearBet`, `play` (double, split, insurance, surrender), and the dealer's `payBlackjackNow` |
 | `blackjack/round.ts` | The end of a round: `settleRound` (payout totals, house delta) and `cancelRound` (refunds) |
-| `guard.ts` | `FEATURE_LEVEL`, `KNOWN_MODES`, `tableUnsupported(room)`: the guard against table types this build doesn't play (R-009; moved from `legacy.ts` in phase 4 so the diff can use it) |
+| `guard.ts` | `FEATURE_LEVEL`, `KNOWN_MODES`, `tableUnsupported(room)`: the guard against table types this build doesn't play (R-009; in the domain so the diff can use it) |
 
 **Command → patch.** A command takes the documents (and what the player is holding, such as the chips in hand) and
 returns `{ ok: true, patch, … }` with the fields to write, or `{ ok: false, reason }` with a string code
@@ -92,7 +115,7 @@ returns `{ ok: true, patch, … }` with the fields to write, or `{ ok: false, re
 toast (or stays silent where it always did). Dealer changes to a player's stack come back as a plain number
 (`stackInc`, or the amounts in `pays`/`refunds`); the caller writes them as `inc(n)`. Commands that touch several
 documents return the player writes and the room write separately, and the caller keeps the order: players first, the
-room last. Hebrew text stays in `legacy.ts` until R-006.
+room last. Hebrew text stays in the actions until R-006.
 
 **Purity is enforced.** `eslint.config.mjs` refuses, in `src/domain/`, imports that leave the folder, packages (tests
 may import `vitest`), DOM and timer globals, `Date.now`, `new Date` and `Math.random`. `tsconfig.domain.json` checks the
@@ -151,9 +174,9 @@ damaged values, are in `normalizeRoom` / `normalizePlayer` (above); a new field 
 | `final {at, list:[{pid, name, stack}]}` *added* | Standings frozen when the dealer ended the game, highest first |
 
 **Guard for unknown table types.** `tableUnsupported(room)` (`src/domain/guard.ts`) is true when `appMin > FEATURE_LEVEL`
-or `mode` is present and not in `KNOWN_MODES`. For such a room `roomView` shows `updateView()` (title, an "עדכון" button
-that runs `checkUpdate` and reloads, and a way home) instead of the table; the sheet is not shown; the room and
-players listeners keep running (so the table renders once the phone is updated) but skip the effects; `w()` (the `refuse` option of the write queue) refuses
+or `mode` is present and not in `KNOWN_MODES`. For such a room the room screen shows `UpdateView` (title, an "עדכון" button
+that checks for an update and reloads, and a way home) instead of the table; the sheet is not shown; the room and
+players listeners keep running (so the table renders once the phone is updated) but skip the effects; the write queue (its `refuse` option, set in `src/app/app.ts`) refuses
 every write under `rooms/{CODE}` of that room; and the click dispatcher ignores every action except
 `home`/`upd`/`reload`/`snd`/`retry`. The home list marks such tables "צריך עדכון". `FEATURE_LEVEL` is raised only
 when a build really plays tables with that `appMin`. Card tables will also set the legacy Blackjack
@@ -205,13 +228,13 @@ A phone that loads an already-closed table shows the final card without the cere
 
 ## Screens (`src/ui/`)
 
-R-005 phase 5 moves the views to Preact components in three parts. Part A (done): the shell, home and every sheet.
-Part B (done): the Blackjack table, dock and dealer controls. Part C (done): Hold'em's, and the HTML-string views and
-`LegacyHtml` removed. Every view is a component; only the ceremony's card is still HTML (built from components).
+Every view is a Preact component (R-005 phase 5 converted them from HTML strings, phase 6 the ceremony and the
+turn-the-phone prompt). Three Preact roots: `#app` and `#sheet` (drawn by `render()`), and `#fin` (the ceremony, drawn by
+its timeline); `#rot` is drawn by `render()` too. `#toast` is the toaster's, `#fx` the effects layer's.
 
 | File | What |
 |---|---|
-| `app.tsx` | `App` (home, or the room screen when a table code is set) and `createUi(el)` → `paint(session, legacy)` (renders `App` into `#app` and sets `#app`'s class), `paintSheet(session, open)` (renders `SheetScreen` into `#sheet`, or empties it, and sets `hidden`), `toast(text)` |
+| `app.tsx` | `App` (home, or the room screen when a table code is set) and `createUi(el)` → `paint(session)` (renders `App` into `#app` and sets `#app`'s class), `paintSheet(session, open)` (renders `SheetScreen` into `#sheet`, or empties it, and sets `hidden`), `toast(text)` |
 | `session.ts` | `Session`: the state (`S`) and the questions screens ask (`me`, `players`, `isHost`, `holdem`, `award`, `bjCurrent`, `chipsOnTable`, `standings`, `looksClosed`, `newBuild`, `sound`, `denoms`…), and `fx` (`TableFx`: what the table shows while chips fly: `ov`, `shownStack`, `ghost` (your chips in hand that have landed), `signDrop`) |
 | `screens/home.tsx` | `Home`: name and avatar, join by code, `RoomsList` (marks tables the guard refuses "צריך עדכון"), `CreateCard` |
 | `screens/room.tsx` | `RoomScreen`: loading, not found, `UpdateView` (R-009), or the room: `RoomHeader`, the mode banner, the "new version" button, the event line, `JoinCard`, the dealer controls (in `.o-host`), `FinalCard`, the dock (in `.dock` › `.dock-in`, when you sit at an open table) and the table (in `.stage`): the game's `views` components. `appClass()`: `in-room`/`has-dock`, nothing, or unchanged while loading (as before) |
@@ -228,16 +251,21 @@ Part B (done): the Blackjack table, dock and dealer controls. Part C (done): Hol
 | `components/` | `avatar.tsx` (`Avatar`, `AvatarArt`: the characters as SVG, `AvatarButton`), `header.tsx` (`RoomHeader`, `ConnStatus`, the sound icon), `final-card.tsx`, `rank.tsx` (`Rank`, `places`), `crown.tsx`, `join-card.tsx`, `mode-banner.tsx`, `option.tsx`, `field.tsx` (`NumField`), `sheet-head.tsx`, `toast.tsx` (`createToaster`) |
 | `avatars.ts` | `AV_SET` (the characters), `validAv`, `hue`, `avatarBg`, `initial` |
 | `labels.ts` | `RESULT_HE` (how a Blackjack hand ended), `STAGE_HE` (the streets; also the event line), `actionText` (a player's last action) |
-| `to-html.tsx` | `toHtml(vnode)` (a component as a string) and the ceremony's pieces: `avatarHtml`, `crownHtml`, `rankHtml` |
+| `ceremony.tsx` | `Ceremony`: the dim with the spotlight, then the winner's card (crown, each winner's `Avatar` with their pid, names, the count-up, `Rank` and the buttons) and an empty `display: contents` box the timeline rains chips into (Preact never touches its children) |
+| `rotate.tsx` | `RotatePrompt` and `paintRotate(el, show)` (kept while it shows, so its animation runs on), `canLock`, `lockLandscape`, `unlockTurn` |
+| `scale.ts` | `createTableScale()`: `--u` and `--tw` from the screen (see Layout), and the media queries for turning the phone |
+| `photo.ts` | `avatarFromPhoto(file)`: a photo cropped and shrunk to a small JPEG data URL |
 
-**Render.** `render()` in `src/legacy.ts`: measure `[data-k]` into `FX.rects`; `ui.paint()`; `setU()`,
-`renderRot()`, `ambiSync()`; `ui.paintSheet()`; restore the focused input. Preact's top-level `render` is synchronous,
-so the effects' contract holds (before → render → after). `paint()` re-renders only the components: the avatar letter
-while you type your name, the home list of tables, and a chip from the tray landing on your Blackjack spot
-(`paintGhost`, which used to write the ghost stack's HTML into the element directly). `toHtml` (the ceremony) runs from
-the ceremony's timers, never inside a render.
+**Render.** `render()` (`src/app/render.ts`): measure `[data-k]` into `FX.rects`; `ui.paint()` (Preact patches
+`#app`); scale the table; show or hide the turn-the-phone prompt; `ambiSync()`; reload into a waiting update if idle;
+`ui.paintSheet()`. Preact's top-level `render` is synchronous, so the effects' contract holds (before → render →
+after). Focus and the caret are not saved and restored: Preact keeps the focused element (`tests/behaviour.test.js`
+checks it). `paint()` re-renders only the components: the avatar letter while you type your name, the home list of
+tables, and a chip from the tray landing on your Blackjack spot. The ceremony draws `#fin` from its timers, never
+inside a render.
 
-**Events.** Every control keeps its `data-a`/`data-v`; the one delegated click listener runs the `A` action map, and
+**Events.** Every control keeps its `data-a`/`data-v`; the one delegated click listener (`src/app/dom-events.ts`) runs
+the action of that name (`src/app/actions/`), and
 `data-bind` inputs write the state through the one `input`/`change` listener. Inputs are controlled (`value` from the
 state); Preact keeps the element, so focus and the caret stay while a render happens.
 
@@ -299,7 +327,7 @@ that throws is logged and skipped; the others run.
 | `BlindPosted`, `Called`, `BetMade`, `Raised`, `WentAllIn` | Hold'em `blind`, `call`, `bet`, `raise`, `allin` | Seat → pot when the stack went down (`WentAllIn` is sent even when it didn't) | `allin`, once per hand (350 ms) |
 | `Checked`, `Folded` | `check`, `fold` | Knock; fold sound | |
 | `PotWon`, `HandRefunded` | `won`, `refund` (stack went up) | Pot → seat; a win bumps the seat and plays your win sound | |
-| `GameEnded` | `closed` on with `final` | The ceremony (`ceremony()` in `legacy.ts`) | `winner` at the reveal (inside the ceremony) |
+| `GameEnded` | `closed` on with `final` | The ceremony (`src/app/ceremony.ts`) | `winner` at the reveal (inside the ceremony) |
 | `BetsLocked` | Blackjack `betting` → `playing`, same round | Bell, dealer nod, every spot in the round bumps | `locked` |
 | `RoundPaid` | `playing` → `betting`, next round, `roundEnd: 'paid'` (or the event text when an older phone paid) | | `payout`, `open` 2.5 s later |
 | `HandStarted` | Hold'em `handId` up | Bell, dealer nod | `newhand` |
@@ -307,12 +335,12 @@ that throws is logged and skipped; the others run.
 
 `data-k` keys: `seat:<pid>`, `spot:<pid>:<i>`, `ins:<pid>`, `dealer`, `pot`, `mystack`, `pend`, `ghost`.
 
-Effects that aren't document changes stay with the app: the chip flying from the tray into your hand (`A.add`), the
-ceremony's timeline, the closed sign dropping, and the `closed` line on "לשולחן".
+Effects that aren't document changes stay with the app: the chip flying from the tray into your hand (`add`,
+`src/app/actions/chips.ts`), the ceremony's timeline, the closed sign dropping, and the `closed` line on "לשולחן".
 
 ## Layout
 
-The blackjack table is a box with `aspect-ratio: 100/98`. `--u` is 1% of its width, set from JS (`setU`),
+The blackjack table is a box with `aspect-ratio: 100/98`. `--u` is 1% of its width, set from JS (`src/ui/scale.ts`, on every render and resize),
 so the whole table scales as one picture. Seats, betting circles and the printed text sit on ellipses with
 one shared centre near the dealer (`GEO` in `src/ui/tables/blackjack/geometry.ts`); seats are spaced by arc length
 (the arc measured once, `seatLayout`) so circles never overlap; split hands sit side by side, smaller (`spotsAt`). In landscape (`@media (orientation: landscape)`) the room becomes two columns: a side panel
@@ -359,7 +387,7 @@ Nothing is stored for this; it is all local.
 
 ## Updates
 
-`scripts/build-config.js` writes `window.APP_BUILD` (the commit) into `config.js`. The app fetches
+`scripts/build-config.js` writes `window.APP_BUILD` (the commit) into `config.js`. The app (`src/update.ts`) fetches
 `config.js` (no cache) when it comes back to the screen, on focus, when back online and every 3 minutes.
 On a different build it reloads as soon as the player has no chips in hand, no sheet open and isn't typing;
 otherwise it shows a "יש גרסה חדשה" button. Phones running a version from before this existed need one

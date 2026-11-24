@@ -49,6 +49,17 @@ development branch.
   (`HoldemTable`, the player rows, selectors with unit tests), `src/ui/docks/holdem.tsx`, `src/ui/host/holdem.tsx`,
   registered in `src/games/registry.ts`; the HTML-string views and `LegacyHtml` are gone from the code. The pixel
   comparison covers 72 screens.
+- **The app is now built entirely from small modules** (R-005, step 6, the last of the code foundations). For players
+  nothing changes. For us: the old app script (`src/legacy.ts`) is gone. The state, the actions (one file per concern),
+  the room session, navigation, the render, the update check and the ceremony are typed modules in `src/app/`,
+  `src/sync/room-session.ts` and `src/update.ts`; nothing is unchecked by TypeScript or ESLint any more. The ceremony and
+  the turn-the-phone prompt are Preact components too. GitHub Actions now runs every check on every push and pull
+  request (lint, types, unit tests with coverage, the build, all the browser tests, and a pixel comparison with the
+  earlier version rendered on the same machine). The pixel comparison covers 73 screens.
+
+### Fixed
+- **The winner's circle in the end-of-game ceremony has the winner's own colour.** A winner without a picture was always
+  shown on the same colour (worked out from a missing id) instead of the colour their circle has everywhere else.
 
 ## 2026-11-22 (2)
 
