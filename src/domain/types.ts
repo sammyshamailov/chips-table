@@ -47,7 +47,7 @@ export interface RoomDoc {
   hostName?: string;
   createdAt?: number;
   updatedAt?: number;
-  lastEvent?: { t: string; ts: number } | null;
+  lastEvent?: EventLineDoc | null;
   // Hold'em
   handId?: number;
   streetId?: number;
@@ -99,3 +99,15 @@ export type Seat = PlayerDoc & { pid: string };
 
 /** What a domain command returns: the writes to make, or why it refuses. */
 export type Outcome<T, R extends string> = ({ ok: true } & T) | { ok: false; reason: R };
+
+/**
+ * The line under the room's header. `t` is the text in Hebrew, which every version shows; `key` and `p` (R-006) are the
+ * catalog key and its parameters (names as typed, amounts as numbers, lists of names), from which each phone writes it
+ * in its own language. Absent when an older phone wrote the line.
+ */
+export interface EventLineDoc {
+  t: string;
+  ts: number;
+  key?: string;
+  p?: Readonly<Record<string, string | number | readonly string[]>>;
+}

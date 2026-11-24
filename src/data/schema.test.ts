@@ -22,7 +22,7 @@ const ROOM_V1 = {
   phase: 'betting',
   house: 0,
   dealerBJ: false,
-  lastEvent: { t: 'השולחן נפתח', ts: 100 },
+  lastEvent: { t: 'Table opened', ts: 100 },
   updatedAt: 100,
 };
 
@@ -135,6 +135,23 @@ describe('normalizeRoom', () => {
     ]);
     expect(r.final).toEqual({ at: 0, list: [{ pid: 'p_a', name: '', stack: 0 }] });
     expect(normalizeRoom({ lastEvent: { ts: 4 } }).lastEvent).toEqual({ t: '', ts: 4 });
+  });
+
+  it("reads the event line's key and parameters (R-006), and an older line without them", () => {
+    // From before R-006: only the text; readers show it as it is.
+    expect(normalizeRoom(ROOM_V1).lastEvent).toEqual({ t: 'Table opened', ts: 100 });
+    expect(Object.keys(normalizeRoom(ROOM_V1).lastEvent || {})).toEqual(['t', 'ts']);
+    const e = { t: 'x', ts: 5, key: 'ev.gameTie', p: { names: ['Dana', 'Yossi'], amt: 1000, hand: '3' } };
+    expect(normalizeRoom({ lastEvent: e }).lastEvent).toEqual(e);
+    // A key that isn't text is dropped (the text is shown); parameters keep only text, finite numbers and lists of names.
+    expect(normalizeRoom({ lastEvent: { t: 'x', ts: 5, key: 7, p: 'no' } }).lastEvent).toEqual({ t: 'x', ts: 5 });
+    const odd = { t: 'x', ts: 5, key: 'ev.adjust', p: { name: 'Dana', amt: NaN, o: {}, l: [1], n: null, ok: 2 } };
+    expect(normalizeRoom({ lastEvent: odd }).lastEvent).toEqual({
+      t: 'x',
+      ts: 5,
+      key: 'ev.adjust',
+      p: { name: 'Dana', ok: 2 },
+    });
   });
 
   it('keeps values and fields a newer phone may write', () => {

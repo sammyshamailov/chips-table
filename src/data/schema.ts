@@ -15,7 +15,7 @@
  * The stored fields are listed in docs/ARCHITECTURE.md, "Stored data". A new field gets its fallback here.
  */
 import { okChips } from '../domain/chips';
-import type { BjHand, Game, LastAction, PlayerDoc, RoomDoc } from '../domain/types';
+import type { BjHand, EventLineDoc, Game, LastAction, PlayerDoc, RoomDoc } from '../domain/types';
 
 export type { RoomDoc, PlayerDoc } from '../domain/types';
 
@@ -45,7 +45,11 @@ export interface Room extends RoomDoc {
   hostName: string;
   createdAt: number;
   updatedAt: number;
-  lastEvent: { t: string; ts: number } | null;
+  /**
+   * The line under the header. `t`: the text in Hebrew (all an older phone reads). `key` and `p` (R-006): the catalog
+   * key and its parameters, so each phone shows it in its own language; absent when an older phone wrote it.
+   */
+  lastEvent: EventLineDoc | null;
   handId: number;
   streetId: number;
   stage: string;
@@ -133,9 +137,24 @@ function normalizeFinal(raw: unknown): Room['final'] {
   return { ...f, at: num(f.at), list };
 }
 
+/** A stored event line: `t` and `ts` always; `key` only when it is a string, `p` only its string, number and list values. */
 function normalizeLastEvent(raw: unknown): Room['lastEvent'] {
   const e = obj(raw);
-  return e ? { ...e, t: str(e.t), ts: num(e.ts) } : null;
+  if (!e) return null;
+  const out: EventLineDoc = { ...e, t: str(e.t), ts: num(e.ts) };
+  if (typeof e.key !== 'string') delete out.key;
+  const p = obj(e.p);
+  if (!p) delete out.p;
+  else
+    out.p = Object.fromEntries(
+      Object.entries(p).filter(
+        ([, v]) =>
+          typeof v === 'string' ||
+          (typeof v === 'number' && Number.isFinite(v)) ||
+          (Array.isArray(v) && v.every(x => typeof x === 'string')),
+      ),
+    ) as EventLineDoc['p'];
+  return out;
 }
 
 /** `rooms/{CODE}` as stored (any version, or nothing) → a complete `Room`. */
