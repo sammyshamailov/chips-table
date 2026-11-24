@@ -158,7 +158,7 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .status{text-align:center;color:var(--dim);font-size:14px;padding:6px}
 .dock-in{grid-template-columns:minmax(0,1fr)}.mystack{min-width:0}.mystack .muted{line-height:1.2}
 .dh-r{display:flex;align-items:center;gap:8px;min-width:0}
-.tapb{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;flex:0 0 auto;width:54px;height:46px;padding:0;border-radius:12px;background:var(--felt);border:1px solid var(--line);color:var(--ink);font-size:11px;font-weight:600;line-height:1.1;white-space:nowrap}
+.tapb{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;flex:0 0 auto;width:54px;height:46px;padding:0;border-radius:12px;background:var(--felt-3);border:1px solid var(--brass);color:var(--brass);font-size:11px;font-weight:700;line-height:1.1;white-space:nowrap}
 .btns .tapb{width:auto;height:auto;min-height:44px;flex-direction:row;gap:8px;padding:10px 12px;font-size:15px;grid-column:1/-1}
 .tapb svg{width:21px;height:21px;flex:0 0 auto}
 .tapb:active:not(:disabled){background:var(--felt-3)}
@@ -717,7 +717,7 @@ function pulse(k, s = 1.14){ const el = document.querySelector('[data-k="' + k +
 const hashN = s => { let h = 2166136261; for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 const TAP_GAP = 2000, TAP_MAX = 4;
 // The tap button: a small fist and "דפיקה". Dimmed for TAP_GAP after a press (S.tapAt; the end of it re-renders).
-const HAND_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5C5.6 11 5 12.7 5 14.6 5 18 6.8 20 9.5 20h5c2.7 0 4.5-2 4.5-5.4 0-1.9-.6-3.6-2-5.1z" fill="currentColor"/><g fill="currentColor"><rect x="5.2" y="4" width="3.2" height="7" rx="1.6"/><rect x="8.9" y="2.6" width="3.2" height="8" rx="1.6"/><rect x="12.6" y="2.6" width="3.2" height="8" rx="1.6"/><rect x="16.3" y="4" width="3.2" height="7" rx="1.6"/></g><path d="M3 3.2l1.4 1.4M21 3.2l-1.4 1.4M12 .8v1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>`;
+const HAND_ICON = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.4" y="3.4" width="2.7" height="10.5" rx="1.35"/><rect x="9.7" y="1.8" width="2.7" height="11.5" rx="1.35"/><rect x="13" y="2.3" width="2.7" height="11" rx="1.35"/><rect x="16.3" y="4.4" width="2.7" height="9.5" rx="1.35"/><path d="M6.4 11.5v3.4c0 3.7 2.5 6.4 6.3 6.4s6.3-2.6 6.3-6.4v-1.4H6.4z"/><path d="M6.6 14L3.2 9.9a1.4 1.4 0 0 1 2.2-1.8l3 3.7z"/></svg>`;
 function tapCooling(){ return now() - S.tapAt < TAP_GAP; }
 function tapButton(){ return `<button class="tapb" data-a="tap" aria-label="דפיקה על השולחן" ${tapCooling() ? 'disabled' : ''}>${HAND_ICON}<span>דפיקה</span></button>`; }
 // Three hands, seen from above (the back of the hand, fingers toward the felt, sleeve behind): a loose fist, a flat
@@ -744,17 +744,18 @@ function handSVG(pid){
   }
   return `<svg viewBox="0 0 64 130" width="100%" height="100%" aria-hidden="true">${sleeve}${hand}</svg>`;
 }
-// Where the hand lands and which way its arm comes from (unit vector pointing away from the table).
+// Where the hand lands and which way its arm comes from (unit vector pointing away from the table). The hand hits the felt
+// between the seat and its first betting spot (about 60% of the way in), clear of the avatar; only the forearm crosses the seat.
 function tapGeom(pid, dealer){
   const u = unitPx();
-  if (dealer){ const r = rectOf('dealer'); return r && { x: r.x + r.w * .22, y: r.y + r.h / 2 + u * 2.6, ux: .5, uy: -.866 }; }      // the arm comes from the upper right, past the dealer's shoulder
+  if (dealer){ const r = rectOf('dealer'); return r && { x: r.x + r.w * .6, y: r.y + r.h / 2 + u * 8.5, ux: .5, uy: -.866 }; }      // below the rack, to the right of its label; the arm comes from the upper right
   const s = rectOf('seat:' + pid); if (!s || !onScreen(s)) return null;
   const sp = rectOf(`spot:${pid}:0`), dl = rectOf('dealer');
-  let px, py; if (sp){ px = sp.x; py = sp.y; } else if (dl){ const d = Math.hypot(dl.x - s.x, dl.y - s.y) || 1; px = s.x + (dl.x - s.x) / d * u * 9; py = s.y + (dl.y - s.y) / d * u * 9; } else { px = s.x; py = s.y - u * 9; }
+  let px, py; if (sp){ px = sp.x; py = sp.y; } else if (dl){ px = dl.x; py = dl.y + u * 14; } else { px = s.x; py = s.y - u * 14; }      // no spot: toward the table centre
   const dx = s.x - px, dy = s.y - py, d = Math.hypot(dx, dy);
-  if (d < 1) return { x: s.x, y: s.y - u * 6, ux: 0, uy: 1 };
-  const ux = dx / d, uy = dy / d, r = sp ? sp.w / 2 : u * 4, off = Math.min(d * .75, r + u * 1.4);
-  return { x: px + ux * off, y: py + uy * off, ux, uy };
+  if (d < 1) return { x: s.x, y: s.y - u * 8, ux: 0, uy: 1 };
+  const ux = dx / d, uy = dy / d, t = Math.min(d, Math.max(d * .6, u * 7.5));      // distance from the seat centre to the hit
+  return { x: s.x - ux * t, y: s.y - uy * t, ux, uy };
 }
 function handTap(pid, dealer){
   if (document.visibilityState === 'hidden' || FX.hands >= TAP_MAX) return;
@@ -766,7 +767,7 @@ function handTap(pid, dealer){
   const key = dealer ? 'dealer' : 'seat:' + pid;
   if (RM){ hits.forEach(t => setTimeout(() => { const el = document.querySelector('[data-k="' + key + '"]'); if (el) try { el.animate([{ translate: '0 0' }, { translate: '-2px 0' }, { translate: '2px 0' }, { translate: '0 0' }], { duration: 180 }); } catch(e){} }, delay + t)); return; }
   if (!g) return;
-  const u = unitPx(), W = u * 9, H = W * 130 / 64, far = H + W * 1.4, lift = u * 1.1, th = Math.atan2(g.ux, -g.uy) * 180 / Math.PI;
+  const u = unitPx(), W = u * 7.7, H = W * 130 / 64, far = H + W * 1.4, lift = u * 1.1, th = Math.atan2(g.ux, -g.uy) * 180 / Math.PI;
   const el = document.createElement('div'); el.className = 'hand'; el.dataset.pid = dealer ? 'dealer' : pid;
   el.style.cssText = `left:${g.x}px;top:${g.y}px;width:${W}px;height:${H}px;margin:${-H}px 0 0 ${-W / 2}px;opacity:0`;
   el.innerHTML = handSVG(pid); fxLayer.appendChild(el); FX.hands++;

@@ -72,7 +72,7 @@ const { requirePlaywright, serve, phones, players, room, openTable, check, failu
       const w1 = hub.writes.slice(w0);
       check('the room gets only dealerTap', w1.length === 1 && w1[0].path === 'rooms/' + code && JSON.stringify(Object.keys(w1[0].data)) === '["dealerTap"]', JSON.stringify(w1));
       check('the player sees the hand at the dealer rack', await B.evaluate(() => { const h = document.querySelector('#fx .hand'); return !!h && h.dataset.pid === 'dealer'; }));
-      const hd = await handAt(B, 'dealer'); check('close to the rack', !!hd && hd.dist < 10, JSON.stringify(hd));
+      const hd = await handAt(B, 'dealer'); check('close to the rack', !!hd && hd.dist < 26, JSON.stringify(hd));
       check('the dealer sees their own hand', await hands(A) === 1);
       check('player table has no button for the dealer on the player phone', !(await B.isVisible('.host')));
       check('no page errors (table 2)', errors.length === 0, errors.join(' | ')); allErrors.push(...errors);
