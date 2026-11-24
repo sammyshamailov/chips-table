@@ -5,6 +5,18 @@ development branch.
 
 ## Not yet live
 
+### Added
+- **English** (R-006). Each phone chooses English or Hebrew: "EN / עב" in the home screen's top corner, or Language in
+  Settings, and the screen switches at once, inside a table too. A new phone starts in Hebrew when its languages list
+  Hebrew before English, otherwise in English; a phone that already used the app stays in Hebrew until its player
+  switches. Every word follows the language: the screens, toasts, the words over the table, the closed sign, the
+  ceremony, the table's event line, and the dealer's voice (new English recordings; the Hebrew ones are unchanged). In
+  English the page reads left to right, while the table stays the same picture. Players with different languages share
+  a table: the event line is stored with its key (and still in Hebrew, for phones on an older version). The installed
+  app is called "Chips" in English. For us: `src/i18n/` (catalogs, `t()`, plurals, `formatChips`), a lint check that
+  no Hebrew is left in the code, English screenshots of every screen, and the two-phone test with a Hebrew phone, an
+  English phone and a phone on the old version.
+
 ### Changed
 - **The app is now built with Vite** (R-005, step 1 of the code foundations). For players nothing changes: the
   same screens pixel for pixel, the same sounds, and phones update themselves into the new version as usual. For us:

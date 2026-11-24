@@ -424,6 +424,122 @@ with `npm run dev`), `docs/ARCHITECTURE.md` (rewritten), `docs/TESTING.md`, `REA
 **Done when.** `index.html` is a shell, the app is built from `src/`, CI runs every test on every push,
 and no player notices anything changed.
 
+### R-006 English and Hebrew
+
+| | |
+|---|---|
+| Type | Feature |
+| Status | In progress |
+| Priority | P1 |
+| Size | L |
+| Games | Both |
+| Branch | `ccr-dea3e462-4e0h73` |
+| Added | 2026-11-22 |
+| Done | — |
+
+**Problem / goal.** The app is Hebrew only: about 210 lines of `index.html` contain Hebrew, the page is
+fixed right-to-left, and some text is *stored* in the table (the event line under the header). Each
+player should choose English or Hebrew on their own phone, and players with different languages must be
+able to share a table. More languages should only need a new catalog file.
+
+**Decisions (Q4, Q10).** Everything with words follows the language: text, the words that float over the
+table, and the dealer's narration (`SND.say`, 11 recorded Hebrew lines in `sounds/voice/` since the
+2026-11-21 release). The English version of the installed app is called "Chips".
+
+**Plan.**
+*Built on the branch (all steps); the plan below is as built, with the decisions made while building marked.*
+
+1. [x] **Catalogs.** `src/i18n/he.ts` and `src/i18n/en.ts`, keys grouped by screen (`home.join`,
+   `bj.split`, `fx.blackjack`). TypeScript makes the English catalog fail to compile if a key is
+   missing. `t(key, params)` with `{name}` placeholders; plurals through `Intl.PluralRules` (Hebrew has
+   singular/dual/plural forms; English one/other). Number parameters are shown with `formatChips`, lists of names are
+   joined in the language. `scripts/check-i18n.mjs` (in `npm run lint`): the same keys, no unused key, no Hebrew.
+2. [x] **Extract every string**, including `aria-label`s, toasts, error messages (`handleErr`), the words on
+   the felt (`arc()` text), floating texts (`ספליט`, `בלאק ג'ק!`, `תיקו`), the closed sign, the ceremony,
+   stage names (`STAGE_HE`), and the default player name. A script fails CI if any Hebrew letter remains
+   outside `he.ts` (tests included: they read Hebrew from `he.ts` or spell it with escapes; the glossary's Hebrew
+   column is therefore at the top of `he.ts`, and `en.ts` has the English column with notes).
+3. [x] **Choosing the language.** Per phone, saved in localStorage (`chips.lang`). First run: Hebrew if the
+   phone's languages list Hebrew before English, otherwise English. *Decided while building:* a phone that used the app
+   before (it has a `chips.pid`) stays in Hebrew, or every player on an English-language phone would have opened the
+   update in English; the choice is saved at once. A switch on the home screen (top corner: "EN /
+   עב", in the corner opposite the title; it adds itself to the Hebrew home screens) and in Settings (a "Language"
+   choice after the sound options). Switching re-renders at once, also inside a table, and loads the narration in the
+   new language.
+4. [x] **Direction.** Set `<html lang dir>` from the language. Convert the ~30 physical CSS `left`/`right`
+   rules that are about text flow to logical properties (`inset-inline-start`, `margin-inline-end`,
+   `text-align: start`). The table itself is a picture and is **not mirrored**: seats, dealer and chip
+   rack stay where they are in both languages. Keep the existing direction isolates (`⁦…⁩`)
+   around numbers and names inside sentences. *As built:* there were few physical text-flow rules (`.hr1`'s padding);
+   the work was the other way round: in English `.bjt` and `.stk` keep `direction: rtl` so the rack, doubled stacks and
+   chip columns keep their order, with the words on the table left to right, and the turn-the-phone picture likewise.
+   The elements in `index.html` lost their own `dir`; `<html lang dir>` is set before the first render.
+5. [x] **Numbers.** `fmt` already uses `en-US` grouping; keep digits Latin in both languages (as today), but
+   route all formatting through one `i18n.formatChips()` so it can change per language later.
+6. [x] **Stored text (rule 1).** `lastEvent.t` is a sentence in the writer's language today. Add optional
+   `lastEvent.key` and `lastEvent.p` (the parameters); every writer sets them *and* still writes `t`
+   (in Hebrew, so phones on older versions keep showing a sentence). Readers show `t(key, p)` and fall
+   back to `t` when `key` is missing or unknown. Names stay as typed.
+7. [x] **Fonts and layout.** Check the font stack covers Latin well; English strings run longer: check every
+   button and the landscape side panel in English at the small-phone size. *As built:* IBM Plex Sans Hebrew covers
+   Latin; the header's game and status wrap between them in English (`nowrap` on the status, English only), the
+   statuses are short ("● Online"); everything else fits.
+8. [x] **Copy.** English: short, plain, sentence case, the same tone as the Hebrew. Hebrew stays
+   gender-neutral (rule 7). A glossary of game terms in both languages (bet, stand, split, blind, pot,
+   side pot…) at the top of `en.ts` so terms stay consistent.
+9. [x] **Narration in both languages.** *Decided:* the Hebrew lines stay at `sounds/voice/<key>.mp3`, where phones on
+   older versions load them; English is `sounds/voice/en/` with the same 11 keys (`open locked blackjack payout winner newhand flop turn river
+   allin closed`) in English ("Place your bets", "No more bets", "Blackjack!", "Paying the winners", "We
+   have a winner!", "New hand", "Flop", "Turn", "River", "All in!", "The table is closed. Thanks for
+   playing!"). Generated with ElevenLabs in a clear English voice Claude picks (decided), one take per line, trimmed and
+   normalised the same way as the Hebrew (`sounds/CREDITS.md` lists the steps); **send the owner a preview
+   before shipping**. *Done separately by the main session:* recorded, processed and approved by the owner (voice
+   "Marie"), committed before the build. `SND.say(key)` loads the phone's language and falls back to the Hebrew file if an
+   English one is missing. Measure with `node tests/audio.js` (about −20 dBFS, as now). Every later
+   narration line is made in both languages at once.
+10. [x] **Installed app name.** Two manifests (`manifest.he.webmanifest` "צ'יפים", `manifest.en.webmanifest`
+    "Chips"); the page points `<link rel="manifest">` and the iPhone's `apple-mobile-web-app-title` at the
+    phone's language at start-up, so the app installs under the name in that language. An app already
+    installed keeps its name. `manifest.webmanifest` stays for pages and caches from before; the service worker caches
+    all three.
+11. [x] **README** gets an English section (setup and play) after the Hebrew.
+
+**Stored data.** Adds optional `lastEvent.key` (string) and `lastEvent.p` (object). Fallback: show
+`lastEvent.t`. Document in `docs/ARCHITECTURE.md`. The language choice itself is per phone, not stored
+in the table.
+
+**Effects and sound.** Floating texts come from the catalog. Narration follows the language (step 9);
+the background and effects have no words and don't change.
+
+**Risks.** Missed strings (the CI check covers Hebrew left in code; review English screens by eye).
+Physical CSS that should stay physical (the table geometry) must not be converted: convert rule by
+rule, not with search-and-replace. Arc text on the felt uses SVG `textPath`; check it reads correctly in
+both directions.
+
+**Tests.**
+- [x] Two-phone test with phone A in Hebrew and phone B in English: each shows the event line, toasts
+      and floating texts in its own language; both see the same chips. The Hold'em test has one English phone
+- [x] Screenshots of every screen in both languages, portrait, landscape and small phone (`tests/visual.js`: 73
+      screens in Hebrew, each again in English; the Hebrew ones unchanged except home and Settings, which gain the
+      switch; every English one looked at before its baseline)
+- [x] Catalog check: same keys in both files, no unused keys, no Hebrew outside `he.ts` (`scripts/check-i18n.mjs`,
+      seen failing first)
+- [x] A phone on the old version at the same table still shows a Hebrew event line (the two-phone test serves the
+      old single-file app to a third phone); the upgrade test checks an upgraded phone stays in Hebrew
+- [x] `node tests/audio.js` measures the English narration at the same level as the Hebrew (`AUDIO_SEED=7`: −21.6 /
+      −21.4 / −21.2 dBFS over the background, the Hebrew −19.8 / −22.3 / −19.9); the owner has listened to the
+      preview
+- [x] Unit tests: `t()`, plurals, parameters, `pickLang`, the event line and its fallbacks, `normalizeRoom`'s
+      `lastEvent.key`/`p`, the narration's language and fallback
+- [ ] Checked by the owner on real phones: a mixed-language table against the real project, and an installed app
+      updating into this version stays in Hebrew
+
+**Docs to update.** `CLAUDE.md` (rule 7 becomes "copy in both catalogs"; new rule: no text in code;
+rule 6: narration in both languages), `sounds/CREDITS.md` (the English lines and voice),
+`docs/ARCHITECTURE.md` (i18n, new `lastEvent` fields), `README.md`, `CHANGELOG.md`.
+
+**Done when.** Every word in the app follows the phone's chosen language, and mixed-language tables work.
+
 ---
 
 ## Version 2
@@ -441,7 +557,7 @@ follows.
 | 2 | [R-003](#r-003-two-phone-test-for-a-holdem-hand) Hold'em two-phone test (done 2026-11-22) | 3, 7 | — | The safety net: without it the refactor and the new Hold'em table can break Hold'em unnoticed |
 | 3 | [R-009](#r-009-guard-older-phones-against-new-table-types) Guard older phones against new table types (done 2026-11-22) | 2 | — | Tiny, but it has to be on every phone well before the first card table, so it goes out early |
 | 4 | [R-005](#r-005-code-foundations-modules-layers-tooling) Code foundations | 7 | Q2 | Everything below builds on it; doing it later means writing each feature twice |
-| 5 | [R-006](#r-006-english-and-hebrew) English and Hebrew | 1 | Q4, Q10 | Every later feature then adds its text in both languages once, instead of being translated afterwards |
+| 5 | [R-006](#r-006-english-and-hebrew) English and Hebrew (in progress) | 1 | Q4, Q10 | Every later feature then adds its text in both languages once, instead of being translated afterwards |
 | 6 | [R-017](#r-017-sign-in-stricter-rules-and-private-tables) Sign-in, stricter rules and private tables | (fix + new) | Q13 | Closes the table to cheating and adds private tables in one rules change. After the foundations (its code lives in the new data layer), before anything that adds new stored data
 | 7 | [R-016](#r-016-tapping-on-the-table) Tapping on the table | (new) | Q11, Q12 | Small and fun; Blackjack only, which already has seats, so it doesn't wait for anything else
 | 8 | [R-007](#r-007-holdem-table-on-par-with-blackjack) Hold'em on par with Blackjack | 3 | — | Improves the game you already play, and its table, turn logic and pot animations are what card Hold'em reuses |
@@ -507,98 +623,6 @@ Nothing at the moment.
 
 In the order to build them, most important first (see [Version 2](#version-2)). R-003 and R-004 were
 found by reading the code.
-
-### R-006 English and Hebrew
-
-| | |
-|---|---|
-| Type | Feature |
-| Status | Planned |
-| Priority | P1 |
-| Size | L |
-| Games | Both |
-| Branch | — |
-| Added | 2026-11-22 |
-| Done | — |
-
-**Problem / goal.** The app is Hebrew only: about 210 lines of `index.html` contain Hebrew, the page is
-fixed right-to-left, and some text is *stored* in the table (the event line under the header). Each
-player should choose English or Hebrew on their own phone, and players with different languages must be
-able to share a table. More languages should only need a new catalog file.
-
-**Decisions (Q4, Q10).** Everything with words follows the language: text, the words that float over the
-table, and the dealer's narration (`SND.say`, 11 recorded Hebrew lines in `sounds/voice/` since the
-2026-11-21 release). The English version of the installed app is called "Chips".
-
-**Plan.**
-1. **Catalogs.** `src/i18n/he.ts` and `src/i18n/en.ts`, keys grouped by screen (`home.join`,
-   `bj.split`, `fx.blackjack`). TypeScript makes the English catalog fail to compile if a key is
-   missing. `t(key, params)` with `{name}` placeholders; plurals through `Intl.PluralRules` (Hebrew has
-   singular/dual/plural forms; English one/other).
-2. **Extract every string**, including `aria-label`s, toasts, error messages (`handleErr`), the words on
-   the felt (`arc()` text), floating texts (`ספליט`, `בלאק ג'ק!`, `תיקו`), the closed sign, the ceremony,
-   stage names (`STAGE_HE`), and the default player name. A script fails CI if any Hebrew letter remains
-   outside `he.ts`.
-3. **Choosing the language.** Per phone, saved in localStorage (`chips.lang`). First run: Hebrew if the
-   phone's languages list Hebrew first, otherwise English. A switch on the home screen (top corner: "EN /
-   עב") and in Settings. Switching re-renders at once, also inside a table.
-4. **Direction.** Set `<html lang dir>` from the language. Convert the ~30 physical CSS `left`/`right`
-   rules that are about text flow to logical properties (`inset-inline-start`, `margin-inline-end`,
-   `text-align: start`). The table itself is a picture and is **not mirrored**: seats, dealer and chip
-   rack stay where they are in both languages. Keep the existing direction isolates (`⁦…⁩`)
-   around numbers and names inside sentences.
-5. **Numbers.** `fmt` already uses `en-US` grouping; keep digits Latin in both languages (as today), but
-   route all formatting through one `i18n.formatChips()` so it can change per language later.
-6. **Stored text (rule 1).** `lastEvent.t` is a sentence in the writer's language today. Add optional
-   `lastEvent.key` and `lastEvent.p` (the parameters); every writer sets them *and* still writes `t`
-   (in Hebrew, so phones on older versions keep showing a sentence). Readers show `t(key, p)` and fall
-   back to `t` when `key` is missing or unknown. Names stay as typed.
-7. **Fonts and layout.** Check the font stack covers Latin well; English strings run longer: check every
-   button and the landscape side panel in English at the small-phone size.
-8. **Copy.** English: short, plain, sentence case, the same tone as the Hebrew. Hebrew stays
-   gender-neutral (rule 7). A glossary of game terms in both languages (bet, stand, split, blind, pot,
-   side pot…) at the top of `en.ts` so terms stay consistent.
-9. **Narration in both languages.** Move the Hebrew lines to `sounds/voice/he/` and add
-   `sounds/voice/en/` with the same 11 keys (`open locked blackjack payout winner newhand flop turn river
-   allin closed`) in English ("Place your bets", "No more bets", "Blackjack!", "Paying the winners", "We
-   have a winner!", "New hand", "Flop", "Turn", "River", "All in!", "The table is closed. Thanks for
-   playing!"). Generated with ElevenLabs in a clear English voice Claude picks (decided), one take per line, trimmed and
-   normalised the same way as the Hebrew (`sounds/CREDITS.md` lists the steps); **send the owner a preview
-   before shipping**. `SND.say(key)` loads the phone's language and falls back to the Hebrew file if an
-   English one is missing. Measure with `node tests/audio.js` (about −20 dBFS, as now). Every later
-   narration line is made in both languages at once.
-10. **Installed app name.** Two manifests (`manifest.he.webmanifest` "צ'יפים", `manifest.en.webmanifest`
-    "Chips"); the page points `<link rel="manifest">` and the iPhone's `apple-mobile-web-app-title` at the
-    phone's language at start-up, so the app installs under the name in that language. An app already
-    installed keeps its name.
-11. **README** gets an English section (setup and play) after the Hebrew.
-
-**Stored data.** Adds optional `lastEvent.key` (string) and `lastEvent.p` (object). Fallback: show
-`lastEvent.t`. Document in `docs/ARCHITECTURE.md`. The language choice itself is per phone, not stored
-in the table.
-
-**Effects and sound.** Floating texts come from the catalog. Narration follows the language (step 9);
-the background and effects have no words and don't change.
-
-**Risks.** Missed strings (the CI check covers Hebrew left in code; review English screens by eye).
-Physical CSS that should stay physical (the table geometry) must not be converted: convert rule by
-rule, not with search-and-replace. Arc text on the felt uses SVG `textPath`; check it reads correctly in
-both directions.
-
-**Tests.**
-- [ ] Two-phone test with phone A in Hebrew and phone B in English: each shows the event line, toasts
-      and floating texts in its own language; both see the same chips
-- [ ] Screenshots of every screen in both languages, portrait, landscape and small phone
-- [ ] Catalog check: same keys in both files, no unused keys, no Hebrew outside `he.ts`
-- [ ] A phone on the old version at the same table still shows a Hebrew event line
-- [ ] `node tests/audio.js` measures the English narration at the same level as the Hebrew; the owner
-      has listened to the preview
-
-**Docs to update.** `CLAUDE.md` (rule 7 becomes "copy in both catalogs"; new rule: no text in code;
-rule 6: narration in both languages), `sounds/CREDITS.md` (the English lines and voice),
-`docs/ARCHITECTURE.md` (i18n, new `lastEvent` fields), `README.md`, `CHANGELOG.md`.
-
-**Done when.** Every word in the app follows the phone's chosen language, and mixed-language tables work.
 
 ### R-017 Sign-in, stricter rules and private tables
 
@@ -1363,6 +1387,33 @@ microphone in the background; echo when two players sit in the same room (push-t
 **Docs to update.** `docs/ARCHITECTURE.md`, `README.md`, `CHANGELOG.md`.
 
 **Done when.** Players in different places talk live during a game.
+
+### R-018 Tied winners overflow the ceremony and the dealer tag looks like a panel
+
+| | |
+|---|---|
+| Type | Fix |
+| Status | Proposed |
+| Priority | P2 |
+| Size | S |
+| Games | Both |
+| Branch | — |
+| Added | 2026-11-24 |
+| Done | — |
+
+**Problem / goal.** Found while reviewing the English screenshots of R-006; both are the same in Hebrew and on `main`.
+(1) When four or more players tie for first, the ceremony card's row of winners is wider than the card: the outer
+avatars are cut off, and the standings below are pushed so the amounts are cut at the card's edge (the `ceremony`
+screen of `tests/visual.js` shows it). (2) In the Hold'em rows the dealer's tag has the classes `tag host`, and `.host`
+is also the dealer-controls panel, so the tag is drawn as a big rounded box with padding.
+
+**Plan.** (1) Let the winners' avatars shrink or wrap inside `.fin-avs` (or show at most three and "+N"), and keep the
+card's grid at its own width. (2) Rename the tag's modifier (`tag dealer`) and its rule in `room.css`. Both change the
+Hebrew pictures on purpose: new baselines after looking at them (or fold (2) into R-007's Hold'em redesign).
+
+**Stored data.** None. **Effects and sound.** None.
+
+**Tests.** - [ ] `node tests/screenshots.js`, the ceremony and Hold'em screens looked at.
 
 ---
 

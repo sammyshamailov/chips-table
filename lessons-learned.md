@@ -89,6 +89,30 @@ there can remove children it didn't make, and a later one can insert its own bet
 still positioned against `#fin`), whose children Preact never looks at. *Rule:* anything added to the page by hand
 goes into an element Preact renders empty, never next to Preact's own children.
 
+**Logical insets follow the element's own direction, not its container's.** The language switch is positioned with
+`inset-inline-end: 0` and carries `dir="ltr"` (so "EN / עב" reads the same in both languages); in Hebrew it landed on the
+right, over the title, because its own direction made "inline end" the right side. It is placed physically by the
+page's direction now. *Rule:* an element that sets its own `dir` or `direction` measures its logical properties
+(insets, margins, padding) in that direction; position it from a wrapper, or physically.
+
+**A shared class name can style the wrong thing for a long time.** The Hold'em row's dealer tag is `tag host`, and
+`.host` is also the dealer-controls panel (padding, border, radius), so the tag is drawn as a big rounded box, in both
+languages, since before R-005. Found while reviewing the English screenshots; left as it is (the Hebrew screens must not
+change in R-006) for the Hold'em redesign (R-007). *Rule:* a modifier class gets a name that no block uses.
+
+**Switching a default can switch it for everyone already playing.** The plan said "first run: Hebrew if the phone lists
+Hebrew first, otherwise English". Many phones are set to English, so every player already at the table would have
+opened the update in English. A phone that has used the app (it has a `chips.pid`) stays in Hebrew; only new phones
+pick by their languages. The test browsers showed the same trap: their default locale is English, so every existing
+test would have run in English; they now get a locale. *Rule:* a new setting's default is chosen for the people who
+already use the app as well as for new ones, and the tests set it explicitly.
+
+**Invisible and right-to-left characters don't survive edits by eye.** The house's balance in the event line sits
+between U+2066 and U+2069 (direction isolates); a tool wrote an `\u2066` escape in a test as the character itself, and
+a script meant to hold the Hebrew range as `\u0590-\u05FF` got the characters instead. Both still worked, which is the
+problem: nobody can see them. *Rule:* spell invisible, direction and non-Latin characters in code as escapes, and check
+the bytes (`od -c`) after a scripted edit.
+
 ## Stored data and sync
 
 **Store what the player did, not something derived from it.** Bets were stored as amounts and drawn by
@@ -131,6 +155,13 @@ the app writes are whole `lastAction`/`lastEvent`/`final`/`avatar` objects, so o
 `lastAction.chips` from an earlier bet, drawn only if it happens to add up to the new amount); it was kept as it was,
 for phones with offline tables, and the contract tests pin both behaviours.
 *Rule:* never rely on either: write a map whole, with every key it should have.
+
+**Text that other versions show must stay in the language they speak.** The event line under the header was a stored
+Hebrew sentence. With English, each phone should show it in its own language, but phones on older versions show `t` as
+it is. Writers now store a catalog key and its parameters (`lastEvent.key`, `.p`) and still write `t` in Hebrew, whatever
+the writer's language; readers use the key when they know it and fall back to `t`. The two-phone test has a phone on the
+old single-file version at the table to prove it. *Rule:* stored words are stored as a key plus parameters, with the
+text old readers expect next to them; a stored key is never renamed.
 
 **Keep new data inside the documents the rules already allow.** `firestore.rules` only opens `rooms` and
 their `players`. A new collection would need the owner to paste new rules into the Firebase console, and

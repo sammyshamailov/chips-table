@@ -7,7 +7,7 @@ start-up, rendering, stored data or sound: most of the rules below were learned 
 
 **צ'יפים** is a chip table for home games of Texas Hold'em and Blackjack. The cards are real and on the
 table; the app only replaces the chips. Each player uses their own phone; the dealer (whoever opened the
-table) runs the round. Hebrew, right-to-left, phone first.
+table) runs the round. Hebrew (right to left) and English, chosen per phone; phone first.
 
 - Static PWA, built by Vite from `src/` (TypeScript, strict; Preact for the screens). `index.html` is the shell;
   the code is in modules with one job each (below, and `docs/ARCHITECTURE.md`).
@@ -31,13 +31,15 @@ table) runs the round. Hebrew, right-to-left, phone first.
 | `src/sync/` | `diff.ts` (old/new documents → domain events, pure, unit tested), `domain-events.ts` (the event types), `events.ts` (the two-phase event bus: before → render → after), `room-session.ts` (the store's listeners for the table and the home list: normalise → diff → emit; the one impure file here) |
 | `src/fx/` | `layer.ts` (`#fx`, `fly`, `floatText`, `pulse`, the overrides `FX`), and the effects subscribed to events: `blackjack.ts`, `holdem.ts`, `room.ts` |
 | `src/audio/` | `synth.ts` (`SND`: AudioContext, synthesized effects, settings), `ambience.ts` (casino background), `narration.ts` (dealer's voice and its triggers), `control.ts` (`ambiSync`, first-touch unlock) |
-| `src/ui/` | The screens as Preact components (R-005 phase 5): `app.tsx` (`App`, `createUi`: mounts `#app`, `#sheet`, `#toast`), `session.ts` (what screens read), `screens/` (home, room shell, update screen), `sheets/` (one per sheet, each a pure component plus a selector), `tables/` (`ChipStack`, `DealerFigure`, `ClosedSign`; `blackjack/`: table, seats and circles, geometry, selectors; `holdem/`: table, player rows, selectors), `docks/` (dock parts, one dock per game), `host/` (the dealer controls per game), `components/` (avatar, header, final card, rank…), `labels.ts` (shared Hebrew words), `ceremony.tsx` (the ceremony's picture in `#fin`), `rotate.tsx` (the turn-the-phone prompt in `#rot`), `scale.ts` (the table's `--u`), `photo.ts` (shrinking a photo for the avatar); plus `fmt`, `stackHTML`, `chipStyle` shared with the effects |
+| `src/ui/` | The screens as Preact components (R-005 phase 5): `app.tsx` (`App`, `createUi`: mounts `#app`, `#sheet`, `#toast`), `session.ts` (what screens read), `screens/` (home, room shell, update screen), `sheets/` (one per sheet, each a pure component plus a selector), `tables/` (`ChipStack`, `DealerFigure`, `ClosedSign`; `blackjack/`: table, seats and circles, geometry, selectors; `holdem/`: table, player rows, selectors), `docks/` (dock parts, one dock per game), `host/` (the dealer controls per game), `components/` (avatar, header, final card, rank…), `labels.ts` (shared Hebrew words), `ceremony.tsx` (the ceremony's picture in `#fin`), `rotate.tsx` (the turn-the-phone prompt in `#rot`), `scale.ts` (the table's `--u`), `photo.ts` (shrinking a photo for the avatar), `components/lang.tsx` (the language switch); plus `stackHTML`, `chipStyle` shared with the effects |
+| `src/i18n/` | The words (R-006): `he.ts` (the source of truth for the keys, with the glossary), `en.ts` (typed `Catalog`), `catalog.ts` (types), `index.ts` (`t()`, `tIn()`, plurals, `formatChips`, `joinNames`, `pickLang`, the event line: `storedEvent`/`eventText`), `document.ts` (`applyLang`: `<html lang dir>`, title, manifest) |
 | `src/games/registry.ts` | One `GameMode` per game (Strategy): names, form fields and wording that differ between Hold'em and Blackjack, and `views` (the game's table, dock and dealer controls as components) |
 | `src/styles/*.css` | The styles, split at their old section comments, imported in order by `main.ts` |
 | `src/sw-template.js` | Service worker: network-first for the app's own files, cache as offline fallback. `dist/sw.js` is generated from it |
 | `scripts/sw-plugin.mts` | Vite plugin that writes `dist/sw.js`: the install list is the built files (hashed names), the cache name follows the build. Unit tested |
 | `vite.config.mts`, `tsconfig*.json`, `eslint.config.mjs`, `.prettierrc` | Build (and Vitest, coverage), TypeScript (strict; `tsconfig.domain.json` checks `src/domain/` without DOM types), lint (with the domain purity rules) and format settings |
-| `public/` | Copied as is to the site root: `icons/`, `manifest.webmanifest`, `sounds/` (`amb/` casino background: a looped crowd-murmur bed and slot-machine one-shots; `voice/` Hebrew dealer narration) |
+| `public/` | Copied as is to the site root: `icons/`, `manifest.he.webmanifest` and `manifest.en.webmanifest` (`manifest.webmanifest` kept for pages from before), `sounds/` (`amb/` casino background: a looped crowd-murmur bed and slot-machine one-shots; `voice/` Hebrew dealer narration, `voice/en/` English) |
+| `scripts/check-i18n.mjs` | Run by `npm run lint`: the same keys in both catalogs, no unused key, no Hebrew letter in `src/` outside `src/i18n/he.ts` |
 | `scripts/build-config.js` | Netlify build: writes `config.js` (into the folder given, `dist` on Netlify) from env vars, plus `APP_BUILD` (commit) used for self-updates |
 | `config.example.js` | Template for local testing with a real Firebase project |
 | `firestore.rules` | Security rules. Only `rooms/{CODE}` and `rooms/{CODE}/players/{pid}` are reachable. Changing them means the owner pastes them in the Firebase console, so avoid it |
@@ -90,18 +92,25 @@ table) runs the round. Hebrew, right-to-left, phone first.
    clearly licensed audio; record the source in `sounds/CREDITS.md`. The background is a very quiet
    looped crowd murmur (`crowd-bed.mp3`, about −41 dBFS) plus a slot machine every 10–25 s. Keep the bed quiet and
    speech-like: a louder or noisier bed reads as noise. The
-   dealer's narration (`SND.say`) is triggered by the table's events (`subscribeNarration`) so every phone says it.
+   dealer's narration (`SND.say`) is triggered by the table's events (`subscribeNarration`) so every phone says it, in
+   that phone's language: every line is recorded in Hebrew (`sounds/voice/<key>.mp3`) and English
+   (`sounds/voice/en/<key>.mp3`), and a new line is made in both at once; a missing English line falls back to Hebrew.
    Measure before shipping (`node tests/audio.js`): background about −38 dBFS average, narration about
    −20 dBFS, both under the chip sounds.
-7. **Hebrew copy**: short, plain, gender-neutral where it matters (`את/ה`, `ניצח/ה`).
+7. **Copy in both catalogs, no text in code.** Every word on the screen (text, `aria-label`, `title`, toasts, words over
+   the table, the event line) is a key in `src/i18n/he.ts` and `src/i18n/en.ts`, added to both at once and read with
+   `t()`; `npm run lint` fails on a Hebrew letter anywhere else in `src/` and on unused keys. Hebrew: short, plain,
+   gender-neutral where it matters (`את/ה`, `ניצח/ה`). English: short, plain, sentence case, the terms of the glossary
+   in `en.ts`. Amounts through `formatChips()`. The event line is stored with its key (`ev.*`, never renamed) and its
+   Hebrew text. The table is a picture: it isn't mirrored in English.
 8. **Test before pushing**: `npm run lint`, `npm run typecheck`, `npm test` (unit tests; `npm run coverage` after a
    rule or data-layer change), `node tests/two-phones.test.js`, `node tests/race.test.js`, `node tests/holdem.test.js`
    (any Hold'em change), `node tests/guard.test.js` (anything about room fields or opening a table),
    `node tests/upgrade.test.js` (anything about start-up, the service worker, `config.js` or the build),
    `node tests/behaviour.test.js` (anything on screen: what a render must keep), `node tests/screenshots.js`, and look
    at the screenshots. The browser tests build the app first (`SKIP_BUILD=1` reuses `dist/`). `screenshots.js` also
-   compares 73 screens (`tests/visual.js`: every sheet, both tables in their states, home, the update and closed
-   screens, the ceremony, the turn-the-phone prompt) with `tests/baseline/` pixel by pixel; take a new baseline
+   compares 146 screens (`tests/visual.js`: every sheet, both tables in their states, home, the update and closed
+   screens, the ceremony, the turn-the-phone prompt; each in Hebrew and in English) with `tests/baseline/` pixel by pixel; take a new baseline
    (`--update`) only for an intended visual change, after looking at the new images. A single-device test can't catch
    sync bugs; use the two-phone harness for anything that other players see. CI (`.github/workflows/ci.yml`) runs all
    of it on every push; its pixel comparison is against the earlier version rendered on the runner

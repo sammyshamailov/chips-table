@@ -17,12 +17,14 @@ folder has one job, and the arrows between them only point one way: the rules (`
 | `src/sync/` | `diff.ts` (old/new documents → events, pure), `domain-events.ts` (the event types), `events.ts` (the two-phase event bus), and `room-session.ts` (the store's listeners that feed them). See "Reading a table" and "Effects" below |
 | `src/fx/` | `layer.ts` (`#fx`, `fly`, `floatText`, `pulse`, `measure`, `rectOf`, the overrides `FX`), and the subscribers `blackjack.ts`, `holdem.ts`, `room.ts` (lock, new hand, `dealerNod`) |
 | `src/audio/` | `synth.ts` (the engine `SND`: AudioContext, synthesized effects, settings), `ambience.ts` (the casino background), `narration.ts` (the dealer's voice and its triggers), `control.ts` (`ambiSync`, the first-touch unlock, the ambient chips). See "Sound" below |
-| `src/ui/` | The screens as Preact components (see "Screens"), the ceremony's picture (`ceremony.tsx`), the turn-the-phone prompt (`rotate.tsx`), the table's scale (`scale.ts`), photo shrinking (`photo.ts`), plus `format.ts` (`fmt`) and `chips-html.ts` (`chipStyle`, `stackHTML`, `stackColumns`), shared with the effects (the chips in the air) and the ceremony (chip rain) |
+| `src/i18n/` | The words, in Hebrew and English (R-006): the catalogs, `t()`, `formatChips()`, the event line, the page's language. See "Languages" below |
+| `src/ui/` | The screens as Preact components (see "Screens"), the ceremony's picture (`ceremony.tsx`), the turn-the-phone prompt (`rotate.tsx`), the table's scale (`scale.ts`), photo shrinking (`photo.ts`), plus `chips-html.ts` (`chipStyle`, `stackHTML`, `stackColumns`), shared with the effects (the chips in the air) and the ceremony (chip rain) |
 | `src/games/registry.ts` | `GAMES` / `gameMode(game)`: one `GameMode` per game (Strategy), what differs between Hold'em and Blackjack on the screens, and each game's table, dock and dealer controls |
 | `src/update.ts` | Staying up to date: compares `APP_BUILD` with the live `config.js` and reloads when idle (see Updates) |
 | `src/globals.d.ts` | What the classic scripts put on `window`: `APP_BUILD`, `FIREBASE_CONFIG`, `firebase` |
 | `src/styles/*.css` | The styles, split at their old section comments: `base`, `brand` (also cards, fields, buttons), `room` (header, table, seats, host panel, dock), `sheet` (also the toast), `blackjack`, `layout` (portrait/landscape), `rotate`, `end` |
-| `public/` | Copied to the site root as is, so the URLs didn't change: `icons/`, `manifest.webmanifest`, `sounds/amb/`, `sounds/voice/` |
+| `public/` | Copied to the site root as is, so the URLs didn't change: `icons/`, `manifest.webmanifest` (kept for pages and caches from before R-006), `manifest.he.webmanifest` and `manifest.en.webmanifest`, `sounds/amb/`, `sounds/voice/` (Hebrew) and `sounds/voice/en/` |
+| `scripts/check-i18n.mjs` | Run by `npm run lint`: the same keys in both catalogs, every key used, no Hebrew letter in `src/` outside `src/i18n/he.ts` |
 | `src/sw-template.js`, `scripts/sw-plugin.mts` | The service worker and the build step that writes `dist/sw.js` from it (see Updates) |
 
 **Which folder may use which.** Enforced where it matters most: `src/domain/` imports nothing outside itself and uses
@@ -36,7 +38,9 @@ screens and the selectors read the session) and never import `app/`; `app/` may 
 **Start-up.** `config.js` and the Firebase scripts are classic scripts in `<head>`, so they have run before the module
 starts. The module is deferred: it runs once the body is parsed, before `DOMContentLoaded`.
 
-No module does work when it is imported (CLAUDE.md rule 2). `main.ts`, in order: `browserStorage()`, `createEventBus()`,
+No module does work when it is imported (CLAUDE.md rule 2). `main.ts`, in order: `browserStorage()`, the language
+(`pickLang()` from `chips.lang`, the phone's languages and whether it used the app before; saved, then `setLang()` and
+`applyLang(document)` so the first render is already in it and in its direction), `createEventBus()`,
 `createSound()` and `createAmbiSync()`, `startAudioControl()` (first-touch unlock, screen on/off, the ambient chips
 loop), `createFxLayer()`, `createUi({ app, sheet, toast })` (the screens' renderer on those elements; mounts nothing
 yet), `createApp({ bus, snd, layer, storage, ambiSync, ui })` (builds the state, the write queue, the room session, the
@@ -68,7 +72,8 @@ subscribers exist before the first snapshot. The sound engine and the layer call
 2. The action (`src/app/actions/`) reads the state and asks the rules (`src/domain/`), which return the fields to write
    or a refusal code.
 3. The action writes the patch through the write queue (`src/data/writes.ts`: one write at a time per document),
-   adding `ts`, and the dealer's stack changes as increments (`inc(n)`); a refusal becomes a Hebrew toast.
+   adding `ts`, and the dealer's stack changes as increments (`inc(n)`); a refusal becomes a toast in the phone's
+   language (`t()`).
 4. The store sends the new document back to every phone, the acting one included, and "Reading a table" takes over:
    the effects come from the change itself, so every phone plays them.
 
@@ -84,7 +89,7 @@ fetches it by name and it must stay un-hashed.
 | `app.ts` | `createApp(deps)`: creates the state, the write queue (with the unsupported-table refusal and the error toasts), the update check, the install prompt, the wake lock, the table scale, the ceremony, the session, the renderer, the room session, navigation and the actions; returns `start`, `render`, `ceremony`, `myId`, `inTable` for `main.ts` |
 | `state.ts` | `State` (`S`): identity (`myId`, `name`, `avatar`), the store and connection (`db`, `mode`, `readOnly`), the current table (`code`, `room`, `players`, sync flags, the listeners), chips in hand (`pending`, `pendChips`), the open sheet and its selections, the forms. `createState()` reads what the phone remembers; pure questions about it: `playerList`, `me`, `isHost`, `nameOf`, `holdem`, `roomDenoms`, `standings`, `pendChips`, `newPlayer`, the paths and `eventLine` |
 | `context.ts` | `AppContext`: what the actions work with (the state, storage, the sound engine, the effects layer, `write`, `inc`, `render`, `paint`, `toast`, `now`, `buzz`); `Action`, `Actions` |
-| `actions/` | The `data-a` actions, by concern: `lobby.ts` (new table, join, open, sit down, "play as", home, single-device mode), `table.ts` (sheets, the dealer's players list and settings, switch game, invite, end and reopen the game), `chips.ts` (chips in hand: a chip from the tray flying to your spot, presets, clear), `holdem.ts`, `blackjack.ts` (each action: read the state, call the domain command, write the patch, map a refusal to its toast, write the Hebrew event line), `avatar.ts` (your picture, the photo inputs), `app.ts` (sound switches, install, update, the ceremony's buttons, the turn-the-phone prompt) |
+| `actions/` | The `data-a` actions, by concern: `lobby.ts` (new table, join, open, sit down, "play as", home, single-device mode), `table.ts` (sheets, the dealer's players list and settings, switch game, invite, end and reopen the game), `chips.ts` (chips in hand: a chip from the tray flying to your spot, presets, clear), `holdem.ts`, `blackjack.ts` (each action: read the state, call the domain command, write the patch, map a refusal to its toast, write the event line with its key, parameters and Hebrew text), `avatar.ts` (your picture, the photo inputs), `app.ts` (sound switches, install, update, the ceremony's buttons, the turn-the-phone prompt) |
 | `dom-events.ts` | The page's listeners: `data-a` clicks (on the update screen only home/update/reload/sound/retry act), `data-bind` input, Enter in the code field, Escape |
 | `navigation.ts` | `connectStore()` (picks the store, lists the open tables, enters the last table or the invite's), `enter(code)`, `home()`, `useLocal()`, `ready()` (creating or joining waits for the connection) |
 | `session.ts` | `createSession()`: the `Session` the screens read (see Screens), answered from the state, the rules and the effects layer |
@@ -111,11 +116,11 @@ return what to write. The actions (`src/app/actions/`) call them; the session an
 
 **Command → patch.** A command takes the documents (and what the player is holding, such as the chips in hand) and
 returns `{ ok: true, patch, … }` with the fields to write, or `{ ok: false, reason }` with a string code
-(`'over-max'`, `'not-enough-chips'`, `'unmarked'`…). The caller adds `ts`, writes, and maps the code to today's Hebrew
+(`'over-max'`, `'not-enough-chips'`, `'unmarked'`…). The caller adds `ts`, writes, and maps the code to its
 toast (or stays silent where it always did). Dealer changes to a player's stack come back as a plain number
 (`stackInc`, or the amounts in `pays`/`refunds`); the caller writes them as `inc(n)`. Commands that touch several
 documents return the player writes and the room write separately, and the caller keeps the order: players first, the
-room last. Hebrew text stays in the actions until R-006.
+room last. The domain has no words: the actions turn codes into text with `t()` (src/i18n/).
 
 **Purity is enforced.** `eslint.config.mjs` refuses, in `src/domain/`, imports that leave the folder, packages (tests
 may import `vitest`), DOM and timer globals, `Date.now`, `new Date` and `Math.random`. `tsconfig.domain.json` checks the
@@ -142,7 +147,8 @@ fallbacks:
   dropped); `stage` → `'idle'`, `phase` → `'betting'`, `roundId` → 1 (what a new table is created with); `game` →
   `'holdem'` only when it says so, otherwise `'blackjack'` (as every view already drew it);
 - `null` where "missing" means something: `bjRound` (no bet), `bjPaidRound` (never settled), `lastAction`, `avatar`
-  (`{k, v}` with both text, else null), `buttonPid`, `sbPid`, `bbPid`, `lastEvent` (`{t, ts}`), `final`
+  (`{k, v}` with both text, else null), `buttonPid`, `sbPid`, `bbPid`, `lastEvent` (`{t, ts}`, plus `key` when it is text and `p` with only its text, finite
+  number and list-of-text values; both absent when missing or damaged, so readers show `t`), `final`
   (`{at, list:[{pid, name, stack}]}`);
 - absent when missing, because their readers tell missing from any value: `roundEnd` (any text kept), `mode` (text
   kept; anything else becomes its JSON text, so it never matches a known mode), `appMin` (`Number(value)`, NaN kept,
@@ -164,7 +170,8 @@ damaged values, are in `normalizeRoom` / `normalizePlayer` (above); a new field 
 | `code`, `game` (`holdem` / `blackjack`), `startStack` | Table setup |
 | `sb`, `bb` / `minBet`, `maxBet` | Blinds for Hold'em, limits for Blackjack (`maxBet` 0 = none) |
 | `hostId`, `hostName` | The dealer |
-| `createdAt`, `updatedAt`, `lastEvent {t, ts}` | Timestamps, and the line shown under the header |
+| `createdAt`, `updatedAt`, `lastEvent {t, ts}` | Timestamps, and the line shown under the header. `t` is always written in Hebrew, whatever the writer's language, because older versions show it as it is |
+| `lastEvent.key`, `lastEvent.p` *added* (R-006) | The line's catalog key (`ev.*`, `src/i18n/he.ts`) and its parameters (names as typed, amounts as numbers, `names` as a list), so each phone shows the line in its own language. Missing (an older phone wrote the line) or a key this version doesn't know: the phone shows `t`. Keys are never renamed or removed, and a key's parameters keep their meaning |
 | Hold'em: `handId`, `streetId`, `stage`, `potLevel`, `buttonPid`, `sbPid`, `bbPid` | Hand state. The pot is derived from players' `committed` above `potLevel` |
 | Blackjack: `roundId`, `phase` (`betting` / `playing`), `house`, `dealerBJ` | Round state and the house balance |
 | `roundEnd` *added* | Blackjack: how the last round ended, `'paid'` or `'cancelled'`. Set with the new `roundId`; the dealer narration says "payout" only for `'paid'`. Missing when an older phone ended the round (readers then fall back to the `lastEvent` text) |
@@ -236,7 +243,7 @@ its timeline); `#rot` is drawn by `render()` too. `#toast` is the toaster's, `#f
 |---|---|
 | `app.tsx` | `App` (home, or the room screen when a table code is set) and `createUi(el)` → `paint(session)` (renders `App` into `#app` and sets `#app`'s class), `paintSheet(session, open)` (renders `SheetScreen` into `#sheet`, or empties it, and sets `hidden`), `toast(text)` |
 | `session.ts` | `Session`: the state (`S`) and the questions screens ask (`me`, `players`, `isHost`, `holdem`, `award`, `bjCurrent`, `chipsOnTable`, `standings`, `looksClosed`, `newBuild`, `sound`, `denoms`…), and `fx` (`TableFx`: what the table shows while chips fly: `ov`, `shownStack`, `ghost` (your chips in hand that have landed), `signDrop`) |
-| `screens/home.tsx` | `Home`: name and avatar, join by code, `RoomsList` (marks tables the guard refuses "צריך עדכון"), `CreateCard` |
+| `screens/home.tsx` | `Home`: the language switch, name and avatar, join by code, `RoomsList` (marks tables the guard refuses "needs an update"), `CreateCard` |
 | `screens/room.tsx` | `RoomScreen`: loading, not found, `UpdateView` (R-009), or the room: `RoomHeader`, the mode banner, the "new version" button, the event line, `JoinCard`, the dealer controls (in `.o-host`), `FinalCard`, the dock (in `.dock` › `.dock-in`, when you sit at an open table) and the table (in `.stage`): the game's `views` components. `appClass()`: `in-room`/`has-dock`, nothing, or unchanged while loading (as before) |
 | `screens/update.tsx` | `UpdateView`, the R-009 guard screen |
 | `sheets/index.tsx` | `SheetScreen`: the `.sheet` panel, keyed by the sheet's name (a re-render keeps it and its scroll; another sheet starts fresh), and the sheet named by `state.sheet` |
@@ -250,7 +257,8 @@ its timeline); `#rot` is drawn by `render()` too. `#toast` is the toaster's, `#f
 | `host/` | `blackjack.tsx` (`BlackjackHost`: deal while bets are open; settle, pay a blackjack now, cancel the round; end the game), `holdem.tsx` (`HoldemHost`: the pot to the last player in one tap, new hand, next street, the award sheet, cancel the hand, end the game) |
 | `components/` | `avatar.tsx` (`Avatar`, `AvatarArt`: the characters as SVG, `AvatarButton`), `header.tsx` (`RoomHeader`, `ConnStatus`, the sound icon), `final-card.tsx`, `rank.tsx` (`Rank`, `places`), `crown.tsx`, `join-card.tsx`, `mode-banner.tsx`, `option.tsx`, `field.tsx` (`NumField`), `sheet-head.tsx`, `toast.tsx` (`createToaster`) |
 | `avatars.ts` | `AV_SET` (the characters), `validAv`, `hue`, `avatarBg`, `initial` |
-| `labels.ts` | `RESULT_HE` (how a Blackjack hand ended), `STAGE_HE` (the streets; also the event line), `actionText` (a player's last action) |
+| `labels.ts` | `resultText` (how a Blackjack hand ended), `stageText` (the streets), `actionText` (a player's last action), `signed` (`+150`, `−150`), all in the phone's language |
+| `components/lang.tsx` | `LangSwitch` ("EN / עב" in the home screen's corner: a tap switches to the other language) and `LangChoice` (the two languages in Settings, each under its own name) |
 | `ceremony.tsx` | `Ceremony`: the dim with the spotlight, then the winner's card (crown, each winner's `Avatar` with their pid, names, the count-up, `Rank` and the buttons) and an empty `display: contents` box the timeline rains chips into (Preact never touches its children) |
 | `rotate.tsx` | `RotatePrompt` and `paintRotate(el, show)` (kept while it shows, so its animation runs on), `canLock`, `lockLandscape`, `unlockTurn` |
 | `scale.ts` | `createTableScale()`: `--u` and `--tw` from the screen (see Layout), and the media queries for turning the phone |
@@ -374,9 +382,11 @@ loudest 50 ms about −23 dBFS. The header speaker, `ambiSync`
 rules and the 6 dB ducking under narration apply to both. Every 45–120 s a synthesized "someone plays with their
 chips" sound plays on top.
 
-**Narration.** `SND.say(key)` (the voice is `createVoice()` in `src/audio/narration.ts`) plays
-`sounds/voice/<key>.mp3` (`open locked blackjack payout winner newhand flop turn river allin closed`), loaded together
-the first time a table is open. One line at a time: a new one is dropped while one plays, except `winner` and `closed`,
+**Narration.** `SND.say(key)` (the voice is `createVoice()` in `src/audio/narration.ts`) plays the line in the phone's
+language: Hebrew `sounds/voice/<key>.mp3` (where phones on older versions load it), English `sounds/voice/en/<key>.mp3`
+(`open locked blackjack payout winner newhand flop turn river allin closed`), loaded together the first time a table is
+open, and again for the new language after a switch. A line that is missing or fails in the phone's language is said in
+Hebrew. One line at a time: a new one is dropped while one plays, except `winner` and `closed`,
 which wait. The background bus is ducked 6 dB meanwhile. Level about −20 dBFS RMS (`VOICE_LEVEL`). Settings has a
 separate switch (`chips.voice`, default on); the header speaker mutes all.
 Triggers run on every phone, not only the acting one: `subscribeNarration()` subscribes to the events (see the table in
@@ -385,16 +395,57 @@ Effects): `BetsLocked` → `locked`; `RoundPaid` → `payout`, 2.5 s later `open
 `BlackjackPaid` → `blackjack`. The ceremony says `winner` at the reveal and the `finclose` action says `closed`.
 Nothing is stored for this; it is all local.
 
+## Languages (`src/i18n/`, R-006)
+
+Each phone speaks Hebrew or English, on its own: players with different languages share a table. Every word on the
+screen, in a toast, an `aria-label` or `title`, over the table, on the felt and in the ceremony comes from a catalog;
+`scripts/check-i18n.mjs` (in `npm run lint`) fails on a Hebrew letter anywhere in `src/` outside `he.ts`.
+
+| File | What |
+|---|---|
+| `he.ts` | The Hebrew catalog and the source of truth for the keys (`as const`), grouped by where they show, with the glossary of game terms |
+| `en.ts` | English, typed `Catalog`: a missing or extra key fails to compile. The same glossary, with notes on the English terms |
+| `catalog.ts` | The types: `Key`, `Msg` (text, or plural forms `{one, two, other…}`), `Catalog`, `Lang`, `Params` |
+| `index.ts` | `t(key, params)` in the phone's language and `tIn(lang, …)`; `{name}` placeholders (numbers are shown with `formatChips`, lists of names joined in the language, text as it is); plural forms by `params.n` through `Intl.PluralRules` (Hebrew one/two/other, English one/other). `formatChips` (every amount: rounded, grouped, Latin digits in both languages). `joinNames`. `lang()`/`setLang()` (the one setting it holds). `pickLang()`. `storedEvent()`/`eventText()` (the event line) |
+| `document.ts` | `applyLang(document, lang)`: `<html lang dir>`, the tab's title, the manifest link (`manifest.<lang>.webmanifest`) and `apple-mobile-web-app-title`, so the app installs under "צ'יפים" or "Chips" (an installed app keeps its name) |
+
+**Choosing.** `chips.lang` on the phone (`'he'` or `'en'`). With none saved: a phone that used the app before (it has a
+`chips.pid`) stays in Hebrew, so nobody's screen changes on its own; a new phone takes Hebrew when its languages
+(`navigator.languages`) list Hebrew (`he`, or the old `iw`) before English, otherwise English. The choice is saved at
+once. The switch on the home screen and the choice in Settings call the `lang` action: `setLang`, save, `applyLang`,
+load the narration in the new language, `render()`. Components call `t()` while they render, so one render redraws
+everything, inside a table too; the registry's words (`name`, `limits[].label`, `cancel.title`…) are getters for the
+same reason. The ceremony, drawn by its own timeline, keeps the language it started in.
+
+**Direction.** The page is right to left in Hebrew and left to right in English (`<html dir>`, set before the first
+render; the elements in `index.html` no longer carry their own `dir`). The screens' rows, sheets and side panel follow the
+direction (flex, grid and `text-align: start`; the one physical text-flow rule, `.hr1`'s padding, is logical now). The
+table is a picture and is not mirrored: seats and circles are placed by `geometry.ts` in physical percentages, the
+placards stay where they are, and in English `.bjt` and every `.stk` keep `direction: rtl` (the dealer's rack, a doubled
+bet's two stacks and the columns of a stack, on the felt and in the air, in the same order as in Hebrew) while the words
+on the table (`.dn`, `.plac`, `.rnd`, `.cst`, `.empty`, `.st`, `.csign`) read left to right. The turn-the-phone picture
+is kept the same way. The switch itself is always left to right ("EN / עב"), in the corner opposite the title.
+
+**The event line.** Writers call `eventLine(key, p, now)` (`src/app/state.ts`): it stores `{t, key, p, ts}`, with `t`
+written in Hebrew (`tIn('he', …)`) whatever the writer's language, so a phone on an older version still shows a
+sentence. Readers show `eventText(lastEvent)`: `t(key, p)` when the key is an `ev.*` key this version knows, else `t`.
+Names stay as typed; amounts are numbers; a signed amount (`ev.adjust`, `ev.roundPaid`) is stored as its text (`+150`).
+The diff still recognises a round paid by an older phone from the Hebrew word for "paid" in `t` (spelled with escapes in
+`src/sync/diff.ts`).
+
+**Adding words.** A new string gets a key in `he.ts` and `en.ts` at once (rule 7); a new event line gets an `ev.*` key
+that is never renamed afterwards. The default player name ("שחקן" / "Player") is stored as the writer typed it.
+
 ## Updates
 
 `scripts/build-config.js` writes `window.APP_BUILD` (the commit) into `config.js`. The app (`src/update.ts`) fetches
 `config.js` (no cache) when it comes back to the screen, on focus, when back online and every 3 minutes.
 On a different build it reloads as soon as the player has no chips in hand, no sheet open and isn't typing;
-otherwise it shows a "יש גרסה חדשה" button. Phones running a version from before this existed need one
+otherwise it shows a "new version" button. Phones running a version from before this existed need one
 manual restart.
 
 **Service worker.** `dist/sw.js` is generated at build time from `src/sw-template.js` by `scripts/sw-plugin.mts`:
-`SHELL` (cached at install) is `./`, `index.html`, `config.js`, the manifest, three icons and every built JS/CSS file
+`SHELL` (cached at install) is `./`, `index.html`, `config.js`, the three manifests, three icons and every built JS/CSS file
 with its hashed name; `CACHE` is `chips-` plus a hash of that list and the template, so every build that changes a
 file gets a new cache and the old one (including the hand-written version's `chips-v6`) is deleted on activate.
 Strategy as before: network first for the app's own files and for gstatic and Google Fonts, the cache when offline,
