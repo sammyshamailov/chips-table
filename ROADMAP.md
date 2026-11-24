@@ -95,87 +95,7 @@ they change.
 
 ## In progress
 
-### R-016 Tapping on the table
-
-| | |
-|---|---|
-| Type | Feature |
-| Status | In progress |
-| Priority | P2 |
-| Size | M |
-| Games | Blackjack |
-| Branch | `ccr-42d2745a-hzp62d` |
-| Added | 2026-11-22 |
-| Done | — |
-
-**Built ahead of order (2026-11-24).** The owner asked for this step now, before R-005, R-006 and R-017.
-So it is built in today's `index.html`, not the new module layout: R-005 moves it along with everything else.
-The button label is Hebrew only ("דפיקה") until the R-006 catalog exists, and R-006 picks it up there.
-R-017's rule list already names `tap` as a field a player may write; the dealer's `dealerTap` (step 7) goes
-into R-017's room-field list too. Step 6 (the card-mode pulse) still waits for R-011.
-
-**Problem / goal.** At a Blackjack table, players drum on the felt when something exciting happens (an ace
-as a first card, a big double). Show it: a hand tapping on the table, **with the knocking sound**, on every
-phone. Decided (Q11, Q12): **Blackjack only, manual only**, in both modes. A tap button in each player's
-dock; pressing it makes *your* hand tap on the table at your seat, on every phone, and every phone hears
-the knocks. If several players press at once, several hands drum together.
-
-**Plan.**
-1. **Hand art**: an original SVG of a hand (a loose fist knocking, and a flat palm slapping), drawn in the
-   app's style, sized by the table unit `--u`, in a neutral tone. Two or three variants so a crowd doesn't
-   look copied.
-2. **Animation** on the `#fx` layer (outside `#app`, rule 3), WAAPI: the hand slides in from the rail at
-   the seat, taps three or four times (down fast, up slower, slight random timing and angle), the chips
-   on the felt near it jump 1–2 px on each hit, then the hand slides back. About 1.5 s. Several hands at
-   once start a few tens of milliseconds apart. `prefers-reduced-motion`: a small shake of the seat only.
-3. **Sound**: one knock per hit, in time with the animation, on every phone (respecting the speaker
-   button). A wooden-table knock is an effect, so synthesized first (the existing `SND.knock` used for
-   check, made fuller and varied per hit, with a slightly different pitch per player so a crowd sounds
-   like several hands). If it doesn't sound like hands on a table, one ElevenLabs sound
-   effect or a CC0 recording, previewed by the owner, credited in `sounds/CREDITS.md`. Kept under the chip
-   sounds; measured with `node tests/audio.js`.
-4. **Button**: a hand icon in the Blackjack dock (chips mode and card mode), with a short label ("Tap" / "דפיקה"), in the catalog
-   from R-006. One press = one tapping burst. Limited to one burst every 2 seconds per player (the button
-   dims meanwhile), so it can't flood the table or the free quota.
-5. **Syncing the button**: pressing writes `tap: <time>` to the player's own document. Every phone sees the
-   new value in the snapshot diff and plays the hand at that player's seat. It deliberately does **not**
-   use `lastAction`: that field also feeds the "raised 200" text under a seat and the chip animations,
-   and a tap must not replace it. Phones on an older version ignore `tap`.
-6. **Invitation pulse (card mode).** When a player's first card is an ace, the tap button gently pulses
-   on every phone at the table for about 3 seconds. It only invites: nothing taps until someone presses.
-   Triggered from the card diff (R-013), so no extra write; it waits for R-011.
-7. **Seats**: the hand appears at the player's seat on the Blackjack table. A dealer who only deals (not
-   seated) taps from the dealer's side: the host's button (in the dealer controls) writes `dealerTap: <time>`
-   to the room document, and `fxRoom` plays the hand at the dealer's rack. A dealer who also sits as a
-   player taps from their seat, like everyone else.
-
-**Progress (2026-11-24).** Steps 1, 2, 3, 4, 5 and 7 are built on this branch (`handSVG`, `handTap`, `fxTaps`,
-`SND.hand`, `tapButton`/`doTap`, the dealer button in `bjHost`) with `tests/tap.test.js`. The sound is synthesized and
-needs no ElevenLabs take unless the owner finds it doesn't sound like a hand on a table. **Step 6 waits for R-011.**
-
-**Stored data.** Optional player `tap` (number, time of the last press) and optional room `dealerTap`
-(number, the same for a dealer who isn't seated). Fallback: missing or not a number = never tapped. Neither
-touches `lastAction`/`ts`. `firestore.rules` doesn't change.
-Document in `docs/ARCHITECTURE.md`.
-
-**Effects and sound.** New `tap` handler next to `fxBJ` (diff on `tap`, not `lastAction`): the hand
-animation and the knocks.
-
-**Risks.** A slow phone that receives many taps at once: cap at 4 hands on screen, skip the rest. A phone
-that opens the table later must not replay old taps: only taps newer than the moment it joined play.
-
-**Tests.**
-- [x] Two-phone test: phone A presses the button; phone B plays one tap at A's seat; pressing again within
-      2 seconds does nothing (`tests/tap.test.js`)
-- [x] A reloaded phone doesn't replay old taps
-- [x] Screenshots mid-tap, portrait and landscape (`tests/out/tap-*.png`); `node tests/audio.js` for the knock
-- [ ] (waits for R-011) Card mode: the button works the same; a first-card ace makes the button pulse on every
-      phone; nothing taps by itself
-
-**Docs to update.** `docs/ARCHITECTURE.md`, `README.md` (play), `CHANGELOG.md`.
-
-**Done when.** A press of the button makes your hand drum on the Blackjack table, with the knocks, on
-every phone.
+_Nothing yet._
 
 ---
 
@@ -196,7 +116,7 @@ follows.
 | 4 | [R-005](#r-005-code-foundations-modules-layers-tooling) Code foundations | 7 | Q2 | Everything below builds on it; doing it later means writing each feature twice |
 | 5 | [R-006](#r-006-english-and-hebrew) English and Hebrew | 1 | Q4, Q10 | Every later feature then adds its text in both languages once, instead of being translated afterwards |
 | 6 | [R-017](#r-017-sign-in-stricter-rules-and-private-tables) Sign-in, stricter rules and private tables | (fix + new) | Q13 | Closes the table to cheating and adds private tables in one rules change. After the foundations (its code lives in the new data layer), before anything that adds new stored data
-| 7 | [R-016](#r-016-tapping-on-the-table) Tapping on the table | (new) | Q11, Q12 | Small and fun; Blackjack only, which already has seats, so it doesn't wait for anything else
+| 7 | [R-016](#r-016-tapping-on-the-table) Tapping on the table (done 2026-11-24, built early) | (new) | Q11, Q12 | Small and fun; Blackjack only, which already has seats, so it doesn't wait for anything else
 | 8 | [R-007](#r-007-holdem-table-on-par-with-blackjack) Hold'em on par with Blackjack | 3 | — | Improves the game you already play, and its table, turn logic and pot animations are what card Hold'em reuses |
 | 9 | [R-010](#r-010-card-mode-core-the-app-deals) Card mode core | 2 | Q1, Q3 | The engine both card games stand on: dealing, hidden cards, the host running the game |
 | 10 | [R-011](#r-011-blackjack-with-cards) Blackjack with cards | 2 | Q7 | The simpler card game first: few hidden cards, no hand ranking. Proves the engine at a real table |
@@ -913,7 +833,7 @@ dealer's hole card, splits.
    - *Your Hold'em cards*: press-and-hold lifts and flips them in your dock; "Show my cards" flips them
      and leaves them up.
    - *Shuffle*: when the shoe is reshuffled, a short riffle at the shoe.
-   - *Aces*: a player's first card that is an ace makes the tap button pulse (R-016, step 6).
+   - *Aces*: a player's first card that is an ace makes the tap button pulse (R-016, step 6: left for R-011 to build; the tap button and its sync are live).
 4. **Sounds** (rule 6): card slide (short filtered noise swish), flip (soft snap) and riffle shuffle are
    effects, so synthesized first. If they sound fake, use a CC0 recording or one ElevenLabs sound effect
    (one take, owner previews first), credited in `sounds/CREDITS.md`. Measured with `tests/audio.js`
@@ -1181,6 +1101,10 @@ microphone in the background; echo when two players sit in the same room (push-t
 ## Done
 
 Newest first. Short summary, date it reached `main`, commit.
+
+### R-016 Tapping on the table
+
+Feature · **Done 2026-11-24** · commits `42a6c3d`, `2e76e9a`. Built early, at the owner's request, ahead of R-005/R-006/R-017. A "דפיקה" button in the Blackjack dock (and in the dealer controls for an unseated host) writes `tap` (player) or `dealerTap` (room); every phone diffs it and plays a hand drumming on the felt with synthesized knocks (`handTap`, `SND.hand`). 2 s cooldown, at most 4 hands, no replay on reload. `tests/tap.test.js`. Step 6 (card-mode ace pulse) moves to R-011; the label joins the R-006 catalog.
 
 ### R-004 Dealer writes to a player's stack can overwrite that player's own write
 

@@ -5,8 +5,12 @@ development branch.
 
 ## Not yet live
 
+_Nothing yet._
+
+## 2026-11-24
+
 ### Added
-- **Tapping on the table (R-016), Blackjack only.** A "דפיקה" button (a small fist) in every player's dock, and in
+- **Tapping on the table (R-016), Blackjack only.** A "דפיקה" button (an open hand) in every player's dock, and in
   the dealer's controls for a dealer who isn't seated. Pressing it makes your hand drum on the felt at your seat
   (the dealer's, at the chip rack) three or four times, with a knock for every hit, on every phone at the table.
   Several players at once drum together (at most four hands on screen). One press every 2 seconds; the button dims
